@@ -1,0 +1,362 @@
+<?php
+session_start();
+require '../config/config.php';
+checkPageAccess($conn, 'edit_prodtype');
+// (1) โหลดธีมก่อน
+require '../config/load_theme.php';
+
+// (2) ตรวจสอบ ID ที่ส่งมา
+if (!isset($_GET['id']) || empty($_GET['id'])) {
+  $_SESSION['error'] = "ไม่พบรหัสประเภทสินค้า";
+  header('Location: prodtype.php');
+  exit();
+}
+
+$type_id_to_edit = $_GET['id'];
+// (3) แก้ไข SQL SELECT ให้ตรงกับ DB
+$stmt = $conn->prepare("SELECT * FROM prod_types WHERE type_id = ?");
+$stmt->bind_param("s", $type_id_to_edit);
+$stmt->execute();
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
+
+if (!$row) {
+  $_SESSION['error'] = "ไม่พบข้อมูลประเภทนี้";
+  header('Location: prodtype.php');
+  exit();
+}
+$stmt->close();
+
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+  // (4) รับ ID เดิม (ห้ามเปลี่ยน)
+  $original_type_id = trim($_POST['original_type_id']);
+
+  // (5) รับค่าที่แก้ไข (แก้ชื่อคอลัมน์)
+  $type_name_th = trim($_POST['type_name_th']);
+  // (6) แก้ไข: รับชื่ออังกฤษ (ถ้าว่าง ให้เป็น NULL)
+  $type_name_en_input = trim($_POST['type_name_en']);
+  $type_name_en = !empty($type_name_en_input) ? $type_name_en_input : NULL;
+
+
+  // (7) ตรวจสอบ input (บังคับเฉพาะชื่อไทย)
+  if (empty($type_name_th)) {
+    echo "<script>alert('กรุณากรอกชื่อประเภทภาษาไทย'); window.history.back();</script>";
+    exit();
+  }
+
+  // (8) ลบการตรวจสอบ Regex/ซ้ำ ของ ID (เพราะเราไม่เปลี่ยน ID)
+
+  // (9) ตรวจสอบชื่อไทยซ้ำ (ยกเว้นตัวเอง)
+  $check_th_stmt = $conn->prepare("SELECT type_id FROM prod_types WHERE type_name_th = ? AND type_id != ?");
+  $check_th_stmt->bind_param("ss", $type_name_th, $original_type_id);
+  $check_th_stmt->execute();
+  $check_th_result = $check_th_stmt->get_result();
+  if ($check_th_result->num_rows > 0) {
+    echo "<script>alert('ชื่อประเภท (ไทย) นี้มีอยู่แล้ว กรุณาใช้ชื่ออื่น'); window.history.back();</script>";
+    exit();
+  }
+  $check_th_stmt->close();
+
+  // (10) ตรวจสอบชื่ออังกฤษซ้ำ (เฉพาะเมื่อกรอก และยกเว้นตัวเอง)
+  if ($type_name_en !== NULL) {
+    $check_en_stmt = $conn->prepare("SELECT type_id FROM prod_types WHERE type_name_en = ? AND type_id != ?");
+    $check_en_stmt->bind_param("ss", $type_name_en, $original_type_id);
+    $check_en_stmt->execute();
+    $check_en_result = $check_en_stmt->get_result();
+    if ($check_en_result->num_rows > 0) {
+      echo "<script>alert('ชื่อประเภท (อังกฤษ) นี้มีอยู่แล้ว กรุณาใช้ชื่ออื่น'); window.history.back();</script>";
+      exit();
+    }
+    $check_en_stmt->close();
+  }
+
+
+  // (11) อัพเดทข้อมูล (แก้ SQL - ไม่อัปเดต ID)
+  $stmt = $conn->prepare("UPDATE prod_types SET type_name_th = ?, type_name_en = ? WHERE type_id = ?");
+  $stmt->bind_param("sss", $type_name_th, $type_name_en, $original_type_id);
+
+  if ($stmt->execute()) {
+    $_SESSION['success'] = "แก้ไขประเภทสินค้าสำเร็จ";
+    header('Location: prodtype.php');
+    exit();
+  } else {
+    echo "<script>alert('เกิดข้อผิดพลาด: " . $stmt->error . "'); window.history.back();</script>";
+  }
+  $stmt->close();
+}
+?>
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <title>แก้ไขประเภทสินค้า</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <!-- (12) ไม่ต้องโหลด Font ซ้ำ load_theme.php ทำแล้ว -->
+
+  <style>
+    body {
+      background-color: <?= $background_color ?>;
+      /* Theme */
+      color: <?= $text_color ?>;
+      /* Theme */
+      font-family: '<?= $font_style ?>', sans-serif;
+      /* Theme */
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+    }
+
+    .main-card {
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 5px 30px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .card-header {
+      background: <?= $theme_color ?>;
+      /* Theme */
+      color: white;
+      padding: 2rem;
+      border-bottom: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-header h4 {
+      margin: 0;
+      font-weight: 600;
+      font-size: 1.75rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    .form-section {
+      padding: 2rem;
+    }
+
+    .form-control {
+      border-radius: 12px;
+      border: 2px solid #e9ecef;
+      padding: 0.75rem 1rem;
+      transition: all 0.3s ease;
+      font-size: 1rem;
+    }
+
+    .form-control:focus {
+      border-color: <?= $theme_color ?>;
+      /* Theme */
+      box-shadow: 0 0 0 0.2rem <?= $theme_color ?>40;
+      /* Theme (with opacity) */
+    }
+
+    .form-label {
+      font-weight: 500;
+      color: #495057;
+      margin-bottom: 0.5rem;
+    }
+
+    .required-label::after {
+      content: " *";
+      color: #dc3545;
+    }
+
+    .btn {
+      border-radius: 12px;
+      padding: 0.75rem 2rem;
+      font-weight: 500;
+      transition: all 0.3s ease;
+      border: none;
+    }
+
+    .btn-success {
+      background: <?= $btn_add_color ?>;
+      /* Theme */
+      color: white !important;
+      box-shadow: 0 4px 15px <?= $btn_add_color ?>40;
+    }
+
+    .btn-success:hover {
+      filter: brightness(90%);
+      transform: translateY(-2px);
+    }
+
+    .btn-outline-secondary {
+      color: #6c757d;
+      border: 2px solid #dee2e6;
+      background: white;
+    }
+
+    .btn-outline-secondary:hover {
+      background: #f8f9fa;
+      border-color: #adb5bd;
+      color: #495057;
+      transform: translateY(-1px);
+    }
+
+    .form-group {
+      margin-bottom: 1.5rem;
+    }
+
+    .invalid-feedback {
+      font-size: 0.875rem;
+      margin-top: 0.25rem;
+    }
+
+    .alert-warning {
+      background-color: <?= $warning_bg_color ?>;
+      /* Theme */
+      border: 1px solid #ffeaa7;
+      border-radius: 12px;
+      color: #856404;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    @media (max-width: 768px) {
+      .card-header {
+        padding: 1.5rem;
+      }
+
+      .card-header h4 {
+        font-size: 1.5rem;
+      }
+
+      .form-section {
+        padding: 1.5rem;
+      }
+
+      .btn {
+        padding: 0.6rem 1.5rem;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="d-flex" id="wrapper">
+    <?php include '../global/sidebar.php'; ?>
+    <div class="main-content w-100">
+      <div class="container-fluid py-4">
+
+        <div class="container py-5">
+          <div class="main-card">
+            <div class="card-header">
+              <h4 class="text-light"><i class="bi bi-pencil-square me-2"></i>แก้ไขประเภทสินค้า</h4>
+            </div>
+
+            <div class="form-section">
+              <form method="post" class="needs-validation" novalidate>
+
+                <!-- (13) ส่ง ID เดิมไปแบบซ่อนไว้ -->
+                <input type="hidden" name="original_type_id" value="<?= htmlspecialchars($row['type_id']) ?>">
+
+                <div class="form-group">
+                  <label class="form-label required-label">รหัสประเภท (4 หลัก)</label>
+                  <!-- (14) แก้ไข name, value และเพิ่ม readonly -->
+                  <input type="text" name="type_id" class="form-control"
+                    maxlength="4"
+                    pattern="\d{4}"
+                    required
+                    readonly
+                    value="<?php echo htmlspecialchars($row['type_id']); ?>"
+                    title="รหัสประเภทไม่สามารถแก้ไขได้">
+                  <div class="invalid-feedback">
+                    กรุณากรอกตัวเลข 4 หลัก เช่น 0001
+                  </div>
+                </div>
+
+                <div class="row">
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <label class="form-label required-label">ชื่อประเภท (ภาษาไทย)</label>
+                      <!-- (15) แก้ไข name, value -->
+                      <input type="text" name="type_name_th" class="form-control border-secondary"
+                        maxlength="50"
+                        pattern="^[ก-๙\s.]+$"
+                        required
+                        value="<?php echo htmlspecialchars($row['type_name_th']); ?>"
+                        title="กรุณากรอกชื่อประเภทเป็นภาษาไทย">
+                      <div class="invalid-feedback">
+                        ชื่อประเภทต้องเป็นภาษาไทยเท่านั้น
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="col-md-6">
+                    <div class="form-group">
+                      <!-- (16) ชื่ออังกฤษ ไม่บังคับ (ลบ required-label) -->
+                      <label class="form-label">ชื่อประเภท (ภาษาอังกฤษ)</label>
+                      <!-- (17) แก้ไข name, value (ลบ required) -->
+                      <input type="text" name="type_name_en" class="form-control border-secondary"
+                        maxlength="50"
+                        pattern="^[A-Za-z\s.]+$"
+                        value="<?php echo htmlspecialchars($row['type_name_en']); ?>"
+                        title="กรุณากรอกชื่อประเภทเป็นภาษาอังกฤษ (ถ้ามี)">
+                      <div class="invalid-feedback">
+                        ประเภทต้องเป็นภาษาอังกฤษเท่านั้น (ถ้ามี)
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="alert alert-warning" role="alert">
+                  <i class="bi bi-info-circle me-1"></i>
+                  หมายเหตุ: รหัสประเภทไม่สามารถแก้ไขได้เพื่อป้องกันข้อมูลเสียหาย
+                </div>
+
+                <div class="d-flex justify-content-between mt-4">
+                  <a href="prodtype.php" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i> ย้อนกลับ
+                  </a>
+                  <!-- (18) เปลี่ยนปุ่มจาก .btn-warning เป็น .btn-success -->
+                  <button type="submit" class="btn btn-success">
+                    <i class="bi bi-save"></i> บันทึกการเปลี่ยนแปลง
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Bootstrap validation
+    (() => {
+      'use strict';
+      const forms = document.querySelectorAll('.needs-validation');
+      Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+
+          // (19) ตรวจสอบ pattern ของชื่ออังกฤษ (เฉพาะเมื่อกรอก)
+          const nameEnInput = form.querySelector('[name="type_name_en"]');
+          if (nameEnInput.value.trim() && nameEnInput.validity.patternMismatch) {
+            nameEnInput.setCustomValidity('ต้องเป็นภาษาอังกฤษเท่านั้น');
+          } else {
+            nameEnInput.setCustomValidity('');
+          }
+
+          if (!form.checkValidity()) {
+            event.preventDefault();
+            event.stopPropagation();
+          }
+          form.classList.add('was-validated');
+        }, false);
+      });
+    })();
+  </script>
+
+</body>
+
+</html>

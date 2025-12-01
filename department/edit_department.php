@@ -1,0 +1,193 @@
+<?php
+session_start();
+require '../config/config.php';
+checkPageAccess($conn, 'edit_department');
+
+$error_message = '';
+$old_dept_id = $_GET['id'] ?? '';
+
+// (2) ตรวจสอบว่ามี ID ส่งมาหรือไม่
+if (empty($old_dept_id)) {
+  header("Location: department.php?error=not_found");
+  exit();
+}
+
+// (3) ดึงข้อมูลเดิม
+$stmt_select = $conn->prepare("SELECT * FROM departments WHERE dept_id = ?");
+$stmt_select->bind_param("s", $old_dept_id);
+$stmt_select->execute();
+$result = $stmt_select->get_result();
+$data = $result->fetch_assoc();
+$stmt_select->close();
+
+if (!$data) {
+  // ไม่พบข้อมูล
+  header("Location: department.php?error=not_found");
+  exit();
+}
+
+// (4) เมื่อมีการกดบันทึก (POST)
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $new_dept_id = trim($_POST['dept_id']);
+  $dept_name = trim($_POST['dept_name']);
+  $dept_desc = trim($_POST['dept_desc']);
+
+  // (5) Server-side Validation
+  if (empty($new_dept_id) || empty($dept_name)) {
+    $error_message = 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบถ้วน';
+  } elseif (!preg_match('/^[0-9]{1,11}$/', $new_dept_id)) {
+    $error_message = 'รหัสแผนกต้องเป็นตัวเลขเท่านั้น (ไม่เกิน 11 หลัก)';
+  } elseif (mb_strlen($dept_name) > 50) {
+    $error_message = 'ชื่อแผนกต้องไม่เกิน 50 ตัวอักษร';
+  } elseif (mb_strlen($dept_desc) > 100) {
+    $error_message = 'รายละเอียดต้องไม่เกิน 100 ตัวอักษร';
+  } else {
+
+    // (6) ตรวจสอบรหัสและชื่อซ้ำ (เฉพาะในกรณีที่มีการเปลี่ยน)
+    $stmt_check = $conn->prepare("SELECT dept_id FROM departments WHERE (dept_id = ? OR dept_name = ?) AND dept_id != ?");
+    $stmt_check->bind_param("sss", $new_dept_id, $dept_name, $old_dept_id);
+    $stmt_check->execute();
+    $result_check = $stmt_check->get_result();
+
+    if ($result_check->num_rows > 0) {
+      $existing = $result_check->fetch_assoc();
+      if ($existing['dept_id'] == $new_dept_id) {
+        $error_message = 'รหัสแผนก (ID: ' . $new_dept_id . ') นี้มีอยู่แล้วในระบบ';
+      } else {
+        $error_message = 'ชื่อแผนก "' . $dept_name . '" นี้มีอยู่แล้วในระบบ';
+      }
+    } else {
+      // (7) บันทึกข้อมูล (UPDATE)
+      $sql = "UPDATE departments SET 
+                        dept_id = ?, 
+                        dept_name = ?, 
+                        dept_desc = ?, 
+                        update_at = NOW() 
+                    WHERE dept_id = ?";
+
+      $stmt_update = $conn->prepare($sql);
+      $stmt_update->bind_param("ssss", $new_dept_id, $dept_name, $dept_desc, $old_dept_id);
+
+      if ($stmt_update->execute()) {
+        // ส่งกลับไปหน้าหลักพร้อมข้อความสำเร็จ
+        header("Location: department.php?success=edit");
+        exit();
+      } else {
+        $error_message = 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' . $conn->error;
+      }
+      $stmt_update->close();
+    }
+    $stmt_check->close();
+  }
+
+  // หากเกิด Error, ให้ดึงค่าจาก POST มาแสดงในฟอร์มแทนค่าเดิม
+  $data['dept_id'] = $new_dept_id;
+  $data['dept_name'] = $dept_name;
+  $data['dept_desc'] = $dept_desc;
+}
+?>
+
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>แก้ไขแผนก</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <?php include '../config/load_theme.php'; ?>
+
+  <style>
+    .required-label::after {
+      content: " *";
+      color: red;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="d-flex" id="wrapper">
+    <?php include '../global/sidebar.php'; ?>
+    <div class="main-content w-100">
+      <div class="container-fluid py-4">
+        <div class="container py-5" style="max-width: 700px;">
+          <div class="card shadow-lg rounded-4 p-4">
+
+            <h4 class="mb-4"><i class="bi bi-pencil-square me-2"></i>แก้ไขข้อมูลแผนก</h4>
+
+            <?php if (!empty($error_message)): ?>
+              <div class="alert alert-danger" role="alert">
+                <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                <?= htmlspecialchars($error_message) ?>
+              </div>
+            <?php endif; ?>
+
+            <form method="POST" action="edit_department.php?id=<?= htmlspecialchars($old_dept_id) ?>" class="needs-validation" novalidate>
+              <div class="mb-3">
+                <label for="dept_id" class="form-label required-label">รหัสแผนก</label>
+                <input type="text" class="form-control" id="dept_id" name="dept_id"
+                  pattern="[0-9]{1,11}" maxlength="11" required
+                  value="<?= htmlspecialchars($data['dept_id']) ?>">
+                <div class="invalid-feedback">
+                  กรุณากรอกรหัสแผนกเป็นตัวเลข (ไม่เกิน 11 หลัก)
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="dept_name" class="form-label required-label">ชื่อแผนก</label>
+                <input type="text" class="form-control" id="dept_name" name="dept_name"
+                  maxlength="50" required
+                  value="<?= htmlspecialchars($data['dept_name']) ?>">
+                <div class="invalid-feedback">
+                  กรุณากรอกชื่อแผนก (ไม่เกิน 50 ตัวอักษร)
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label for="dept_desc" class="form-label">รายละเอียด (ถ้ามี)</label>
+                <textarea class="form-control" id="dept_desc" name="dept_desc"
+                  rows="3" maxlength="100"><?= htmlspecialchars($data['dept_desc']) ?></textarea>
+                <div class="form-text">
+                  ข้อมูลเพิ่มเติมเกี่ยวกับแผนก (ไม่เกิน 100 ตัวอักษร)
+                </div>
+              </div>
+
+              <hr class="my-4">
+
+              <div classs="d-flex justify-content-between">
+                <a href="department.php" class="btn btn-outline-secondary">
+                  <i class="bi bi-chevron-left me-1"></i> ย้อนกลับ
+                </a>
+                <button type="submit" class="btn btn-edit float-end">
+                  <i class="bi bi-save-fill me-1"></i> บันทึกการเปลี่ยนแปลง
+                </button>
+              </div>
+            </form>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // (12) เปิดใช้งาน Client-side Validation ของ Bootstrap
+    (() => {
+      'use strict'
+      const forms = document.querySelectorAll('.needs-validation')
+      Array.from(forms).forEach(form => {
+        form.addEventListener('submit', event => {
+          if (!form.checkValidity()) {
+            event.preventDefault()
+            event.stopPropagation()
+          }
+          form.classList.add('was-validated')
+        }, false)
+      })
+    })()
+  </script>
+</body>
+
+</html>
