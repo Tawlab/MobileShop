@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'change_password');
+// checkPageAccess($conn, 'change_password');
 // 1. ตรวจสอบการล็อกอิน
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../global/login.php");

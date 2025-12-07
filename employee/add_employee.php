@@ -363,11 +363,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // --- ถ้าทุกอย่างสำเร็จ ---
             $conn->commit();
-            $_SESSION['message'] = "เพิ่มข้อมูลพนักงาน '$firstname_th $lastname_th' และสร้างบัญชีผู้ใช้ '$username' สำเร็จ (EmpID: $next_emp_id)";
+            $_SESSION['message'] = "เพิ่มข้อมูลพนักงาน '$firstname_th $lastname_th' และสร้างบัญชีผู้ใช้ '$username' สำเร็จ";
             $_SESSION['message_type'] = "success";
 
-            // --- (แก้) ดึงข้อมูลพนักงานที่เพิ่งเพิ่ม (JOIN Address ด้วย) ---
-            // --- SQL นี้จะดึงข้อมูลทั้งหมดที่จำเป็นสำหรับหน้าปริ้น ---
+            // [แก้ไข] ให้ Redirect กลับไปหน้าเดิมทันที เพื่อเคลียร์ค่าและแสดงฟอร์มเปล่า
+            header("Location: add_employee.php");
+            exit();
             $sql_get_added = "
                 SELECT
                     e.*, 

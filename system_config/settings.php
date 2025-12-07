@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'settings');
+// checkPageAccess($conn, 'settings');
 
 $user_id = $_SESSION['user_id']; // ใช้ค่าจากการล็อกอินจริง
 

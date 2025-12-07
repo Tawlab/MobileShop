@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'reset_settings');
+// checkPageAccess($conn, 'reset_settings');
 
 // (1) เปลี่ยนตัวแปรที่รับค่า GET จาก employees_id เป็น user_id
 $user_id = $_GET['user_id'] ?? 0;

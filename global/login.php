@@ -2,9 +2,9 @@
 session_start();
 require '../config/config.php';
 
-// ตรวจสอบ Session
+// 1. ตรวจสอบ Session: ถ้าล็อกอินอยู่แล้ว ให้ไปที่หน้า Home (Portal)
 if (isset($_SESSION['user_id'])) {
-    header("Location: ../home/dashboard.php");
+    header("Location: ../home/home.php"); // [แก้ไข] เปลี่ยนจุดหมายเป็น home.php
     exit;
 }
 
@@ -28,7 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($user['user_status'] === 'Active') {
                     $_SESSION['user_id'] = $user['user_id'];
                     $_SESSION['username'] = $user['username'];
-                    header("Location: ../home/dashboard.php");
+                    
+                    // 2. ล็อกอินสำเร็จ: ส่งไปหน้า Home (Portal)
+                    header("Location: home.php"); // [แก้ไข] เปลี่ยนจุดหมายเป็น home.php
                     exit;
                 } else {
                     $error = "บัญชีนี้ถูกระงับการใช้งาน";

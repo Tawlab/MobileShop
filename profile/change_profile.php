@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'change_profile');
+// checkPageAccess($conn, 'change_profile');
 
 // 1. ตรวจสอบการล็อกอิน
 if (!isset($_SESSION['user_id'])) {

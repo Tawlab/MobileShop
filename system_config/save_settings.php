@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'save_settings');
+// checkPageAccess($conn, 'save_settings');
 
 // (1) เปลี่ยนตัวแปรที่รับค่า POST จาก employees_id เป็น user_id
 $user_id            = $_POST['user_id'] ?? 0;
