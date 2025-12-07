@@ -6,11 +6,9 @@ require '../config/config.php';
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit;
-
-    $shop_info = $conn->query("SELECT shop_name FROM shop_info LIMIT 1")->fetch_assoc();
-    $shop_name_display = $shop_info['shop_name'] ?? 'Mobile Shop';
 }
-
+$shop_info = $conn->query("SELECT shop_name FROM shop_info LIMIT 1")->fetch_assoc();
+$shop_name_display = $shop_info['shop_name'] ?? 'Mobile Shop';
 $uid = $_SESSION['user_id'];
 $username = $_SESSION['username'];
 $date_now = date('d/m/Y');
