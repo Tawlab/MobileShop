@@ -5,19 +5,18 @@ checkPageAccess($conn, 'add_branch');
 
 $error_message = '';
 $return_url = $_GET['return_url'] ?? 'branch.php';
-
-// (2) ดึงข้อมูลสำหรับ Dropdowns
+ 
+//ดึงข้อมูลสำหรับ Dropdowns
 $shop_result = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
 $provinces_result = $conn->query("SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 $districts_result = $conn->query("SELECT district_id, district_name_th, provinces_province_id FROM districts");
-// ดึง zip_code มาด้วย
 $subdistricts_result = $conn->query("SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts");
 
 $all_districts = $districts_result->fetch_all(MYSQLI_ASSOC);
 $all_subdistricts = $subdistricts_result->fetch_all(MYSQLI_ASSOC);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // (4) รับค่าจากฟอร์ม
+    //รับค่าจากฟอร์ม
     $branch_name = trim($_POST['branch_name']);
     $branch_code = trim($_POST['branch_code']) ?: NULL;
     $branch_phone = trim($_POST['branch_phone']) ?: NULL;
@@ -31,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $village = trim($_POST['village']) ?: NULL;
     $subdistricts_id = !empty($_POST['subdistricts_subdistrict_id']) ? (int)$_POST['subdistricts_subdistrict_id'] : NULL;
 
-    // (5) ตรวจสอบข้อมูล (Server-side Validation)
+    //ตรวจสอบข้อมูล (Server-side Validation)
     if (empty($branch_name)) {
         $error_message = 'กรุณากรอก "ชื่อสาขา"';
     } elseif (empty($shop_id)) {
@@ -39,26 +38,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (empty($subdistricts_id)) {
         $error_message = 'กรุณาเลือกที่อยู่ (จังหวัด/อำเภอ/ตำบล) ให้ครบถ้วน';
     } else {
-        // --- [แก้ไข] ตรวจสอบเบอร์โทรศัพท์ ---
+        // ตรวจสอบเบอร์โทรศัพท์ 
         $phone_valid = true;
         if (!empty($branch_phone)) {
-            // Regex: ขึ้นต้นด้วย 02,05,06,08,09 และตามด้วยตัวเลขอีก 8 หลัก (รวมเป็น 10 หลัก)
             if (!preg_match('/^(02|05|06|08|09)[0-9]{8}$/', $branch_phone)) {
                 $phone_valid = false;
                 $error_message = 'เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)';
             }
         }
-        // ------------------------------------------
 
         if ($phone_valid) {
             $conn->begin_transaction();
             try {
-                // 6.1) สร้าง ID สาขาใหม่ (Auto-generate)
+                // สร้าง ID สาขาใหม่ 
                 $sql_max_id = "SELECT IFNULL(MAX(branch_id), 0) as max_id FROM branches";
                 $max_result = $conn->query($sql_max_id);
                 $new_branch_id = $max_result->fetch_assoc()['max_id'] + 1;
 
-                // 6.2) ตรวจสอบชื่อสาขาซ้ำ
+                // ตรวจสอบชื่อสาขาซ้ำ
                 $stmt_check = $conn->prepare("SELECT branch_id FROM branches WHERE branch_name = ?");
                 $stmt_check->bind_param("s", $branch_name);
                 $stmt_check->execute();
@@ -67,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 $stmt_check->close();
 
-                // 6.3) สร้างข้อมูลที่อยู่ (Addresses)
+                // สร้างข้อมูลที่อยู่
                 $sql_max_addr = "SELECT IFNULL(MAX(address_id), 0) as max_addr_id FROM addresses";
                 $res_addr = $conn->query($sql_max_addr);
                 $new_address_id = $res_addr->fetch_assoc()['max_addr_id'] + 1;
@@ -77,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!$stmt_addr->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ");
                 $stmt_addr->close();
 
-                // 6.4) บันทึกข้อมูลสาขา (Branches)
+                // บันทึกข้อมูลสาขา
                 $sql_insert = "INSERT INTO branches (
                                     branch_id, branch_code, branch_name, branch_phone, 
                                     shop_info_shop_id, Addresses_address_id, 
@@ -325,8 +322,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const districtSelect = document.getElementById('district');
             const subdistrictSelect = document.getElementById('subdistrict');
             const zipCodeInput = document.getElementById('zip_code');
-
-            // [แก้ไข] Script ตรวจสอบเบอร์โทรศัพท์
             const phoneInput = document.getElementById('branch_phone');
             const phoneError = document.getElementById('phone_error');
 

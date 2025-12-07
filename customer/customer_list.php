@@ -2,29 +2,20 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'customer_list');
-// [1] รับค่าเส้นทางย้อนกลับ (ถ้ามีส่งมา เช่น มาจากหน้าขาย)
 $return_to = isset($_GET['return_to']) ? urldecode($_GET['return_to']) : '';
-
-// [2] กำหนดลิงก์ปุ่ม "ย้อนกลับ"
-// ถ้ามี return_to ให้กลับไปที่นั่น, ถ้าไม่มีให้กลับ Dashboard
 $btn_back_link = !empty($return_to) ? $return_to : '../dashboard.php';
-
-// [3] กำหนดลิงก์ปุ่ม "เพิ่มลูกค้า"
-// ส่งค่า return_to ต่อไปให้หน้า add_customer.php ด้วย
-// (ถ้าไม่มี return_to ให้ส่งหน้าตัวเอง customer_list.php ไป เพื่อให้บันทึกเสร็จแล้วกลับมาหน้านี้)
 $next_return = !empty($return_to) ? $return_to : 'customer_list.php';
 $btn_add_link = "add_customer.php?return_to=" . urlencode($next_return);
 // -----------------------------------------------------------------------------
-// 1. SETTINGS & PAGINATION
+// SETTINGS & PAGINATION
 // -----------------------------------------------------------------------------
 $limit = 10; // แสดง 10 รายการต่อหน้า
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
 // -----------------------------------------------------------------------------
-// 2. SORTING LOGIC (เรียงลำดับ)
+// SORTING LOGIC (เรียงลำดับ)
 // -----------------------------------------------------------------------------
-// คอลัมน์ที่อนุญาตให้เรียงได้
 $allowed_sorts = ['c.cs_id', 'c.firstname_th', 'c.cs_phone_no'];
 $sort_col = isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sorts) ? $_GET['sort'] : 'c.create_at'; // Default เรียงตามวันที่สร้าง
 $sort_ord = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC'; // Default ล่าสุดขึ้นก่อน
@@ -55,7 +46,7 @@ function get_sort_link($column, $label, $current_sort, $current_order)
 }
 
 // -----------------------------------------------------------------------------
-// 3. SEARCH & FILTER
+// SEARCH & FILTER
 // -----------------------------------------------------------------------------
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
 $where = [];
@@ -74,15 +65,13 @@ $where_sql = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
 $is_filtered = !empty($search); // เช็คว่ามีการกรองอยู่ไหม (เพื่อเปิดกล่องค้างไว้)
 
 // -----------------------------------------------------------------------------
-// 4. QUERY DATA
+// QUERY DATA
 // -----------------------------------------------------------------------------
 // นับจำนวนทั้งหมด
 $sql_count = "SELECT COUNT(*) as total FROM customers c $where_sql";
 $res_count = mysqli_query($conn, $sql_count);
 $total_rows = mysqli_fetch_assoc($res_count)['total'];
 $total_pages = ceil($total_rows / $limit);
-
-// ดึงข้อมูล
 $sql = "SELECT c.*, p.prefix_th 
         FROM customers c
         LEFT JOIN prefixs p ON c.prefixs_prefix_id = p.prefix_id

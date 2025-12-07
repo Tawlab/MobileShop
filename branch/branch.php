@@ -1,11 +1,11 @@
 <?php
-session_start(); // [1] ต้องอยู่บรรทัดแรก
+session_start();
 require '../config/config.php';
 
 // ตรวจสอบสิทธิ์
 checkPageAccess($conn, 'branch');
-
-// 3. จัดการการค้นหา
+ 
+// จัดการการค้นหา
 $search = $_GET['search'] ?? '';
 $where_clause = '';
 if (!empty($search)) {
@@ -16,7 +16,7 @@ if (!empty($search)) {
                      OR s.shop_name LIKE '%$search_safe%'";
 }
 
-// 4. ดึงข้อมูลสาขา
+// ดึงข้อมูลสาขา
 $sql = "SELECT b.*, s.shop_name 
         FROM branches b
         LEFT JOIN shop_info s ON b.shop_info_shop_id = s.shop_id

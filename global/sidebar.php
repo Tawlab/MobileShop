@@ -35,12 +35,14 @@ function isGroupActive($keywords)
 <style>
     :root {
         --sidebar-width: 260px;
-        --sidebar-bg-gradient: linear-gradient(180deg, #10b981 0%, #047857 100%); /* พื้นหลังเขียวไล่เฉด */
+        --sidebar-bg-gradient: linear-gradient(180deg, #10b981 0%, #047857 100%);
+        /* พื้นหลังเขียวไล่เฉด */
         --sidebar-text: #ffffff;
         --sidebar-text-muted: rgba(255, 255, 255, 0.7);
         --sidebar-hover-bg: rgba(255, 255, 255, 0.15);
         --sidebar-active-bg: #ffffff;
-        --sidebar-active-text: #047857; /* สีเขียวเข้มสำหรับตัวที่เลือกอยู่ */
+        --sidebar-active-text: #047857;
+        /* สีเขียวเข้มสำหรับตัวที่เลือกอยู่ */
     }
 
     #wrapper {
@@ -71,8 +73,9 @@ function isGroupActive($keywords)
     #sidebar-wrapper::-webkit-scrollbar {
         width: 6px;
     }
+
     #sidebar-wrapper::-webkit-scrollbar-thumb {
-        background-color: rgba(255,255,255,0.3);
+        background-color: rgba(255, 255, 255, 0.3);
         border-radius: 3px;
     }
 
@@ -98,7 +101,8 @@ function isGroupActive($keywords)
         display: flex;
         align-items: center;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        background: rgba(0,0,0,0.05); /* พื้นหลังหัวข้อเข้มขึ้นนิดนึง */
+        background: rgba(0, 0, 0, 0.05);
+        /* พื้นหลังหัวข้อเข้มขึ้นนิดนึง */
     }
 
     /* สไตล์รายการเมนู */
@@ -117,7 +121,8 @@ function isGroupActive($keywords)
     .list-group-item:hover {
         background-color: var(--sidebar-hover-bg);
         color: #fff;
-        padding-left: 30px; /* ขยับขวาเล็กน้อยเมื่อชี้ */
+        padding-left: 30px;
+        /* ขยับขวาเล็กน้อยเมื่อชี้ */
     }
 
     /* เมนูที่กำลังเลือก (Active) */
@@ -125,11 +130,12 @@ function isGroupActive($keywords)
         background-color: var(--sidebar-active-bg);
         color: var(--sidebar-active-text);
         font-weight: 700;
-        border-radius: 0 25px 25px 0; /* ทำขอบมนด้านขวา */
+        border-radius: 0 25px 25px 0;
+        /* ทำขอบมนด้านขวา */
         margin-right: 15px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-    
+
     .list-group-item.active i {
         color: var(--sidebar-active-text);
     }
@@ -143,7 +149,8 @@ function isGroupActive($keywords)
 
     /* เมนูย่อย */
     .submenu {
-        background-color: rgba(0, 0, 0, 0.1); /* พื้นหลังเข้มขึ้นสำหรับเมนูย่อย */
+        background-color: rgba(0, 0, 0, 0.1);
+        /* พื้นหลังเข้มขึ้นสำหรับเมนูย่อย */
         /* border-left: 3px solid rgba(255,255,255,0.2); */
     }
 
@@ -152,9 +159,9 @@ function isGroupActive($keywords)
         font-size: 0.9rem;
         padding-top: 8px;
         padding-bottom: 8px;
-        color: rgba(255,255,255,0.6);
+        color: rgba(255, 255, 255, 0.6);
     }
-    
+
     .submenu .list-group-item:hover {
         color: #fff;
         padding-left: 65px;
@@ -172,9 +179,9 @@ function isGroupActive($keywords)
         justify-content: space-between;
         cursor: pointer;
     }
-    
+
     .bg-white-10 {
-        background-color: rgba(255,255,255,0.1);
+        background-color: rgba(255, 255, 255, 0.1);
         color: #fff !important;
     }
 
@@ -197,11 +204,11 @@ function isGroupActive($keywords)
         font-weight: bold;
         font-size: 1.2rem;
         margin-right: 12px;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
     }
-    
+
     .text-white-80 {
-        color: rgba(255,255,255,0.8);
+        color: rgba(255, 255, 255, 0.8);
     }
 
     /* ปุ่ม Toggle บนมือถือ */
@@ -223,12 +230,15 @@ function isGroupActive($keywords)
         #sidebar-wrapper {
             margin-left: calc(-1 * var(--sidebar-width));
         }
+
         #wrapper.toggled #sidebar-wrapper {
             margin-left: 0;
         }
+
         .main-content {
             margin-left: 0 !important;
         }
+
         #menu-toggle-btn {
             display: block;
         }
@@ -349,7 +359,9 @@ function isGroupActive($keywords)
             </div>
         <?php endif; ?>
 
-        <div style="height: 50px;"></div> </div> <div class="sidebar-footer">
+        <div style="height: 50px;"></div>
+    </div>
+    <div class="sidebar-footer">
         <div class="dropup">
             <a href="#" class="d-flex align-items-center text-decoration-none text-white dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                 <div class="user-avatar shadow-sm"><?= $user_avatar_char ?></div>
@@ -362,7 +374,9 @@ function isGroupActive($keywords)
                 <li><a class="dropdown-item rounded" href="../profile/change_profile.php"><i class="fas fa-user-circle me-2 text-muted"></i> ข้อมูลส่วนตัว</a></li>
                 <li><a class="dropdown-item rounded" href="../profile/change_password.php"><i class="fas fa-key me-2 text-muted"></i> เปลี่ยนรหัสผ่าน</a></li>
                 <li><a class="dropdown-item rounded" href="../system_config/settings.php"><i class="fas fa-palette me-2 text-muted"></i> ธีม</a></li>
-                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <hr class="dropdown-divider">
+                </li>
                 <li><a class="dropdown-item rounded text-danger" href="../global/logout.php"><i class="fas fa-sign-out-alt me-2"></i> ออกจากระบบ</a></li>
             </ul>
         </div>

@@ -4,7 +4,7 @@ require '../config/config.php';
 checkPageAccess($conn, 'edit_customer');
 
 // -----------------------------------------------------------------------------
-// 1. AJAX HANDLER (สำหรับดึงข้อมูลที่อยู่)
+// AJAX HANDLER (สำหรับดึงข้อมูลที่อยู่)
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -30,7 +30,7 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. GET CURRENT DATA
+// GET CURRENT DATA
 // -----------------------------------------------------------------------------
 if (!isset($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสลูกค้า";
@@ -60,11 +60,10 @@ if (!$data) {
     exit;
 }
 
-// ดึงคำนำหน้า
 $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1");
 
 // -----------------------------------------------------------------------------
-// 3. HANDLE UPDATE (POST)
+// HANDLE UPDATE (POST)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // รับค่า
@@ -78,8 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $line_id   = trim($_POST['cs_line_id']);
     $national  = trim($_POST['cs_national_id']);
 
-    // ที่อยู่
-    $addr_id   = $data['address_id']; // ใช้ ID เดิม
+    $addr_id   = $data['address_id']; 
     $home_no   = trim($_POST['home_no']);
     $moo       = trim($_POST['moo']);
     $soi       = trim($_POST['soi']);
@@ -91,13 +89,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // 1. อัปเดตที่อยู่
+            // อัปเดตที่อยู่
             $sql_addr = "UPDATE addresses SET home_no=?, moo=?, soi=?, road=?, subdistricts_subdistrict_id=? WHERE address_id=?";
             $stmt = $conn->prepare($sql_addr);
             $stmt->bind_param("ssssii", $home_no, $moo, $soi, $road, $subdist_id, $addr_id);
             $stmt->execute();
 
-            // 2. อัปเดตข้อมูลลูกค้า
+            // อัปเดตข้อมูลลูกค้า
             $sql_cus = "UPDATE customers SET 
                         cs_national_id=?, firstname_th=?, lastname_th=?, firstname_en=?, lastname_en=?, 
                         cs_phone_no=?, cs_email=?, cs_line_id=?, prefixs_prefix_id=?, update_at=NOW() 
@@ -278,13 +276,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         window.onload = function() {
             const oldProv = document.getElementById('old_province').value;
 
-            // 1. โหลดจังหวัดทั้งหมด
+            // โหลดจังหวัดทั้งหมด
             fetchData('get_provinces', 0, 'province', oldProv, () => {
-                // 2. เมื่อโหลดจังหวัดเสร็จ -> โหลดอำเภอของจังหวัดเดิม
                 if (oldProv) {
                     const oldDist = document.getElementById('old_district').value;
                     loadDistricts(oldProv, oldDist, () => {
-                        // 3. เมื่อโหลดอำเภอเสร็จ -> โหลดตำบลของอำเภอเดิม
                         if (oldDist) {
                             const oldSub = document.getElementById('old_subdistrict').value;
                             loadSubdistricts(oldDist, oldSub);
@@ -307,7 +303,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 .then(response => response.json())
                 .then(data => {
                     const select = document.getElementById(targetId);
-                    select.innerHTML = select.options[0].outerHTML; // Reset options (keep first)
+                    select.innerHTML = select.options[0].outerHTML; 
 
                     data.forEach(item => {
                         let option = document.createElement('option');
@@ -334,7 +330,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function loadDistricts(provId, selectedVal = null, callback = null) {
-            // Reset District & Subdistrict
             document.getElementById('district').innerHTML = '<option value="">-- เลือกอำเภอ --</option>';
             document.getElementById('subdistrict').innerHTML = '<option value="">-- เลือกตำบล --</option>';
             document.getElementById('zipcode').value = '';
@@ -343,12 +338,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         function loadSubdistricts(distId, selectedVal = null) {
-            // Reset Subdistrict
             document.getElementById('subdistrict').innerHTML = '<option value="">-- เลือกตำบล --</option>';
             document.getElementById('zipcode').value = '';
 
             if (distId) fetchData('get_subdistricts', distId, 'subdistrict', selectedVal, () => {
-                // Update Zipcode if selecting existing subdistrict
                 if (selectedVal) {
                     const subSelect = document.getElementById('subdistrict');
                     updateZipcode(subSelect);

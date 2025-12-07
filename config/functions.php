@@ -5,17 +5,14 @@ use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
 // =============================================================================
-// 1. ฟังก์ชันตรวจสอบสิทธิ์ (Check Permission) - คืนค่า True/False
+// ฟังก์ชันตรวจสอบสิทธิ์ (Check Permission)
 // =============================================================================
 function hasPermission($conn, $user_id, $permission_name)
 {
-    // 1. ถ้าไม่มี User ID ส่งมา (ยังไม่ล็อกอิน) ให้เป็น false
+    // ถ้าไม่มี User ID ส่งมา (ยังไม่ล็อกอิน)
     if (empty($user_id)) return false;
-
-    // 2. Admin (User ID 1) ให้ผ่านตลอด (Optional: เผื่อไว้แก้ปัญหาฉุกเฉิน)
-    // if ($user_id == 1) return true; 
-
-    // 3. Query เช็คสิทธิ์
+    // Admin (User ID 1) ให้ผ่านตลอด 
+    //  Query เช็คสิทธิ์
     $sql = "SELECT 1
             FROM user_roles ur
             JOIN role_permissions rp ON ur.roles_role_id = rp.roles_role_id
@@ -36,33 +33,28 @@ function hasPermission($conn, $user_id, $permission_name)
 }
 
 // =============================================================================
-// 2. ฟังก์ชันตรวจสอบสิทธิ์เข้าใช้งานหน้าเว็บ (Page Access Guard)
-//    ใช้แปะหัวไฟล์: checkPageAccess($conn, 'add_product');
+// ฟังก์ชันตรวจสอบสิทธิ์เข้าใช้งานหน้าเว็บ (Page Access Guard)
 // =============================================================================
 function checkPageAccess($conn, $permission_name)
 {
-    // 1. เช็คว่าล็อกอินหรือยัง
+    // เช็คว่าล็อกอินหรือยัง
     if (!isset($_SESSION['user_id'])) {
-        // ถ้ายังไม่ล็อกอิน ให้ดีดไปหน้า Login
-        // (สมมติว่าไฟล์ที่เรียกใช้อยู่ในโฟลเดอร์ย่อย เช่น customer/, product/)
         header('Location: ../global/login.php');
         exit;
     }
 
-    // 2. เช็คสิทธิ์
+    // เช็คสิทธิ์
     if (!hasPermission($conn, $_SESSION['user_id'], $permission_name)) {
-        // ถ้าล็อกอินแล้ว แต่ไม่มีสิทธิ์ ให้ดีดไปหน้าแจ้งเตือน
         header('Location: ../access_denied.php');
         exit;
     }
 }
 
 // =============================================================================
-// 3. ฟังก์ชันส่งใบเสร็จรับเงินทางอีเมล (Send Receipt Email)
+// ฟังก์ชันส่งใบเสร็จรับเงินทางอีเมล (Send Receipt Email)
 // =============================================================================
 function sendReceiptEmail($conn, $bill_id)
 {
-    // 1. ดึงข้อมูลบิล, ลูกค้า และร้านค้า (รวมถึงรหัสผ่านแอป)
     $sql = "SELECT bh.*, c.firstname_th, c.lastname_th, c.cs_email, 
                    s.shop_name, s.shop_email, s.shop_app_password 
             FROM bill_headers bh
@@ -75,12 +67,11 @@ function sendReceiptEmail($conn, $bill_id)
     $stmt->execute();
     $bill = $stmt->get_result()->fetch_assoc();
 
-    // ถ้าไม่พบข้อมูล หรือลูกค้าไม่มีอีเมล หรือร้านไม่มีการตั้งค่าอีเมล -> จบการทำงาน (ไม่ส่ง)
+    // ถ้าไม่พบข้อมูล หรือลูกค้าไม่มีอีเมล หรือร้านไม่มีการตั้งค่าอีเมล -> จบการทำงาน 
     if (!$bill || empty($bill['cs_email']) || empty($bill['shop_email']) || empty($bill['shop_app_password'])) {
         return false;
     }
 
-    // 2. ดึงรายการสินค้าในบิล
     $sql_items = "SELECT bd.price, bd.amount, p.prod_name, p.model_name 
                   FROM bill_details bd 
                   JOIN prod_stocks ps ON bd.prod_stocks_stock_id = ps.stock_id 
@@ -91,7 +82,7 @@ function sendReceiptEmail($conn, $bill_id)
     $stmt2->execute();
     $items_res = $stmt2->get_result();
 
-    // 3. เตรียมเนื้อหา HTML สำหรับตารางรายการสินค้า
+    // สำหรับตารางรายการสินค้า
     $customer_name = $bill['firstname_th'] . " " . $bill['lastname_th'];
     $total = 0;
     $rows_html = "";
@@ -166,7 +157,7 @@ function sendReceiptEmail($conn, $bill_id)
     </body>
     </html>";
 
-    // 4. เริ่มส่งอีเมลด้วย PHPMailer
+    // เริ่มส่งอีเมลด้วย PHPMailer
     $mail = new PHPMailer(true);
     try {
         // ตั้งค่า SMTP

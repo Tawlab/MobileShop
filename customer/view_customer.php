@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_customer');
 
-// 1. ตรวจสอบ ID
+// ตรวจสอบ ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสลูกค้า";
     header('Location: customer_list.php');
@@ -12,7 +12,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $cs_id = (int)$_GET['id'];
 
-// 2. ดึงข้อมูลลูกค้า + ที่อยู่
+// ดึงข้อมูลลูกค้า + ที่อยู่
 $sql = "SELECT c.*, p.prefix_th, 
                a.home_no, a.moo, a.soi, a.road, 
                sd.subdistrict_name_th, d.district_name_th, pv.province_name_th, sd.zip_code
@@ -41,14 +41,14 @@ if ($customer['road']) $address_text .= " ถนน " . $customer['road'];
 $address_text .= "\nต." . $customer['subdistrict_name_th'] . " อ." . $customer['district_name_th'];
 $address_text .= "\nจ." . $customer['province_name_th'] . " " . $customer['zip_code'];
 
-// 3. ดึงประวัติการซ่อม (Repair History)
+// ดึงประวัติการซ่อม (Repair History)
 $sql_repairs = "SELECT repair_id, create_at, repair_status, device_description 
                 FROM repairs 
                 WHERE customers_cs_id = $cs_id 
                 ORDER BY create_at DESC LIMIT 10";
 $res_repairs = mysqli_query($conn, $sql_repairs);
 
-// 4. ดึงประวัติการซื้อ (Purchase History)
+// ดึงประวัติการซื้อ (Purchase History)
 $sql_bills = "SELECT bill_id, bill_date, bill_status, (SELECT SUM(price*amount) FROM bill_details WHERE bill_headers_bill_id = bill_id) as total
               FROM bill_headers 
               WHERE customers_cs_id = $cs_id AND bill_type = 'Sale'

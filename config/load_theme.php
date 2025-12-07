@@ -3,12 +3,8 @@ if (!isset($conn)) {
   require 'config.php';
 }
 
-// (2) ดึง user_id จาก session ที่ login (ถ้าไม่มี ให้ใช้ 1 เป็น default)
+// ดึง user_id จาก session ที่ login (ถ้าไม่มี ให้ใช้ 1 เป็น default)
 $user_id = $_SESSION['user_id'] ?? 1;
-// --------------------
-
-
-// (3) แก้ SQL query ให้ใช้ user_id
 $theme_sql = "SELECT * FROM systemconfig WHERE user_id = $user_id";
 $theme_result = mysqli_query($conn, $theme_sql);
 $theme = mysqli_fetch_assoc($theme_result);
@@ -37,7 +33,6 @@ function adjustBrightness($hex, $steps)
 {
   $hex = str_replace('#', '', $hex);
 
-  // shorthand (#abc → #aabbcc)
   if (strlen($hex) == 3) {
     $hex = $hex[0] . $hex[0] . $hex[1] . $hex[1] . $hex[2] . $hex[2];
   }
@@ -196,9 +191,6 @@ if (isDarkColor($theme_color)) {
     color: <?= $danger_text_color ?> !important;
   }
 
-  /* .container {
-    max-width: 900px;
-  } */
   .btn-add,
   .btn-edit,
   .btn-delete {

@@ -3,13 +3,13 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_customer');
 // -----------------------------------------------------------------------------
-// 1. จัดการเส้นทางย้อนกลับ (Return URL)
+//จัดการเส้นทางย้อนกลับ (Return URL)
 // -----------------------------------------------------------------------------
 // รับค่าจาก URL ถ้าไม่มีให้กลับไปหน้ารายชื่อลูกค้า
 $return_url = isset($_GET['return_to']) ? urldecode($_GET['return_to']) : 'customer_list.php';
 
 // -----------------------------------------------------------------------------
-// 2. AJAX HANDLER (สำหรับดึงข้อมูลที่อยู่)
+// AJAX HANDLER (สำหรับดึงข้อมูลที่อยู่)
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -36,7 +36,7 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// 3. HANDLE FORM SUBMIT (บันทึกข้อมูล)
+// HANDLE FORM SUBMIT (บันทึกข้อมูล)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // รับค่าจากฟอร์ม
@@ -65,7 +65,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // A. หา ID ถัดไป (Auto Increment แบบกำหนดเอง)
             // รหัสลูกค้า
             $res_cs = mysqli_query($conn, "SELECT IFNULL(MAX(cs_id), 100000) + 1 as next_id FROM customers");
             $cs_id = mysqli_fetch_assoc($res_cs)['next_id'];
@@ -74,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $res_addr = mysqli_query($conn, "SELECT IFNULL(MAX(address_id), 0) + 1 as next_id FROM addresses");
             $addr_id = mysqli_fetch_assoc($res_addr)['next_id'];
 
-            // B. บันทึกที่อยู่ (Address)
+            // บันทึกที่อยู่ (Address)
             $sql_addr = "INSERT INTO addresses (address_id, home_no, moo, soi, road, subdistricts_subdistrict_id) 
                          VALUES (?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql_addr);
@@ -82,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$stmt->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ");
             $stmt->close();
 
-            // C. บันทึกข้อมูลลูกค้า (Customer)
+            // บันทึกข้อมูลลูกค้า (Customer)
             $sql_cus = "INSERT INTO customers (
                             cs_id, cs_national_id, firstname_th, lastname_th, 
                             firstname_en, lastname_en, cs_phone_no, cs_email, cs_line_id, 

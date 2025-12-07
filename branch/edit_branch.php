@@ -2,10 +2,10 @@
 session_start();
 require '../config/config.php';
 
-// 2. ตรวจสอบสิทธิ์
+// ตรวจสอบสิทธิ์
 checkPageAccess($conn, 'edit_branch');
-
-// 3. รับ ID สาขา
+ 
+// รับ ID สาขา
 $branch_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($branch_id === 0) {
     $_SESSION['error'] = "ไม่พบรหัสสาขา";
@@ -13,7 +13,7 @@ if ($branch_id === 0) {
     exit;
 }
 
-// 4. ดึงข้อมูลสาขา + ที่อยู่
+// ดึงข้อมูลสาขา + ที่อยู่
 $sql_data = "SELECT b.*, a.*, 
                     s.subdistrict_name_th, s.zip_code,
                     s.districts_district_id, 
@@ -33,13 +33,13 @@ if (!$data) {
     exit;
 }
 
-// 5. ดึงข้อมูล Master Data สำหรับ Dropdown
+// สำหรับ Dropdown
 $shop_result = mysqli_query($conn, "SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th, provinces_province_id FROM districts ORDER BY district_name_th");
 $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts ORDER BY subdistrict_name_th");
 
-// 6. Handle Form Submit
+//Form Submit
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $b_id = (int)$_POST['branch_id'];
     $a_id = (int)$_POST['address_id'];
@@ -60,19 +60,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     if (empty($branch_name) || empty($subdist_id)) {
         $error_message = "กรุณากรอกข้อมูลให้ครบถ้วน";
     } elseif (!empty($branch_phone) && !preg_match('/^(02|05|06|08|09)[0-9]{8}$/', $branch_phone)) {
-        // [แก้ไข 1] ตรวจสอบเบอร์โทรฝั่ง Server
         $error_message = "เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)";
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // A. อัปเดตที่อยู่
             $sql_addr = "UPDATE addresses SET home_no=?, moo=?, soi=?, road=?, village=?, subdistricts_subdistrict_id=? WHERE address_id=?";
             $stmt_a = $conn->prepare($sql_addr);
             $stmt_a->bind_param("sssssii", $home_no, $moo, $soi, $road, $village, $subdist_id, $a_id);
             if (!$stmt_a->execute()) throw new Exception("อัปเดตที่อยู่ไม่สำเร็จ");
             $stmt_a->close();
-
-            // B. อัปเดตสาขา
             $sql_br = "UPDATE branches SET branch_code=?, branch_name=?, branch_phone=?, shop_info_shop_id=?, update_at=NOW() WHERE branch_id=?";
             $stmt_b = $conn->prepare($sql_br);
             $stmt_b->bind_param("sssii", $branch_code, $branch_name, $branch_phone, $shop_id, $b_id);
@@ -106,7 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             color: black;
         }
 
-        /* สไตล์สำหรับ Error message */
+        /* สำหรับ Error message */
         .error-feedback {
             font-size: 0.875em;
             color: #dc3545;
@@ -243,7 +239,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // 1. โหลดข้อมูล Master Data เป็น JSON
+        // โหลดข้อมูล Master Data เป็น JSON
         const provinces = <?php
                             $p_arr = [];
                             while ($p = mysqli_fetch_assoc($provinces_result)) $p_arr[] = $p;
@@ -260,7 +256,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                 echo json_encode($s_arr);
                                 ?>;
 
-        // 2. ค่าเดิมจาก DB
+        // ค่าเดิมจาก DB
         const oldProv = "<?= $data['provinces_province_id'] ?>";
         const oldDist = "<?= $data['districts_district_id'] ?>";
         const oldSub = "<?= $data['subdistricts_subdistrict_id'] ?>";
@@ -270,7 +266,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         const subdistrictSelect = document.getElementById('subdistrict');
         const zipInput = document.getElementById('zipcode');
 
-        // 3. ฟังก์ชัน Render Option
+        // ฟังก์ชัน Render Option
         function initProvinces() {
             provinces.forEach(p => {
                 const opt = new Option(p.province_name_th, p.province_id);
@@ -323,7 +319,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             zipInput.value = select.options[select.selectedIndex].dataset.zip || '';
         }
 
-        // [แก้ไข 3] Script ตรวจสอบเบอร์โทร
         const phoneInput = document.getElementById("branch_phone");
         const phoneError = document.getElementById("phone_error");
 
@@ -344,14 +339,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         phoneInput.classList.remove("is-invalid");
                     }
                 } else {
-                    // ถ้าว่าง ไม่ต้องแสดง Error (ถ้า input มี required มันจะแจ้งเตือนตอน submit เอง)
+                    // ถ้าว่าง ไม่ต้องแสดง Error 
                     phoneError.style.display = "none";
                     phoneInput.classList.remove("is-invalid");
                 }
             });
         }
 
-        // เพิ่มการตรวจสอบตอนกด Submit
+        // ตรวจสอบตอนกด Submit
         const form = document.getElementById('editBranchForm');
         form.addEventListener('submit', function(e) {
             if (phoneInput && phoneInput.classList.contains('is-invalid')) {
@@ -360,7 +355,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             }
         });
 
-        // Run
         initProvinces();
     </script>
 </body>
