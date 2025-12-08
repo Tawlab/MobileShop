@@ -6,7 +6,7 @@ checkPageAccess($conn, 'edit_symptom');
 $error = '';
 
 // -----------------------------------------------------------------------------
-// 1. GET ID AND LOAD DATA (ต้องทำก่อน POST เพื่อให้ฟอร์มแสดงข้อมูลเดิม)
+// GET ID AND LOAD DATA 
 // -----------------------------------------------------------------------------
 $symptom_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -16,7 +16,7 @@ if ($symptom_id <= 0) {
     exit;
 }
 
-// (A) ดึงข้อมูลอาการเสียปัจจุบัน
+// ดึงข้อมูลอาการเสียปัจจุบัน
 $load_sql = "SELECT * FROM symptoms WHERE symptom_id = $symptom_id";
 $load_result = mysqli_query($conn, $load_sql);
 $symptom_data = mysqli_fetch_assoc($load_result);
@@ -28,20 +28,20 @@ if (!$symptom_data) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. POST HANDLER: จัดการการบันทึกข้อมูล
+// จัดการการบันทึกข้อมูล
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // (B) รับค่าและทำความสะอาดข้อมูล
+    // รับค่าและทำความสะอาดข้อมูล
     $name = isset($_POST['symptom_name']) ? trim(mysqli_real_escape_string($conn, $_POST['symptom_name'])) : '';
     $desc = isset($_POST['symptom_desc']) ? trim(mysqli_real_escape_string($conn, $_POST['symptom_desc'])) : NULL;
 
-    // (C) ตรวจสอบความถูกต้องเบื้องต้น
+    // ตรวจสอบความถูกต้อง
     if (empty($name)) {
         $error = 'กรุณากรอกชื่ออาการเสีย (Symptom Name) ให้ครบถ้วน';
     } else {
 
-        // (D) *** UNIQUENESS CHECK ***: ตรวจสอบว่าชื่อใหม่ซ้ำกับ ID อื่นหรือไม่
+        // ตรวจสอบว่าชื่อใหม่ซ้ำกับ ID อื่นหรือไม่
         $check_sql = "SELECT symptom_id FROM symptoms WHERE symptom_name = ? AND symptom_id != ?";
         $stmt_check = $conn->prepare($check_sql);
         $stmt_check->bind_param("si", $name, $symptom_id);
@@ -52,16 +52,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'ไม่สามารถบันทึกได้: ชื่ออาการเสีย "' . htmlspecialchars($name) . '" มีอยู่ในระบบแล้ว';
         } else {
 
-            // (E) บันทึกการแก้ไขลงฐานข้อมูล
+            //  บันทึกการแก้ไขลงฐานข้อมูล
             $sql = "UPDATE symptoms SET symptom_name = ?, symptom_desc = ?, update_at = NOW() WHERE symptom_id = ?";
             $stmt = $conn->prepare($sql);
-
-            // (bind_param "ssi" = String, String, Integer)
             $stmt->bind_param("ssi", $name, $desc, $symptom_id);
 
             if ($stmt->execute()) {
                 $_SESSION['success'] = '✅ แก้ไขอาการเสียรหัส ' . $symptom_id . ' สำเร็จ: ' . htmlspecialchars($name);
-                // (Redirect กลับไปหน้า list)
                 header('Location: symptoms.php');
                 exit;
             } else {
@@ -71,8 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt_check->close();
     }
-
-    // (ถ้าเกิด error จาก POST, ให้ฟอร์มใช้ค่าที่กรอกล่าสุด)
     if (!empty($error)) {
         $symptom_data['symptom_name'] = $name;
         $symptom_data['symptom_desc'] = $desc;
@@ -190,7 +185,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // (*** Custom Validation Logic - เพื่อลบ class is-invalid เมื่อพิมพ์ ***)
         document.addEventListener('DOMContentLoaded', function() {
             const nameInput = document.getElementById('symptom_name');
             nameInput.addEventListener('input', function() {

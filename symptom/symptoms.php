@@ -1,17 +1,16 @@
 <?php
 session_start();
-// (ตั้งค่า Path ให้ถูกต้องตามโครงสร้างโฟลเดอร์ของคุณ: ไฟล์นี้อยู่ใน /symptom/)
 require '../config/config.php';
 checkPageAccess($conn, 'symptoms');
 
-// 1. ดึงข้อมูลทั้งหมดจากตารางอาการเสีย
+// ดึงข้อมูลทั้งหมดจากตารางอาการเสีย
 $result = mysqli_query($conn, "SELECT * FROM symptoms ORDER BY symptom_id ASC");
 
-// 2. จัดการการลบอาการเสีย (POST Handler)
+// ดการการลบอาการเสีย (POST Handler)
 if (isset($_POST['delete_symptom'])) {
     $symptom_id = (int)$_POST['symptom_id'];
 
-    // (A) ตรวจสอบว่ามีรายการซ่อม (repair_symptoms) อ้างอิงอยู่หรือไม่
+    // ตรวจสอบว่ามีรายการซ่อมอ้างอิงอยู่หรือไม่
     $check_sql = "SELECT COUNT(*) FROM repair_symptoms WHERE symptoms_symptom_id = $symptom_id";
     $count = mysqli_fetch_assoc(mysqli_query($conn, $check_sql))['COUNT(*)'];
 
@@ -20,7 +19,6 @@ if (isset($_POST['delete_symptom'])) {
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // (B) ลบ
             $delete_sql = "DELETE FROM symptoms WHERE symptom_id = $symptom_id";
             if (!mysqli_query($conn, $delete_sql)) {
                 throw new Exception('ไม่สามารถลบอาการเสียได้');

@@ -7,12 +7,11 @@ $error = '';
 $success = '';
 
 // -----------------------------------------------------------------------------
-// 1. HELPER FUNCTION (NEW)
+// HELPER FUNCTION
 // -----------------------------------------------------------------------------
 
 function getNextSymptomId($conn)
 {
-    // (คำนวณรหัสถัดไป โดยค่าเริ่มต้นคือ 100001 หากตารางว่าง)
     $sql = "SELECT IFNULL(MAX(symptom_id), 100000) + 1 as next_id FROM symptoms";
     $result = mysqli_query($conn, $sql);
     $row = mysqli_fetch_assoc($result);
@@ -20,20 +19,20 @@ function getNextSymptomId($conn)
 }
 
 // -----------------------------------------------------------------------------
-// 2. POST HANDLER: จัดการการบันทึกข้อมูล
+// จัดการการบันทึกข้อมูล
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // (A) รับค่าและทำความสะอาดข้อมูล
+    // รับค่าและทำความสะอาดข้อมูล
     $name = isset($_POST['symptom_name']) ? trim(mysqli_real_escape_string($conn, $_POST['symptom_name'])) : '';
     $desc = isset($_POST['symptom_desc']) ? trim(mysqli_real_escape_string($conn, $_POST['symptom_desc'])) : NULL;
 
-    // (B) ตรวจสอบความถูกต้องเบื้องต้น
+    // ตรวจสอบความถูกต้อง
     if (empty($name)) {
         $error = 'กรุณากรอกชื่ออาการเสีย (Symptom Name) ให้ครบถ้วน';
     } else {
 
-        // (C) ตรวจสอบว่ามีชื่ออาการเสียนี้อยู่แล้วหรือไม่ (Unique Check)
+        // ตรวจสอบว่ามีชื่ออาการเสียนี้อยู่แล้วหรือไม่
         $check_sql = "SELECT symptom_id FROM symptoms WHERE symptom_name = ?";
         $stmt_check = $conn->prepare($check_sql);
         $stmt_check->bind_param("s", $name);
@@ -43,21 +42,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($check_result->num_rows > 0) {
             $error = 'ไม่สามารถบันทึกได้: ชื่ออาการเสีย "' . htmlspecialchars($name) . '" มีอยู่ในระบบแล้ว';
         } else {
-
-            // (D) *** MODIFIED ***: คำนวณ ID ใหม่
             $symptom_id = getNextSymptomId($conn);
-
-            // (E) *** MODIFIED ***: บันทึกข้อมูลลงฐานข้อมูล (รวม symptom_id)
             $sql = "INSERT INTO symptoms (symptom_id, symptom_name, symptom_desc, create_at, update_at) 
                     VALUES (?, ?, ?, NOW(), NOW())";
             $stmt = $conn->prepare($sql);
-
-            // (bind_param "iss" = Integer, String, String)
             $stmt->bind_param("iss", $symptom_id, $name, $desc);
 
             if ($stmt->execute()) {
                 $_SESSION['success'] = '✅ เพิ่มอาการเสียใหม่สำเร็จ: ' . htmlspecialchars($name);
-                // (Redirect กลับไปหน้า list)
                 header('Location: symptoms.php');
                 exit;
             } else {
@@ -177,7 +169,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // (*** Custom Validation Logic - เพื่อลบ class is-invalid เมื่อพิมพ์ ***)
         document.addEventListener('DOMContentLoaded', function() {
             const nameInput = document.getElementById('symptom_name');
             nameInput.addEventListener('input', function() {
