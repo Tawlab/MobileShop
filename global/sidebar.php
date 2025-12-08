@@ -332,7 +332,7 @@ function isGroupActive($keywords)
                 <span><i class="fas fa-store"></i> ข้อมูลร้านค้า</span>
             </a>
             <div class="collapse submenu <?= isExpanded(['shop.php', 'branch.php']) ?>" id="sub-shop">
-                <?php if (hasPermission($conn, $sidebar_uid, 'manage_shop')): ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'menu_manage_shop')): ?>
                     <a href="../shop/shop.php" class="list-group-item list-group-item-action <?= isActive('shop.php') ?>">ข้อมูลร้านค้า</a>
                 <?php endif; ?>
 

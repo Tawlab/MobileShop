@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'pay_qr');
+checkPageAccess($conn, 'add_sale');
 // ตรวจสอบ ID บิล
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo "ไม่พบรหัสบิล";

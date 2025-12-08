@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'save_sale');
+checkPageAccess($conn, 'add_sale');
 $bill_id = $_POST['bill_id'] ?? null;
 $stock_ids = $_POST['stock_ids'] ?? [];
 $prices = $_POST['prices'] ?? [];

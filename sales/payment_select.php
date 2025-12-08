@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 require '../vendor/autoload.php';
-checkPageAccess($conn, 'payment_select');
+checkPageAccess($conn, 'add_sale');
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo "ไม่พบรหัสบิล";
     exit;

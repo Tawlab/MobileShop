@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'payment_sale');
+checkPageAccess($conn, 'add_sale');
 ?>
 
 <!DOCTYPE html>
