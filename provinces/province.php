@@ -44,7 +44,6 @@ if (isset($_GET['success']) && $_GET['success'] == '1') {
   <style>
     body {
       background-color: #f4f7f6;
-      /* พื้นหลังสีเทาอ่อน */
     }
 
     .card {
@@ -54,20 +53,16 @@ if (isset($_GET['success']) && $_GET['success'] == '1') {
 
     .table thead th {
       background-color: #e6f7ee;
-      /* หัวตารางสีเขียวอ่อน */
       color: #004d40;
-      /* ตัวอักษรสีเขียวเข้ม */
       border-bottom-width: 0;
     }
 
     .table-hover tbody tr:hover {
       background-color: #f0fff4;
-      /* สีเมื่อ hover */
     }
 
     .btn-success {
       background-color: #28a745;
-      /* สีเขียว */
       border-color: #28a745;
     }
 
@@ -164,11 +159,11 @@ if (isset($_GET['success']) && $_GET['success'] == '1') {
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
-      // Clear URL parameters after showing alert
+      // Clear URL 
       if (window.location.search.includes('success=') || window.location.search.includes('error=')) {
         setTimeout(() => {
           window.history.replaceState(null, '', window.location.pathname);
-        }, 3000); // ลบ parameter ออกจาก URL หลังจาก 3 วินาที
+        }, 3000); 
       }
 
       const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));

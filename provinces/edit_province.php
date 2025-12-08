@@ -2,14 +2,13 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_province');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
 $error = '';
 $province_id = '';
 $province_name_th = '';
 $province_name_en = '';
 
-// 1. ตรวจสอบว่ามี ID ส่งมาหรือไม่
+// ตรวจสอบว่ามี ID ส่งมาหรือไม่
 if (!isset($_GET['id']) || empty($_GET['id'])) {
   header("Location: province.php?error=not_found");
   exit();
@@ -17,7 +16,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $id_to_edit = $_GET['id'];
 
-// 2. ดึงข้อมูลเดิม
+//  ดึงข้อมูลเดิม
 $stmt_select = $conn->prepare("SELECT province_id, province_name_th, province_name_en FROM provinces WHERE province_id = ?");
 $stmt_select->bind_param("s", $id_to_edit);
 $stmt_select->execute();
@@ -31,17 +30,16 @@ if (!$row) {
   exit();
 }
 
-// 3. เมื่อมีการส่งฟอร์ม (POST)
+// เมื่อมีการส่งฟอร์ม (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   // ดึงข้อมูลจากฟอร์ม
-  $province_id_post = trim($_POST['province_id']); // ID ที่ส่งมาจาก form (ซึ่งควรจะ readonly)
+  $province_id_post = trim($_POST['province_id']); 
   $province_name_th_post = trim($_POST['province_name_th']);
   $province_name_en_post = trim($_POST['province_name_en']);
 
-  // 4. ตรวจสอบความถูกต้องของข้อมูล (Server-side)
+  // ตรวจสอบความถูกต้องของข้อมูล 
   if (empty($province_name_th_post) || empty($province_name_en_post)) {
     $error = 'กรุณากรอกข้อมูลให้ครบทุกช่อง';
-    // เติมค่าเดิมกลับเข้าไปในฟอร์ม
     $province_id = $province_id_post;
     $province_name_th = $province_name_th_post;
     $province_name_en = $province_name_en_post;
@@ -56,13 +54,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $province_name_th = $province_name_th_post;
     $province_name_en = $province_name_en_post;
   } elseif ($province_id_post !== $id_to_edit) {
-    // ป้องกันการพยายามแก้ไข ID ผ่าน Inspect Element
     $error = 'รหัสจังหวัดไม่ตรงกัน ไม่สามารถดำเนินการได้';
-    $province_id = $id_to_edit; // ใช้ ID เดิมจาก URL
     $province_name_th = $province_name_th_post;
     $province_name_en = $province_name_en_post;
   } else {
-    // 5. อัปเดตข้อมูล
+    //  อัปเดตข้อมูล
     $stmt_update = $conn->prepare("UPDATE provinces SET province_name_th = ?, province_name_en = ? WHERE province_id = ?");
     $stmt_update->bind_param("sss", $province_name_th_post, $province_name_en_post, $id_to_edit);
 
@@ -75,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt_update->close();
   }
 } else {
-  // 4. ถ้าไม่ใช่ POST (โหลดหน้าครั้งแรก) ให้แสดงข้อมูลเดิม
+  // ถ้าไม่ใช่ POST (โหลดหน้าครั้งแรก) ให้แสดงข้อมูลเดิม
   $province_id = $row['province_id'];
   $province_name_th = $row['province_name_th'];
   $province_name_en = $row['province_name_en'];

@@ -3,15 +3,15 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_purchase_order');
 
-// (2) ดึงข้อมูลสำหรับ Dropdowns
-// (Suppliers)
+// ดึงข้อมูลสำหรับ Dropdowns
+// Suppliers
 $suppliers_result = mysqli_query($conn, "SELECT supplier_id, co_name FROM suppliers ORDER BY co_name");
-// (Employees - สมมติว่าดึงพนักงานที่ Active อยู่)
+// Employees 
 $employees_result = mysqli_query($conn, "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE emp_status = 'Active' ORDER BY firstname_th");
-// (Branches)
+// Branches
 $branches_result = mysqli_query($conn, "SELECT branch_id, branch_name FROM branches ORDER BY branch_name");
 
-// (3) ดึงข้อมูลสินค้าทั้งหมด (สำหรับ JavaScript)
+// ดึงข้อมูลสินค้าทั้งหมด
 $products_sql = "SELECT p.prod_id, p.prod_name, p.model_name, p.prod_price, pb.brand_name_th 
                  FROM products p
                  LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id
@@ -25,35 +25,30 @@ while ($row = mysqli_fetch_assoc($products_query)) {
 $products_json = json_encode($products_json);
 
 
-// (4) *** จัดการบันทึกข้อมูล (POST) ***
+// จัดการบันทึกข้อมูล (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // (4.1) รับข้อมูลส่วนหัว
+    // รับข้อมูลส่วนหัว
     $purchase_date = mysqli_real_escape_string($conn, $_POST['purchase_date']);
     $suppliers_supplier_id = (int)$_POST['suppliers_supplier_id'];
     $employees_emp_id = (int)$_POST['employees_emp_id']; // (สมมติว่าดึงจาก Session จริง)
     $branches_branch_id = (int)$_POST['branches_branch_id'];
 
-    // (4.2) รับข้อมูลรายการสินค้า (Arrays)
+    //  รับข้อมูลรายการสินค้า (Arrays)
     $product_ids = $_POST['product_ids'] ?? [];
     $amounts = $_POST['amounts'] ?? [];
     $prices = $_POST['prices'] ?? [];
 
-    // (4.3) Validation
+    // Validation
     if (empty($purchase_date) || empty($suppliers_supplier_id) || empty($employees_emp_id) || empty($branches_branch_id)) {
         $_SESSION['error'] = 'กรุณากรอกข้อมูลใบสั่งซื้อ (วันที่, Supplier, พนักงาน, สาขา) ให้ครบถ้วน';
     } elseif (empty($product_ids)) {
         $_SESSION['error'] = 'กรุณาเพิ่มสินค้าอย่างน้อย 1 รายการ';
     } else {
 
-        // (4.4) *** เริ่ม Transaction ***
         mysqli_autocommit($conn, false);
         try {
-
-            // (4.5) *** สร้าง purchase_id (Auto Increment) ***
-            // (เราจะไม่ใช้ MAX+1 เพราะฐานข้อมูลตั้งเป็น AUTO_INCREMENT)
-
-            // (4.6) บันทึกส่วนหัว (purchase_orders)
+            // บันทึกส่วนหัว 
             $sql_header = "INSERT INTO purchase_orders (
                                 purchase_date, create_at, update_at, 
                                 suppliers_supplier_id, branches_branch_id, employees_emp_id
@@ -72,11 +67,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("ไม่สามารถบันทึก Header PO ได้: " . $stmt_header->error);
             }
 
-            // (4.7) ดึง ID ของ PO ที่เพิ่งสร้าง
+            //  ดึง ID ของ PO ที่เพิ่งสร้าง
             $new_purchase_id = mysqli_insert_id($conn);
             $stmt_header->close();
 
-            // (4.8) บันทึกรายการสินค้า (order_details)
+            // บันทึกรายการสินค้า
             $sql_details = "INSERT INTO order_details (
                                 amount, price, create_at, update_at, 
                                 purchase_orders_purchase_id, products_prod_id
@@ -91,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 if ($amount > 0 && $price >= 0) {
                     $stmt_details->bind_param(
-                        "idii", // i=amount, d=price, i=purchase_id, i=prod_id
+                        "idii", 
                         $amount,
                         $price,
                         $new_purchase_id,
@@ -110,16 +105,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception("ไม่มีรายการสินค้าที่ถูกต้อง (จำนวนหรือราคาต้องมากกว่า 0)");
             }
 
-            // (4.9) *** Commit Transaction ***
             mysqli_commit($conn);
             mysqli_autocommit($conn, true);
 
             $_SESSION['success'] = "สร้างใบรับเข้า PO #$new_purchase_id ( $total_items รายการ) สำเร็จแล้ว";
-            // (ขั้นต่อไปคือการ "รับเข้าสต็อก" จากหน้ารายละเอียด PO นี้)
+            // ขั้นต่อไปคือการ "รับเข้าสต็อก" จากหน้ารายละเอียด PO นี้
             header("Location: view_purchase_order.php?id=$new_purchase_id");
             exit;
         } catch (Exception $e) {
-            // (4.10) *** Rollback ***
+            // Rollback 
             mysqli_rollback($conn);
             mysqli_autocommit($conn, true);
             $_SESSION['error'] = "เกิดข้อผิดพลาดในการบันทึก: " . $e->getMessage();
@@ -214,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: red;
         }
 
-        /* (CSS สำหรับแถวสินค้าที่ถูกลบ) */
+        /* สำหรับแถวสินค้าที่ถูกลบ */
         .product-row-removed {
             opacity: 0.5;
             background-color: #f8d7da;
@@ -402,7 +396,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // (13.1) ดึงข้อมูล Products จาก PHP
+        // ดึงข้อมูล Products 
         const productsData = <?php echo $products_json; ?>;
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -410,58 +404,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const addBtn = document.getElementById('add-product-btn');
             const template = document.getElementById('product-row-template');
 
-            // (13.2) ฟังก์ชันเพิ่มแถวสินค้า
+            //  ฟังก์ชันเพิ่มแถวสินค้า
             function addProductRow() {
                 const newRow = template.content.cloneNode(true);
                 const productSelect = newRow.querySelector('.product-select');
 
-                // (13.3) เติม Dropdown สินค้า
+                // เติม Dropdown สินค้า
                 productsData.forEach(product => {
                     const option = document.createElement('option');
                     option.value = product.prod_id;
-                    // (แก้ undefined)
                     option.text = `${product.brand_name_th} - ${product.prod_name} (${product.model_name})`;
                     option.dataset.price = product.prod_price;
                     productSelect.appendChild(option);
                 });
 
-                // (13.4) เพิ่ม Event Listeners ให้แถวใหม่
+                //  Event Listeners ให้แถวใหม่
                 addEventListeners(newRow);
 
                 container.appendChild(newRow);
                 updateTotals();
             }
 
-            // (13.5) ฟังก์ชันผูก Event Listeners
+            // ฟังก์ชันผูก Event Listeners
             function addEventListeners(rowElement) {
-                // (หมายเหตุ: rowElement ที่รับเข้ามา จะใช้ได้แค่ตอนผูก Event ครั้งแรก)
                 const productSelect = rowElement.querySelector('.product-select');
                 const amountInput = rowElement.querySelector('.amount-input');
                 const priceInput = rowElement.querySelector('.price-input');
                 const removeBtn = rowElement.querySelector('.remove-row-btn');
 
-                // (Event: เมื่อเลือกสินค้า)
+                // เมื่อเลือกสินค้า
                 productSelect.addEventListener('change', function() {
                     const selectedPrice = this.options[this.selectedIndex].dataset.price || 0;
-                    // (ต้องหา priceInput ที่อยู่ในแถวเดียวกัน)
                     this.closest('tr').querySelector('.price-input').value = parseFloat(selectedPrice).toFixed(2);
                     updateLineTotal(this.closest('tr'));
                 });
 
-                // (Event: เมื่อเปลี่ยนจำนวนหรือราคา)
-
-                // --- ▼▼▼ นี่คือจุดที่แก้ไข Error ▼▼▼ ---
-                // (เปลี่ยนจาก () => updateLineTotal(rowElement) 
-                // มาใช้ function() เพื่อให้ 'this' หมายถึงตัว input เอง)
+                // เมื่อเปลี่ยนจำนวนหรือราคา
                 amountInput.addEventListener('input', function() {
-                    updateLineTotal(this.closest('tr')); // (หาแถวที่ตัวเองอยู่)
+                    updateLineTotal(this.closest('tr')); // หาแถวที่ตัวเองอยู่
                 });
                 priceInput.addEventListener('input', function() {
-                    updateLineTotal(this.closest('tr')); // (หาแถวที่ตัวเองอยู่)
+                    updateLineTotal(this.closest('tr')); // หาแถวที่ตัวเองอยู่
                 });
-                // --- ▲▲▲ แก้ไขเรียบร้อย ▲▲▲ ---
 
-                // (Event: เมื่อกดลบแถว)
+                //  เมื่อกดลบแถว
                 removeBtn.addEventListener('click', function() {
                     const row = this.closest('tr');
                     row.classList.add('product-row-removed');
@@ -475,9 +461,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // (13.6) ฟังก์ชันคำนวณราคารวมต่อแถว
+            //  ฟังก์ชันคำนวณราคารวมต่อแถว
             function updateLineTotal(row) {
-                // (ป้องกัน Error ถ้า row เป็น null)
+                // ป้องกัน Error ถ้า row เป็น null
                 if (!row) return;
 
                 const amount = parseFloat(row.querySelector('.amount-input').value) || 0;
@@ -488,7 +474,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 updateTotals();
             }
 
-            // (13.7) ฟังก์ชันคำนวณยอดรวมสุทธิ
+            //  ฟังก์ชันคำนวณยอดรวมสุทธิ
             function updateTotals() {
                 let totalQuantity = 0;
                 let totalPrice = 0;
@@ -507,13 +493,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // (13.8) ปุ่มเพิ่มสินค้า
+            // ปุ่มเพิ่มสินค้า
             addBtn.addEventListener('click', addProductRow);
 
-            // (13.9) เพิ่ม 1 แถวอัตโนมัติเมื่อโหลดหน้า
+            // เพิ่ม 1 แถวอัตโนมัติเมื่อโหลดหน้า
             addProductRow();
 
-            // (13.10) Client-side Validation (Bootstrap)
+            //  Client-side Validation 
             const form = document.getElementById('poForm');
             form.addEventListener('submit', function(event) {
                 if (!form.checkValidity()) {

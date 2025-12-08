@@ -3,13 +3,13 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'purchase_order');
 
-// 1. SETTINGS (Pagination, Search, Sort)
+// Pagination, Search, Sort
 $limit = 10; // จำนวนรายการต่อหน้า
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
 
-// 2. BUILD WHERE CLAUSE (สำหรับค้นหา)
+// สำหรับค้นหา
 $where_conditions = [];
 if (!empty($search)) {
     $where_conditions[] = "(
@@ -22,8 +22,7 @@ if (!empty($search)) {
 }
 $where_clause = empty($where_conditions) ? '' : 'WHERE ' . implode(' AND ', $where_conditions);
 
-// 3. SQL QUERY (หลัก)
-// *** (FIXED: เพิ่ม po.po_status) ***
+//  SQL QUERY (หลัก)
 $main_sql = "SELECT 
                 po.purchase_id,
                 po.purchase_date,
@@ -56,16 +55,16 @@ $main_sql = "SELECT
             $where_clause
             ORDER BY po.purchase_id DESC";
 
-// 4. COUNT TOTAL (สำหรับ Pagination)
+// COUNT TOTAL (สำหรับ Pagination)
 $count_result = mysqli_query($conn, "SELECT COUNT(*) as total FROM ($main_sql) as count_table");
 $total_records = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_records / $limit);
 
-// 5. FETCH DATA (สำหรับแสดงผล)
+// สำหรับแสดงผล
 $data_sql = $main_sql . " LIMIT $limit OFFSET $offset";
 $result = mysqli_query($conn, $data_sql);
 
-// 6. HELPER FUNCTION (สำหรับสร้าง Query String)
+// HELPER FUNCTION 
 function build_query_string($exclude = [])
 {
     $params = $_GET;
@@ -509,9 +508,8 @@ function build_query_string($exclude = [])
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // (*** JAVASCRIPT สำหรับ Modal ***)
 
-        // (Modal Delete - โค้ดเดิม)
+        // Modal Delete 
         const deleteModal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
         document.querySelectorAll('.delete-btn').forEach(button => {
             button.addEventListener('click', function() {
@@ -523,7 +521,7 @@ function build_query_string($exclude = [])
             });
         });
 
-        // (*** FIXED ***: แก้ไข Javascript ของปุ่มยกเลิก)
+        // ปุ่มยกเลิก
         const cancelModal = new bootstrap.Modal(document.getElementById('confirmCancelModal'));
         const cancelCommentInput = document.getElementById('cancelCommentInput');
         const cancelForm = document.getElementById('cancelForm');
@@ -533,25 +531,24 @@ function build_query_string($exclude = [])
                 const poId = this.getAttribute('data-id');
                 const poName = this.getAttribute('data-name');
 
-                // 1. (ใส่ ID และชื่อใน Modal)
+                // ใส่ ID และชื่อใน Modal
                 document.getElementById('cancelPoName').textContent = poName;
                 document.getElementById('cancelPoIdInput').value = poId;
 
-                // 2. (*** ADDED ***: ล้างค่า textarea เก่า และลบ error)
+                // ล้างค่า textarea เก่า และลบ error
                 cancelCommentInput.value = '';
                 cancelCommentInput.classList.remove('is-invalid');
 
-                // (แสดง Modal)
+                // แสดง Modal
                 cancelModal.show();
             });
         });
 
-        // (*** ADDED ***: เพิ่มการ Validation ก่อน Submit)
+        //  เพิ่มการ Validation ก่อน Submit
         cancelForm.addEventListener('submit', function(event) {
-            // (ตรวจสอบว่าช่องเหตุผลว่างหรือไม่)
             if (!cancelCommentInput.value.trim()) {
-                event.preventDefault(); // (หยุดการส่งฟอร์ม)
-                cancelCommentInput.classList.add('is-invalid'); // (แสดงกรอบสีแดง)
+                event.preventDefault(); // หยุดการส่งฟอร์ม
+                cancelCommentInput.classList.add('is-invalid'); // แสดงกรอบสีแดง
             } else {
                 cancelCommentInput.classList.remove('is-invalid');
             }

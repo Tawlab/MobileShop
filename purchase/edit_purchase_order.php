@@ -4,7 +4,7 @@ require '../config/config.php';
 checkPageAccess($conn, 'edit_purchase_order');
 
 // -----------------------------------------------------------------------------
-// 1. VALIDATE & GET PO ID
+// VALIDATE & GET PO ID
 // -----------------------------------------------------------------------------
 $po_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($po_id <= 0) {
@@ -14,7 +14,7 @@ if ($po_id <= 0) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. POST HANDLER (บันทึกการแก้ไข)
+// บันทึกการแก้ไข)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
 
@@ -24,19 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
     $branch_id = (int)$_POST['branch_id'];
     $employee_id = (int)$_POST['employee_id'];
 
-    $items_data = $_POST['items'] ?? []; // (นี่คือ Array ของสินค้าที่ส่งมาจากฟอร์ม)
+    $items_data = $_POST['items'] ?? []; 
 
-    // (Validation)
+    // Validation
     if (empty($items_data)) {
         $_SESSION['error'] = 'ไม่สามารถบันทึก PO ที่ไม่มีรายการสินค้า (อย่างน้อย 1 รายการ)';
         header('Location: edit_purchase_order.php?id=' . $po_id);
         exit;
     }
 
-    mysqli_autocommit($conn, false); // (Start Transaction)
+    mysqli_autocommit($conn, false); 
 
     try {
-        // (A) อัปเดตตารางแม่ (Header)
         $sql_header = "UPDATE purchase_orders SET 
                         purchase_date = ?, 
                         suppliers_supplier_id = ?, 
@@ -50,15 +49,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
         }
         $stmt_header->close();
 
-        // (B) ดึง ID รายการสินค้าเก่าทั้งหมด (เพื่อเปรียบเทียบ)
+        // ดึง ID รายการสินค้าเก่าทั้งหมด 
         $old_item_ids_sql = "SELECT order_id FROM order_details WHERE purchase_orders_purchase_id = $po_id";
         $old_item_result = mysqli_query($conn, $old_item_ids_sql);
         $old_item_ids = [];
         while ($row = mysqli_fetch_assoc($old_item_result)) {
-            $old_item_ids[$row['order_id']] = $row['order_id']; // (เก็บ Key/Value เหมือนกันเพื่อง่ายต่อการ unset)
+            $old_item_ids[$row['order_id']] = $row['order_id']; 
         }
 
-        // (C) วนลูปรายการสินค้าที่ส่งมา (Update/Insert)
+        // วนลูปรายการสินค้าที่ส่งมา
         foreach ($items_data as $item_key => $item) {
             $order_detail_id = (int)$item['order_detail_id'];
             $product_id = (int)$item['product_id'];
@@ -69,9 +68,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
                 throw new Exception("ข้อมูลสินค้า (ID: $product_id) ไม่ถูกต้อง (จำนวนหรือราคา)");
             }
 
-            // (C.1) ตรวจสอบว่าสินค้านี้เคยถูกรับเข้าสต็อกไปแล้วหรือยัง
+            // ตรวจสอบว่าสินค้านี้เคยถูกรับเข้าสต็อกไปแล้วหรือยัง
             $received_count = 0;
-            if ($order_detail_id > 0) { // (เฉพาะรายการเดิม)
+            if ($order_detail_id > 0) {
                 $check_received_sql = "SELECT COUNT(*) as cnt FROM stock_movements WHERE ref_table = 'order_details' AND ref_id = ?";
                 $stmt_check = $conn->prepare($check_received_sql);
                 $stmt_check->bind_param("i", $order_detail_id);
@@ -80,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
                 $stmt_check->close();
             }
 
-            // (C.2) กรณี "รายการใหม่" (order_detail_id = 0)
+            // กรณี "รายการใหม่" 
             if ($order_detail_id == 0) {
                 $sql_insert = "INSERT INTO order_details (purchase_orders_purchase_id, products_prod_id, amount, price, create_at, update_at)
                                VALUES (?, ?, ?, ?, NOW(), NOW())";
@@ -91,19 +90,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
                 }
                 $stmt_insert->close();
             }
-            // (C.3) กรณี "รายการเดิม" (order_detail_id > 0)
+            // กรณี "รายการเดิม" 
             else {
-                // (ถ้าเคยรับของแล้ว)
+                // ถ้าเคยรับของแล้ว
                 if ($received_count > 0) {
                     if ($amount < $received_count) {
                         throw new Exception("ไม่สามารถลดจำนวนสินค้า (ID: $product_id) ให้น้อยกว่าจำนวนที่รับไปแล้ว ($received_count)");
                     }
-                    // (ห้ามเปลี่ยนตัวสินค้า ถ้าเคยรับไปแล้ว)
+                    // ห้ามเปลี่ยนตัวสินค้า ถ้าเคยรับไปแล้ว
                     $sql_update = "UPDATE order_details SET amount = ?, price = ? WHERE order_id = ?";
                     $stmt_update = $conn->prepare($sql_update);
                     $stmt_update->bind_param("idi", $amount, $price, $order_detail_id);
                 }
-                // (ถ้ายังไม่เคยรับของเลย - แก้ไขได้อิสระ)
+                // ถ้ายังไม่เคยรับของเลย 
                 else {
                     $sql_update = "UPDATE order_details SET products_prod_id = ?, amount = ?, price = ? WHERE order_id = ?";
                     $stmt_update = $conn->prepare($sql_update);
@@ -115,16 +114,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
                 }
                 $stmt_update->close();
 
-                // (C.4) ลบ ID นี้ออกจาก $old_item_ids (เพราะเราเจอมันในฟอร์มแล้ว)
+                //  ลบ ID นี้ออกจาก $old_item_ids (เพราะเราเจอมันในฟอร์มแล้ว)
                 unset($old_item_ids[$order_detail_id]);
             }
         }
 
-        // (D) ลบรายการสินค้าที่หายไป (Delete)
-        // (ID ที่ยังเหลืออยู่ใน $old_item_ids คือ ID ที่ผู้ใช้ลบแถวทิ้ง)
+        //  ลบรายการสินค้าที่หายไป 
         if (!empty($old_item_ids)) {
             foreach ($old_item_ids as $id_to_delete) {
-                // (D.1) ตรวจสอบครั้งสุดท้ายว่าลบได้จริง (ต้องไม่เคยรับของ)
+                // ตรวจสอบครั้งสุดท้ายว่าลบได้จริง
                 $check_received_sql = "SELECT COUNT(*) as cnt FROM stock_movements WHERE ref_table = 'order_details' AND ref_id = ?";
                 $stmt_check = $conn->prepare($check_received_sql);
                 $stmt_check->bind_param("i", $id_to_delete);
@@ -136,8 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
                     throw new Exception("ไม่สามารถลบรายการสินค้า (ID: $id_to_delete) เพราะมีการรับสินค้าเข้าระบบไปแล้ว");
                 }
 
-                // (D.2) ลบ (เพราะตารางนี้เราตั้ง ON DELETE CASCADE ไว้)
-                // (อัปเดต: ON DELETE CASCADE ของคุณคือถ้าลบ PO ไม่ใช่ลบ Item)
+                // ลบ
                 $sql_delete = "DELETE FROM order_details WHERE order_id = ?";
                 $stmt_delete = $conn->prepare($sql_delete);
                 $stmt_delete->bind_param("i", $id_to_delete);
@@ -148,13 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
             }
         }
 
-        // (E) ถ้าทุกอย่างสำเร็จ
+        //  ถ้าทุกอย่างสำเร็จ
         mysqli_commit($conn);
         $_SESSION['success'] = "แก้ไขใบสั่งซื้อ (PO #$po_id) สำเร็จ";
         header('Location: purchase_order.php');
         exit;
     } catch (Exception $e) {
-        // (F) ถ้ามีปัญหา
+        //  ถ้ามีปัญหา
         mysqli_rollback($conn);
         $_SESSION['error'] = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
         header('Location: edit_purchase_order.php?id=' . $po_id);
@@ -166,10 +163,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
 
 
 // -----------------------------------------------------------------------------
-// 3. GET DATA (สำหรับแสดงฟอร์ม)
+// สำหรับแสดงฟอร์ม
 // -----------------------------------------------------------------------------
 
-// (A) ดึง PO Header
+//  ดึง PO Header
 $po_sql = "SELECT * FROM purchase_orders WHERE purchase_id = $po_id";
 $po_result = mysqli_query($conn, $po_sql);
 $po_data = mysqli_fetch_assoc($po_result);
@@ -180,14 +177,14 @@ if (!$po_data) {
     exit;
 }
 
-// (B) ตรวจสอบสถานะ (สำคัญ!)
+// ตรวจสอบสถานะ 
 if ($po_data['po_status'] != 'Pending') {
     $_SESSION['error'] = "PO นี้ (สถานะ: {$po_data['po_status']}) ไม่สามารถแก้ไขได้";
     header('Location: purchase_order.php');
     exit;
 }
 
-// (C) ดึง PO Items (พร้อมเช็กว่าเคยรับของหรือยัง)
+// ดึง PO Items (พร้อมเช็กว่าเคยรับของหรือยัง)
 $items_sql = "SELECT 
                 od.*, 
                 p.prod_name, 
@@ -205,7 +202,7 @@ while ($row = mysqli_fetch_assoc($items_result)) {
     $po_items[] = $row;
 }
 
-// (D) ดึงข้อมูล Dropdowns
+// ดึงข้อมูล Dropdowns
 $suppliers_result = mysqli_query($conn, "SELECT supplier_id, co_name FROM suppliers ORDER BY co_name");
 $branches_result = mysqli_query($conn, "SELECT branch_id, branch_name FROM branches ORDER BY branch_name");
 $employees_result = mysqli_query($conn, "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE emp_status = 'Active' ORDER BY firstname_th");
@@ -213,12 +210,11 @@ $products_result = mysqli_query($conn, "SELECT p.prod_id, p.prod_name, p.model_n
                                         FROM products p 
                                         LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
                                         ORDER BY p.prod_name");
-// (แปลง $products_result เป็น Array สำหรับ Javascript)
 $products_js_array = [];
 while ($row = mysqli_fetch_assoc($products_result)) {
     $products_js_array[] = $row;
 }
-mysqli_data_seek($products_result, 0); // (ย้อนกลับไปใช้ใน HTML)
+mysqli_data_seek($products_result, 0); 
 
 ?>
 
@@ -406,7 +402,7 @@ mysqli_data_seek($products_result, 0); // (ย้อนกลับไปใช�
 
                                         <?php foreach ($po_items as $item): ?>
                                             <?php
-                                            // (ตรวจสอบว่าแถวนี้ควรถูกล็อคหรือไม่)
+                                            // ตรวจสอบว่าแถวนี้ควรถูกล็อคหรือไม่
                                             $is_locked = $item['received_count'] > 0;
                                             $min_qty = $is_locked ? $item['received_count'] : 1;
                                             ?>
@@ -534,36 +530,36 @@ mysqli_data_seek($products_result, 0); // (ย้อนกลับไปใช�
             const itemListBody = document.getElementById('item-list-body');
             const addItemBtn = document.getElementById('add-item-btn');
 
-            // (ฟังก์ชันสำหรับอัปเดต Event Listeners ทั้งหมด)
+            // ฟังก์ชันสำหรับอัปเดต Event Listeners ทั้งหมด
             function attachListeners() {
-                // (1. ปุ่มลบแถว)
+                //  ปุ่มลบแถว
                 document.querySelectorAll('.btn-remove-item').forEach(btn => {
-                    // (ลบ event เก่ากันซ้ำ)
+                    // ลบ event เก่ากันซ้ำ
                     btn.removeEventListener('click', removeRow);
-                    // (เพิ่ม event ใหม่)
+                    // เพิ่ม event ใหม่
                     btn.addEventListener('click', removeRow);
                 });
 
-                // (2. ช่อง Product Select)
+                //ช่อง Product Select
                 document.querySelectorAll('.product-select').forEach(select => {
                     select.removeEventListener('change', updatePrice);
                     select.addEventListener('change', updatePrice);
                 });
 
-                // (3. ช่อง Amount/Price)
+                // ช่อง Amount/Price
                 document.querySelectorAll('.item-amount, .item-price').forEach(input => {
                     input.removeEventListener('input', calculateRowTotal);
                     input.addEventListener('input', calculateRowTotal);
                 });
             }
 
-            // (ฟังก์ชันลบแถว)
+            // ฟังก์ชันลบแถว
             function removeRow(event) {
                 event.target.closest('tr').remove();
-                calculateGrandTotal(); // (อัปเดตยอดรวม)
+                calculateGrandTotal(); 
             }
 
-            // (ฟังก์ชันอัปเดตราคาทุน เมื่อเลือกสินค้า)
+            // ฟังก์ชันอัปเดตราคาทุน เมื่อเลือกสินค้า
             function updatePrice(event) {
                 const select = event.target;
                 const selectedOption = select.options[select.selectedIndex];
@@ -573,10 +569,10 @@ mysqli_data_seek($products_result, 0); // (ย้อนกลับไปใช�
                 row.querySelector('.item-price').value = parseFloat(price).toFixed(2);
                 calculateRowTotal({
                     target: row.querySelector('.item-price')
-                }); // (คำนวณใหม่)
+                }); // คำนวณใหม่
             }
 
-            // (ฟังก์ชันคำนวณยอดรวม "ต่อแถว")
+            // ฟังก์ชันคำนวณยอดรวม "ต่อแถว"
             function calculateRowTotal(event) {
                 const input = event.target;
                 const row = input.closest('tr');
@@ -587,10 +583,10 @@ mysqli_data_seek($products_result, 0); // (ย้อนกลับไปใช�
                 const total = amount * price;
                 row.querySelector('.item-total').value = total.toFixed(2);
 
-                calculateGrandTotal(); // (อัปเดตยอดรวมสุทธิ)
+                calculateGrandTotal(); // อัปเดตยอดรวมสุทธิ
             }
 
-            // (ฟังก์ชันคำนวณ "ยอดรวมสุทธิ")
+            // ฟังก์ชันคำนวณ "ยอดรวมสุทธิ"
             function calculateGrandTotal() {
                 let grandTotal = 0;
                 document.querySelectorAll('.item-row').forEach(row => {
@@ -604,16 +600,16 @@ mysqli_data_seek($products_result, 0); // (ย้อนกลับไปใช�
                 });
             }
 
-            // (ฟังก์ชัน "เพิ่มแถวใหม่")
+            // ฟังก์ชัน "เพิ่มแถวใหม่"
             addItemBtn.addEventListener('click', function() {
                 const template = document.getElementById('new-item-row-template');
-                const newRowHtml = template.innerHTML.replace(/NEW_KEY/g, `new_${Date.now()}`); // (สร้าง Key ใหม่)
+                const newRowHtml = template.innerHTML.replace(/NEW_KEY/g, `new_${Date.now()}`); 
 
                 itemListBody.insertAdjacentHTML('beforeend', newRowHtml);
-                attachListeners(); // (ต้องอัปเดต Listeners ให้แถวใหม่ด้วย)
+                attachListeners(); 
             });
 
-            // (ทำงานครั้งแรกเมื่อโหลดหน้า)
+            // ทำงานครั้งแรกเมื่อโหลดหน้า
             attachListeners();
             calculateGrandTotal();
         });

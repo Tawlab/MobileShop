@@ -2,7 +2,6 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_province');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
 $error = '';
 
@@ -11,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $province_name_th = trim($_POST['province_name_th']);
   $province_name_en = trim($_POST['province_name_en']);
 
-  // --- การตรวจสอบข้อมูล (Server-side) ---
+  // --- การตรวจสอบข้อมูล  ---
   if (empty($province_id) || empty($province_name_th) || empty($province_name_en)) {
     $error = 'กรุณากรอกข้อมูลให้ครบถ้วน';
   } elseif (!preg_match('/^\d{2}$/', $province_id)) {

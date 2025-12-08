@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_purchase_order');
 
-// (2) รับ ID จาก URL
+//รับ ID จาก URL
 $purchase_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if ($purchase_id === 0) {
     $_SESSION['error'] = 'ไม่พบ ID ของใบสั่งซื้อ';
@@ -11,8 +11,7 @@ if ($purchase_id === 0) {
     exit;
 }
 
-// (3) *** Query 1: ดึงข้อมูลส่วนหัว (Header) ***
-// (JOIN ตารางที่เกี่ยวข้องเพื่อแสดงชื่อ)
+// ดึงข้อมูลส่วนหัว (Header)
 $sql_header = "SELECT 
                     po.*, 
                     s.co_name as supplier_name, 
@@ -39,7 +38,7 @@ $po_header = $header_result->fetch_assoc();
 $stmt_header->close();
 
 
-// (4) *** Query 2: ดึงข้อมูลรายการสินค้า (Details) ***
+//  ดึงข้อมูลรายการสินค้า
 $sql_details = "SELECT 
                     od.*, 
                     p.prod_name, 
@@ -56,7 +55,7 @@ $stmt_details->bind_param("i", $purchase_id);
 $stmt_details->execute();
 $details_result = $stmt_details->get_result();
 
-// (5) เก็บผลลัพธ์ Details ไว้ใน Array
+// เก็บผลลัพธ์ Details ไว้ใน Array
 $po_details = [];
 while ($row = $details_result->fetch_assoc()) {
     $po_details[] = $row;
@@ -138,7 +137,6 @@ $stmt_details->close();
 
         .btn-back {
             background-color: #6c757d;
-            /* (Secondary color) */
             border-color: #6c757d;
             color: white;
         }
