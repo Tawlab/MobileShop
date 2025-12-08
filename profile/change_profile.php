@@ -1,9 +1,8 @@
 <?php
 session_start();
 require '../config/config.php';
-// checkPageAccess($conn, 'change_profile');
 
-// 1. ตรวจสอบการล็อกอิน
+// ตรวจสอบการล็อกอิน
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../global/login.php");
     exit;
@@ -12,7 +11,7 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 
 // -----------------------------------------------------------------------------
-// 2. AJAX HANDLER (สำหรับเปลี่ยนที่อยู่)
+// สำหรับเปลี่ยนที่อยู่
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -34,7 +33,7 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// 3. HANDLE FORM SUBMIT (บันทึกข้อมูล)
+// บันทึกข้อมูล
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // รับค่าจากฟอร์ม
@@ -80,14 +79,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // A. อัปเดตที่อยู่
+            // อัปเดตที่อยู่
             $sql_addr = "UPDATE addresses SET home_no=?, moo=?, soi=?, road=?, subdistricts_subdistrict_id=? WHERE address_id=?";
             $stmt_addr = $conn->prepare($sql_addr);
             $stmt_addr->bind_param("ssssii", $home_no, $moo, $soi, $road, $subdist, $addr_id);
             $stmt_addr->execute();
             $stmt_addr->close();
 
-            // B. อัปเดตข้อมูลพนักงาน
+            // อัปเดตข้อมูลพนักงาน
             $sql_emp = "UPDATE employees SET 
                         prefixs_prefix_id=?, firstname_th=?, lastname_th=?, firstname_en=?, lastname_en=?, 
                         emp_national_id=?, emp_birthday=?, emp_gender=?, religions_religion_id=?,
@@ -125,13 +124,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // -----------------------------------------------------------------------------
-// 4. FETCH DATA (ดึงข้อมูลปัจจุบัน)
+// ดึงข้อมูลปัจจุบัน
 // -----------------------------------------------------------------------------
 $sql = "SELECT e.*, u.username, 
                d.dept_name, b.branch_name,
                a.address_id, a.home_no, a.moo, a.soi, a.road, 
                sd.subdistrict_id, dist.district_id, pv.province_id, sd.zip_code,
-               p.prefix_th, p.prefix_en  -- ดึงข้อมูล prefix เพิ่มเติม
+               p.prefix_th, p.prefix_en  
         FROM employees e
         JOIN users u ON e.users_user_id = u.user_id
         LEFT JOIN prefixs p ON e.prefixs_prefix_id = p.prefix_id
@@ -146,11 +145,9 @@ $sql = "SELECT e.*, u.username,
 $user_data = mysqli_fetch_assoc(mysqli_query($conn, $sql));
 
 // Master Data Dropdowns
-$prefixes = mysqli_query($conn, "SELECT * FROM prefixs"); // ใช้ loop เพื่อสร้าง option และ data-attribute
+$prefixes = mysqli_query($conn, "SELECT * FROM prefixs");
 $religions = mysqli_query($conn, "SELECT * FROM religions");
 $provinces = mysqli_query($conn, "SELECT * FROM provinces ORDER BY province_name_th");
-
-// Pre-load Districts & Subdistricts based on current user data
 $districts = [];
 if ($user_data['province_id']) {
     $res_dist = mysqli_query($conn, "SELECT * FROM districts WHERE provinces_province_id = {$user_data['province_id']} ORDER BY district_name_th");
@@ -485,7 +482,6 @@ if ($user_data['district_id']) {
                 .then(data => {
                     const select = document.getElementById(targetId);
 
-                    // Reset dropdown but keep first option
                     if (targetId === 'district') {
                         select.innerHTML = '<option value="">-- เลือกอำเภอ --</option>';
                         document.getElementById('subdistrict').innerHTML = '<option value="">-- เลือกตำบล --</option>';
@@ -531,7 +527,7 @@ if ($user_data['district_id']) {
             document.getElementById('prefix_en').value = prefixEn || '';
         }
 
-        // Validation Input (JS)
+        // Validation Input 
         const nidInput = document.getElementById('emp_national_id');
         const phoneInput = document.getElementById('emp_phone_no');
 
@@ -549,7 +545,6 @@ if ($user_data['district_id']) {
         phoneInput.addEventListener('blur', function() {
             if (this.value.length > 0 && !this.value.match(/^(06|08|09)[0-9]{8}$/)) {
                 alert('เบอร์โทรศัพท์ต้องขึ้นต้นด้วย 06, 08, 09 และมีครบ 10 หลัก');
-                // หรือใช้ class is-invalid ของ bootstrap ก็ได้
             }
         });
     </script>

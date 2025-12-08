@@ -1,8 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-// checkPageAccess($conn, 'change_password');
-// 1. ตรวจสอบการล็อกอิน
+// ตรวจสอบการล็อกอิน
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../global/login.php");
     exit;
@@ -10,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// 2. Handle Form Submit (Logic เดิม ไม่เปลี่ยนแปลง)
+//  Handle Form Submit
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $current_pass = $_POST['current_password'];
     $new_pass     = $_POST['new_password'];
@@ -58,7 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #f8f9fa;
         }
 
-        /* CSS เดิมของหน้านี้ */
         .card-custom {
             border: none;
             border-radius: 15px;
