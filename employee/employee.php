@@ -10,10 +10,8 @@ unset($_SESSION['message'], $_SESSION['message_type']);
 
 // --- (ส่วนจัดการการค้นหาและฟิลเตอร์) ---
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
-$status_filter = isset($_GET['status_filter']) ? $_GET['status_filter'] : 'All'; // --- (ใหม่) รับค่าฟิลเตอร์ ---
-$employees = [];
+$status_filter = isset($_GET['status_filter']) ? $_GET['status_filter'] : 'All'; 
 
-// --- (SQL Query หลัก) ---
 $sql = "
     SELECT
         e.emp_id,
@@ -31,12 +29,11 @@ $sql = "
     LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
 ";
 
-// --- (ใหม่: สร้างเงื่อนไข WHERE แบบไดนามิก) ---
 $where_clauses = [];
 $bind_types = "";
 $bind_values = [];
 
-// --- 1. เงื่อนไขการค้นหา (Search Term) ---
+// --- เงื่อนไขการค้นหา ---
 if (!empty($search_term)) {
     $where_clauses[] = "(e.emp_code LIKE ? OR e.firstname_th LIKE ? OR e.lastname_th LIKE ? OR d.dept_name LIKE ? OR b.branch_name LIKE ?)";
     $search_like = "%" . $search_term . "%";
@@ -44,7 +41,7 @@ if (!empty($search_term)) {
     array_push($bind_values, $search_like, $search_like, $search_like, $search_like, $search_like);
 }
 
-// --- 2. เงื่อนไขฟิลเตอร์สถานะ (Status Filter) ---
+// --- เงื่อนไขฟิลเตอร์สถานะ  ---
 if ($status_filter != 'All') {
     $where_clauses[] = "e.emp_status = ?";
     $bind_types .= "s";
@@ -58,11 +55,11 @@ if (!empty($where_clauses)) {
 
 $sql .= " ORDER BY e.emp_id DESC"; // เรียงจากใหม่ไปเก่า
 
-// --- (ใช้ Prepared Statement เพื่อความปลอดภัย) ---
+// --- ใช้ Prepared Statement เพื่อความปลอดภัย ---
 $stmt = $conn->prepare($sql);
 
 if ($stmt) {
-    // --- (ผูกค่าพารามิเตอร์ถ้ามี) ---
+    // --- ผูกค่าพารามิเตอร์ถ้ามี ---
     if (!empty($bind_types)) {
         $stmt->bind_param($bind_types, ...$bind_values);
     }
@@ -79,8 +76,6 @@ if ($stmt) {
     // --- จัดการกรณี Query ผิดพลาด ---
     die("Error preparing statement: " . $conn->error);
 }
-
-// $conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -189,52 +184,39 @@ if ($stmt) {
             color: #d1d5db;
         }
 
-        /* --- (ใหม่) CSS สำหรับ Dropdown สถานะ --- */
+        /* --- CSS สำหรับ Dropdown สถานะ --- */
         .status-select {
             font-size: 0.8rem;
             font-weight: 500;
             border-radius: 50rem;
-            /* ทำให้มน */
             padding: 0.3em 0.8em;
             border: 1px solid transparent;
             background-position: right 0.5rem center;
-            /* ย้ายลูกศร */
             padding-right: 1.75rem;
-            /* เพิ่มที่ให้ลูกศร */
             -webkit-appearance: none;
             -moz-appearance: none;
             appearance: none;
             cursor: pointer;
             width: 120px;
-            /* กำหนดความกว้าง */
         }
 
         .status-select:focus {
             box-shadow: 0 0 0 0.2rem rgba(21, 128, 61, 0.15);
-            /* ธีมสีเขียว */
         }
 
         /* สีตอน Active */
         .status-select.status-select-active {
             background-color: #d1fae5;
-            /* Green-100 */
             color: #065f46;
-            /* Green-800 */
             border-color: #a7f3d0;
-            /* Green-200 */
-            /* ไอคอนลูกศรสีเขียว */
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23065f46' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
         }
 
         /* สีตอน Resigned */
         .status-select.status-select-resigned {
             background-color: #f3f4f6;
-            /* Gray-100 */
             color: #4b5563;
-            /* Gray-600 */
             border-color: #d1d5db;
-            /* Gray-300 */
-            /* ไอคอนลูกศรสีเทา */
             background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%234b5563' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
         }
 
@@ -455,12 +437,11 @@ if ($stmt) {
         </div>
     </div>
     <?php
-    // ✅ ปิดตรงนี้ (ล่างสุด) หรือปล่อยให้ PHP ปิดเองอัตโนมัติก็ได้
     if (isset($conn)) $conn->close();
     ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- (Script สำหรับซ่อน Alert (ของเดิม)) ---
+        // --- สำหรับซ่อน Alert ---
         setTimeout(() => {
             document.querySelectorAll('.custom-alert').forEach(alert => {
                 const bsAlert = bootstrap.Alert.getInstance(alert);
@@ -472,35 +453,32 @@ if ($stmt) {
                     setTimeout(() => alert.remove(), 500);
                 }
             });
-        }, 5000); // 5 วินาที
+        }, 5000);
 
-        // --- ===== START: (ใหม่) Script สลับสถานะ (Dropdown) ===== ---
+        // สลับสถานะ
         document.addEventListener('DOMContentLoaded', function() {
-            // --- เลือก dropdown สลับสถานะทุกอัน ---
+            // เลือก dropdown สลับสถานะทุกอัน 
             const statusSelects = document.querySelectorAll('.status-select');
 
             statusSelects.forEach(select => {
                 select.addEventListener('change', function(e) {
 
-                    const sel = this; // --- select ที่ถูกเปลี่ยน ---
+                    const sel = this; 
                     const empId = sel.dataset.id;
                     const newStatus = sel.value;
-                    const currentStatus = sel.dataset.status; // --- สถานะเดิมก่อนกด ---
+                    const currentStatus = sel.dataset.status; 
 
-                    // --- ถ้าเลือกค่าเดิม ก็ไม่ต้องทำอะไร ---
                     if (newStatus === currentStatus) {
                         return;
                     }
 
                     // --- ถามยืนยัน ---
                     if (!confirm(`คุณต้องการเปลี่ยนสถานะพนักงาน ID: ${empId}\nจาก "${currentStatus}" เป็น "${newStatus}" ใช่หรือไม่?`)) {
-                        // --- ถ้าไม่ยืนยัน: คืนค่า dropdown กลับไปที่สถานะเดิม ---
                         sel.value = currentStatus;
                         return;
                     }
 
                     // --- ส่งข้อมูลไปอัปเดต (Fetch/AJAX) ---
-                    // --- (ใช้ไฟล์ toggle_employee_status.php เดิม) ---
                     fetch('toggle_employee_status.php', {
                             method: 'POST',
                             headers: {
@@ -515,8 +493,8 @@ if ($stmt) {
                         .then(response => response.json())
                         .then(data => {
                             if (data.success) {
-                                // --- ถ้าอัปเดตสำเร็จ: สลับ class และ data-status ---
-                                sel.dataset.status = newStatus; // --- อัปเดตสถานะ "เดิม" ให้เป็นอันใหม่ ---
+                                // ถ้าอัปเดตสำเร็จ
+                                sel.dataset.status = newStatus;
                                 if (newStatus === 'Active') {
                                     sel.classList.remove('status-select-resigned');
                                     sel.classList.add('status-select-active');
@@ -528,20 +506,20 @@ if ($stmt) {
                                 showTempAlert('สำเร็จ!', 'เปลี่ยนสถานะพนักงานเรียบร้อยแล้ว', 'success');
 
                             } else {
-                                // --- ถ้าล้มเหลว: แจ้งเตือน Error และคืนค่า dropdown ---
+                                // ถ้าล้มเหลว
                                 alert('เกิดข้อผิดพลาด: ' + data.message);
-                                sel.value = currentStatus; // --- คืนค่ากลับ ---
+                                sel.value = currentStatus; 
                             }
                         })
                         .catch(error => {
                             console.error('Error:', error);
                             alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-                            sel.value = currentStatus; // --- คืนค่ากลับ ---
+                            sel.value = currentStatus;
                         });
                 });
             });
 
-            // --- (ฟังก์ชันเสริม: สร้าง Alert สวยๆ) ---
+            // สร้าง Alert
             function showTempAlert(title, message, type = 'success') {
                 const icon = (type === 'success') ? 'fa-check-circle' : 'fa-exclamation-triangle';
                 const alertType = (type === 'success') ? 'alert-success' : 'alert-error';
@@ -557,7 +535,6 @@ if ($stmt) {
 
                 document.body.appendChild(alertDiv);
 
-                // --- ให้ Alert หายไปเองใน 3 วินาที ---
                 setTimeout(() => {
                     const bsAlert = bootstrap.Alert.getInstance(alertDiv);
                     if (bsAlert) {
@@ -571,7 +548,6 @@ if ($stmt) {
             }
 
         });
-        // --- ===== END: Script ใหม่สำหรับสลับสถานะ ===== ---
     </script>
 </body>
 

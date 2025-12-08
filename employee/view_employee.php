@@ -1,18 +1,16 @@
 <?php
-// --- view_employee.php ---
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_employee');
 
-// --- 1. รับ ID พนักงานจาก URL ---
+// --- รับ ID พนักงานจาก URL ---
 $emp_id = (int)($_GET['id'] ?? 0);
 
 if ($emp_id === 0) {
     die("ไม่พบ ID พนักงานที่ระบุ");
 }
 
-// --- 2. ดึงข้อมูลพนักงาน (Query ฉบับสมบูรณ์) ---
-// (Query นี้จะ JOIN ตารางที่จำเป็นทั้งหมดเพื่อแสดงรายละเอียด)
+// --- ดึงข้อมูลพนักงาน ---
 $sql = "
     SELECT
         e.*, 
@@ -56,7 +54,7 @@ if (!$emp) {
     die("ไม่พบข้อมูลพนักงาน ID: $emp_id");
 }
 
-// --- 3. (Helper) จัดรูปแบบที่อยู่ (เหมือนหน้า add_employee) ---
+// --- จัดรูปแบบที่อยู่  ---
 $address_parts = [];
 if (!empty($emp['home_no'])) $address_parts['เลขที่'] = htmlspecialchars($emp['home_no']);
 if (!empty($emp['moo'])) $address_parts['หมู่'] = htmlspecialchars($emp['moo']);
@@ -67,8 +65,6 @@ if (!empty($emp['subdistrict_name_th'])) $address_parts['ตำบล/แขว�
 if (!empty($emp['district_name_th'])) $address_parts['อำเภอ/เขต'] = htmlspecialchars($emp['district_name_th']);
 if (!empty($emp['province_name_th'])) $address_parts['จังหวัด'] = htmlspecialchars($emp['province_name_th']);
 if (!empty($emp['zip_code'])) $address_parts['รหัสไปรษณีย์'] = htmlspecialchars($emp['zip_code']);
-
-// $conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -315,7 +311,6 @@ if (!empty($emp['zip_code'])) $address_parts['รหัสไปรษณีย�
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <?php
-    // ✅ ปิดตรงนี้ (ล่างสุด) หรือปล่อยให้ PHP ปิดเองอัตโนมัติก็ได้
     if (isset($conn)) $conn->close();
     ?>
 </body>

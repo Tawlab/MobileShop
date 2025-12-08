@@ -10,21 +10,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $dept_name = trim($_POST['dept_name']);
   $dept_desc = trim($_POST['dept_desc']);
 
-  // (2) Server-side Validation
   if (empty($dept_id) || empty($dept_name)) {
     $error_message = 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบถ้วน';
   } elseif (!preg_match('/^[0-9]{1,11}$/', $dept_id)) {
-    // อิงตามฐานข้อมูล `dept_id` int(11)
     $error_message = 'รหัสแผนกต้องเป็นตัวเลขเท่านั้น (ไม่เกิน 11 หลัก)';
   } elseif (mb_strlen($dept_name) > 50) {
-    // อิงตามฐานข้อมูล `dept_name` varchar(50)
     $error_message = 'ชื่อแผนกต้องไม่เกิน 50 ตัวอักษร';
   } elseif (mb_strlen($dept_desc) > 100) {
-    // อิงตามฐานข้อมูล `dept_desc` varchar(100)
     $error_message = 'รายละเอียดต้องไม่เกิน 100 ตัวอักษร';
   } else {
 
-    // (3) ตรวจสอบรหัสและชื่อซ้ำ
+    // ตรวจสอบรหัสและชื่อซ้ำ
     $stmt_check = $conn->prepare("SELECT dept_id FROM departments WHERE dept_id = ? OR dept_name = ?");
     $stmt_check->bind_param("ss", $dept_id, $dept_name);
     $stmt_check->execute();
@@ -38,7 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'ชื่อแผนก "' . $dept_name . '" นี้มีอยู่แล้วในระบบ';
       }
     } else {
-      // (4) บันทึกข้อมูล
       $sql = "INSERT INTO departments (dept_id, dept_name, dept_desc, create_at, update_at) 
                     VALUES (?, ?, ?, NOW(), NOW())";
 
@@ -46,7 +41,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt_insert->bind_param("sss", $dept_id, $dept_name, $dept_desc);
 
       if ($stmt_insert->execute()) {
-        // ส่งกลับไปหน้าหลักพร้อมข้อความสำเร็จ
         header("Location: department.php?success=add");
         exit();
       } else {
@@ -146,7 +140,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // (9) เปิดใช้งาน Client-side Validation ของ Bootstrap
+    // เปิดใช้งาน Client-side Validation
     (() => {
       'use strict'
       const forms = document.querySelectorAll('.needs-validation')

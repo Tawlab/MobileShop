@@ -4,10 +4,10 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'delete_employee');
 
-$redirect_target = 'employee.php'; 
+$redirect_target = 'employee.php';
 
 // ตัวแปรสำหรับกำหนดหน้าตา Modal
-$status = 'success'; 
+$status = 'success';
 $title = '';
 $message = '';
 $header_class = '';
@@ -22,7 +22,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 $emp_id = (int)$_GET['id'];
 
 try {
-    // 1. ดึงข้อมูลพนักงาน
+    // ดึงข้อมูลพนักงาน
     $sql_get = "SELECT users_user_id, Addresses_address_id, emp_image, firstname_th, lastname_th 
                 FROM employees WHERE emp_id = ?";
     $stmt_get = $conn->prepare($sql_get);
@@ -41,13 +41,13 @@ try {
     $emp_name = $row['firstname_th'] . ' ' . $row['lastname_th'];
     $stmt_get->close();
 
-    // 2. เริ่มการลบ
+    // เริ่มการลบ
     $conn->begin_transaction();
 
     // ลบ User (Cascade)
     $stmt_user = $conn->prepare("DELETE FROM users WHERE user_id = ?");
     $stmt_user->bind_param("i", $user_id);
-    
+
     if (!$stmt_user->execute()) {
         throw new Exception($conn->error, $conn->errno);
     }
@@ -63,7 +63,7 @@ try {
 
     $conn->commit();
 
-    // 3. ลบรูปภาพ
+    // ลบรูปภาพ
     if (!empty($image_path)) {
         $full_image_path = "../uploads/employees/" . $image_path;
         if (file_exists($full_image_path)) @unlink($full_image_path);
@@ -75,7 +75,6 @@ try {
     $header_class = 'bg-success text-white';
     $btn_class = 'btn-success';
     $icon = '<i class="fas fa-check-circle fa-3x text-success mb-3"></i>';
-
 } catch (Exception $e) {
     $conn->rollback();
 
@@ -98,20 +97,34 @@ try {
 
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>แจ้งเตือนระบบ</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <?php require '../config/load_theme.php'; ?> 
-    
+    <?php require '../config/load_theme.php'; ?>
+
     <style>
-        body { background-color: rgba(0,0,0,0.5); } /* พื้นหลังมืดจางๆ */
-        .modal-content { border: none; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-        .modal-header { border-top-left-radius: 15px; border-top-right-radius: 15px; }
+        body {
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        /* พื้นหลังมืดจางๆ */
+        .modal-content {
+            border: none;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            border-top-left-radius: 15px;
+            border-top-right-radius: 15px;
+        }
     </style>
 </head>
+
 <body>
 
     <div class="modal fade" id="statusModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
@@ -135,7 +148,7 @@ try {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <script>
         // แสดง Modal ทันทีเมื่อโหลดหน้าเสร็จ
         document.addEventListener('DOMContentLoaded', function() {
@@ -149,4 +162,5 @@ try {
         }
     </script>
 </body>
+
 </html>

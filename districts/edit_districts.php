@@ -1,9 +1,7 @@
 <?php
-// === File: districts/edit_districts.php ===
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_department');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
 $error = '';
 $district_id = '';
@@ -11,7 +9,7 @@ $district_name_th = '';
 $district_name_en = '';
 $current_province_id = '';
 
-// 1. ตรวจสอบว่ามี ID ส่งมาหรือไม่ (แก้ไขเป็น district_id)
+// ตรวจสอบว่ามี ID ส่งมาหรือไม่
 if (!isset($_GET['id']) || empty($_GET['id'])) {
   header("Location: districts.php?error=not_found");
   exit();
@@ -19,7 +17,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $id_to_edit = $_GET['id'];
 
-// 2. ดึงข้อมูลอำเภอเดิม (แก้ไขชื่อฟิลด์)
+// ดึงข้อมูลอำเภอเดิม
 $stmt_select = $conn->prepare("SELECT district_id, district_name_th, district_name_en, provinces_province_id FROM districts WHERE district_id = ?");
 $stmt_select->bind_param("s", $id_to_edit);
 $stmt_select->execute();
@@ -33,21 +31,20 @@ if (!$row) {
   exit();
 }
 
-// 3. ดึงรายการจังหวัด (แก้ไขชื่อฟิลด์)
+// ดึงรายการจังหวัด
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th ASC");
 
-// 4. เมื่อมีการส่งฟอร์ม (POST)
+// เมื่อมีการส่งฟอร์ม (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  // ดึงข้อมูลจากฟอร์ม (แก้ไขชื่อฟิลด์)
+  // ดึงข้อมูลจากฟอร์ม 
   $district_id_post = trim($_POST['district_id']); // ID ที่ส่งมาจาก form (readonly)
   $district_name_th_post = trim($_POST['district_name_th']);
   $district_name_en_post = trim($_POST['district_name_en']);
   $provinces_province_id_post = trim($_POST['provinces_province_id']);
 
-  // 5. ตรวจสอบความถูกต้องของข้อมูล
+  // ตรวจสอบความถูกต้องของข้อมูล
   if (empty($district_name_th_post) || empty($district_name_en_post) || empty($provinces_province_id_post)) {
     $error = 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบถ้วน';
-    // เติมค่ากลับเข้าไปในฟอร์ม
     $district_id = $district_id_post;
     $district_name_th = $district_name_th_post;
     $district_name_en = $district_name_en_post;
@@ -65,14 +62,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $district_name_en = $district_name_en_post;
     $current_province_id = $provinces_province_id_post;
   } elseif ($district_id_post !== $id_to_edit) {
-    // ป้องกันการพยายามแก้ไข ID ผ่าน Inspect Element
     $error = 'รหัสอำเภอไม่ตรงกัน ไม่สามารถดำเนินการได้';
-    $district_id = $id_to_edit; // ใช้ ID เดิม
+    $district_id = $id_to_edit;
     $district_name_th = $district_name_th_post;
     $district_name_en = $district_name_en_post;
     $current_province_id = $provinces_province_id_post;
   } else {
-    // 6. ตรวจสอบชื่อซ้ำ (เฉพาะกรณีที่ชื่อมีการเปลี่ยนแปลง)
+    // ตรวจสอบชื่อซ้ำ
     if ($district_name_th_post != $row['district_name_th'] || $provinces_province_id_post != $row['provinces_province_id']) {
       $stmt_check = $conn->prepare("SELECT district_id FROM districts WHERE district_name_th = ? AND provinces_province_id = ?");
       $stmt_check->bind_param("ss", $district_name_th_post, $provinces_province_id_post);
@@ -88,7 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt_check->close();
     }
 
-    // 7. ถ้าไม่มี error ให้ทำการอัปเดต (แก้ไขชื่อฟิลด์)
     if (empty($error)) {
       $stmt_update = $conn->prepare("UPDATE districts SET district_name_th = ?, district_name_en = ?, provinces_province_id = ? WHERE district_id = ?");
       $stmt_update->bind_param("ssss", $district_name_th_post, $district_name_en_post, $provinces_province_id_post, $id_to_edit);
@@ -103,7 +98,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 } else {
-  // 5. ถ้าไม่ใช่ POST (โหลดหน้าครั้งแรก) ให้แสดงข้อมูลเดิม
   $district_id = $row['district_id'];
   $district_name_th = $row['district_name_th'];
   $district_name_en = $row['district_name_en'];

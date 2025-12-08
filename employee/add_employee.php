@@ -1,7 +1,5 @@
 <?php
-// --- ไฟล์: employee/add_employee.php ---
-
-session_start(); // --- เริ่ม Session ---
+session_start(); 
 require '../config/config.php';
 checkPageAccess($conn, 'add_employee');
 
@@ -13,18 +11,14 @@ function hashPassword($password)
 }
 
 // --- ดึงข้อมูลสำหรับ Dropdowns ---
-
-// --- 1. คำนำหน้า (Prefixes) ---
 $prefix_sql = "SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1 ORDER BY prefix_th";
 $prefix_result = mysqli_query($conn, $prefix_sql);
 if (!$prefix_result) {
-    // --- จัดการ Error ถ้า Query ล้มเหลว ---
     error_log("Error fetching prefixes: " . mysqli_error($conn));
-    die("Error fetching prefixes: " . mysqli_error($conn)); // --- หยุดทำงานถ้าข้อมูลพื้นฐานดึงไม่ได้ ---
+    die("Error fetching prefixes: " . mysqli_error($conn));
 }
 
-// --- 2. ศาสนา (Religions) ---
-// --- (แก้ไข: เพิ่ม is_active = 1 ตามฐานข้อมูลล่าสุด) ---
+// --- ศาสนา (Religions) ---
 $religion_sql = "SELECT religion_id, religion_name_th FROM religions WHERE is_active = 1 ORDER BY religion_id";
 $religion_result = mysqli_query($conn, $religion_sql);
 if (!$religion_result) {
@@ -32,7 +26,7 @@ if (!$religion_result) {
     die("Error fetching religions: " . mysqli_error($conn));
 }
 
-// --- 3. แผนก (Departments) ---
+// --- แผนก (Departments) ---
 $department_sql = "SELECT dept_id, dept_name FROM departments ORDER BY dept_name";
 $department_result = mysqli_query($conn, $department_sql);
 if (!$department_result) {
@@ -40,7 +34,7 @@ if (!$department_result) {
     die("Error fetching departments: " . mysqli_error($conn));
 }
 
-// --- 4. สาขา (Branches) ---
+// --- สาขา (Branches) ---
 $branch_sql = "SELECT branch_id, branch_name FROM branches ORDER BY branch_name";
 $branch_result = mysqli_query($conn, $branch_sql);
 if (!$branch_result) {
@@ -48,7 +42,7 @@ if (!$branch_result) {
     die("Error fetching branches: " . mysqli_error($conn));
 }
 
-// --- 5. บทบาท (Roles) ---
+// --- บทบาท (Roles) ---
 $role_sql = "SELECT role_id, role_name FROM roles ORDER BY role_name";
 $role_result = mysqli_query($conn, $role_sql);
 if (!$role_result) {
@@ -56,7 +50,7 @@ if (!$role_result) {
     die("Error fetching roles: " . mysqli_error($conn));
 }
 
-// --- 6. ที่อยู่ (Provinces, Districts, Subdistricts) ---
+// --- ที่อยู่ (Provinces, Districts, Subdistricts) ---
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 if (!$provinces_result) {
     error_log("Error fetching provinces: " . mysqli_error($conn));
@@ -76,9 +70,8 @@ if (!$subdistricts_result) {
 }
 
 
-// --- ตัวแปรสำหรับเก็บข้อมูลพนักงานที่เพิ่มสำเร็จ (เพื่อแสดงผล) ---
+// --- ตัวแปรสำหรับเก็บข้อมูลพนักงานที่เพิ่มสำเร็จ ---
 $added_employee_data = null;
-// --- ตัวแปรสำหรับเก็บข้อมูลที่กรอกค้าง (ถ้า Error) ---
 $form_data = [];
 $errors_to_display = [];
 
@@ -86,7 +79,6 @@ $errors_to_display = [];
 // --- ประมวลผลเมื่อมีการส่งฟอร์ม (POST) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json');
-    // --- รับข้อมูลพนักงาน (employees) ---
     $emp_code = trim($_POST['emp_code']);
     $emp_national_id = trim($_POST['emp_national_id']);
     $prefixs_prefix_id = (int)$_POST['prefixs_prefix_id'];
@@ -98,8 +90,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $emp_email = !empty($_POST['emp_email']) ? trim($_POST['emp_email']) : NULL;
     $emp_line_id = !empty($_POST['emp_line_id']) ? trim($_POST['emp_line_id']) : NULL;
     $emp_birthday = !empty($_POST['emp_birthday']) ? trim($_POST['emp_birthday']) : NULL;
-    $emp_gender = $_POST['emp_gender'] ?? ''; // --- enum('Male','Female') ---
-    $emp_status = $_POST['emp_status'] ?? ''; // --- enum('Active','Resigned') ---
+    $emp_gender = $_POST['emp_gender'] ?? '';
+    $emp_status = $_POST['emp_status'] ?? ''; 
     $religions_religion_id = (int)$_POST['religions_religion_id'];
     $departments_dept_id = (int)$_POST['departments_dept_id'];
     $branches_branch_id = (int)$_POST['branches_branch_id'];
@@ -116,12 +108,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
-    $user_status = $_POST['user_status'] ?? ''; // --- enum('Active','Inactive') ---
+    $user_status = $_POST['user_status'] ?? '';
     $role_id = isset($_POST['role_id']) ? (int)$_POST['role_id'] : 0;
 
     // --- ตรวจสอบข้อมูลเบื้องต้น ---
     $errors = [];
-    // --- Employee ---
     if (empty($emp_code)) {
         $errors[] = "กรุณากรอกรหัสพนักงาน";
     }
@@ -162,11 +153,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($branches_branch_id)) {
         $errors[] = "กรุณาเลือกสาขา";
     }
-    // --- Address ---
     if (empty($subdistricts_subdistrict_id)) {
         $errors[] = "กรุณาเลือกจังหวัด/อำเภอ/ตำบล";
     }
-    // --- User ---
     if (empty($username)) {
         $errors[] = "กรุณากรอก Username";
     }
@@ -183,19 +172,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "กรุณาเลือกบทบาทผู้ใช้งาน";
     }
 
-    // --- (ย้ายมา) ส่วนจัดการอัปโหลดรูปโปรไฟล์ ---
-    $emp_image_filename = NULL; // --- ตั้งค่าเริ่มต้นเป็น NULL (ว่าง) ---
+    //  ส่วนจัดการอัปโหลดรูปโปรไฟล์ ---
+    $emp_image_filename = NULL; 
 
     // --- ตรวจสอบว่ามีไฟล์ส่งมาหรือไม่ และไม่มี Error ---
     if (isset($_FILES['emp_image']) && $_FILES['emp_image']['error'] == 0) {
-        $upload_dir = '../uploads/employees/'; // --- โฟลเดอร์ที่เก็บรูป ---
+        $upload_dir = '../uploads/employees/';
         $allowed_types = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
         $file_type = mime_content_type($_FILES['emp_image']['tmp_name']);
 
         // --- ตรวจสอบชนิดไฟล์ ---
         if (in_array($file_type, $allowed_types)) {
-            // --- ตั้งชื่อไฟล์ใหม่ (กันซ้ำ) เช่น emp_รหัสพนักงาน_timestamp.jpg ---
-            // --- (เราจะใช้ $emp_code ที่รับมาก่อนหน้า) ---
             $file_extension = pathinfo($_FILES['emp_image']['name'], PATHINFO_EXTENSION);
             $emp_image_filename = "emp_" . $emp_code . "_" . time() . "." . $file_extension;
             $target_path = $upload_dir . $emp_image_filename;
@@ -207,20 +194,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // --- ย้ายไฟล์ไปเก็บ ---
             if (move_uploaded_file($_FILES['emp_image']['tmp_name'], $target_path)) {
-                // --- ถ้าย้ายสำเร็จ $emp_image_filename จะมีค่าชื่อไฟล์ ---
             } else {
-                // --- ถ้าย้ายไม่สำเร็จ ให้ล้มเหลว และแจ้ง Error ---
                 $errors[] = "เกิดข้อผิดพลาดในการย้ายไฟล์รูปภาพ";
-                $emp_image_filename = NULL; // --- ตั้งค่ากลับเป็น NULL ---
+                $emp_image_filename = NULL;
             }
         } else {
             // --- ถ้าไฟล์ไม่ใช่รูปภาพ ---
             $errors[] = "ไฟล์ที่อัปโหลดต้องเป็นรูปภาพ (JPG, PNG, GIF, WEBP) เท่านั้น";
         }
     }
-    // --- จบส่วนจัดการอัปโหลดรูปโปรไฟล์ ---
 
-    // --- ตรวจสอบข้อมูลซ้ำใน Database (emp_code, emp_national_id, username) ---
+    // --- ตรวจสอบข้อมูลซ้ำ--
     if (empty($errors)) {
         // --- Check emp_code ---
         $stmt_check = $conn->prepare("SELECT emp_id FROM employees WHERE emp_code = ?");
@@ -265,7 +249,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // --- หากไม่มีข้อผิดพลาด ---
     if (empty($errors)) {
         // --- สร้าง ID อัตโนมัติ (Max + 1) ---
-        // --- Address ID ---
         $sql_max_addr = "SELECT MAX(address_id) AS max_id FROM addresses";
         $max_addr_result = $conn->query($sql_max_addr);
         $max_addr_id = $max_addr_result ? ($max_addr_result->fetch_assoc()['max_id'] ?? 0) : 0;
@@ -285,11 +268,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- Hash Password ---
         $hashed_password = hashPassword($password);
-
-        // --- เริ่ม Transaction ---
         $conn->begin_transaction();
         try {
-            // --- 1. บันทึกที่อยู่ (addresses) ---
+            // --- บันทึกที่อยู่ (addresses) ---
             $stmt_addr = $conn->prepare("INSERT INTO addresses (address_id, home_no, moo, soi, road, village, subdistricts_subdistrict_id)
                                          VALUES (?, ?, ?, ?, ?, ?, ?)");
             if (!$stmt_addr) {
@@ -301,7 +282,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_addr->close();
 
-            // --- 2. บันทึกผู้ใช้งาน (users) ---
+            // --- บันทึกผู้ใช้งาน (users) ---
             $stmt_user = $conn->prepare("INSERT INTO users (user_id, username, password, user_status) VALUES (?, ?, ?, ?)");
             if (!$stmt_user) {
                 throw new Exception("Prepare failed (users): " . $conn->error);
@@ -312,8 +293,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_user->close();
 
-            // --- 3. บันทึกพนักงาน (employees) ---
-            // --- (แก้ไข: เพิ่ม emp_image) ---
+            // --- บันทึกพนักงาน (employees) ---
             $stmt_emp = $conn->prepare("INSERT INTO employees (emp_id, emp_code, emp_national_id, firstname_th, lastname_th, firstname_en, lastname_en,
                                         emp_phone_no, emp_email, emp_line_id, emp_birthday, emp_gender, emp_status,
                                         prefixs_prefix_id, Addresses_address_id, religions_religion_id, departments_dept_id, branches_branch_id, users_user_id, emp_image)
@@ -321,9 +301,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$stmt_emp) {
                 throw new Exception("Prepare failed (employees): " . $conn->error);
             }
-            // --- (แก้ไข: เพิ่ม "s" และ $emp_image_filename) ---
             $stmt_emp->bind_param(
-                "issssssssssssiiiiiis", // --- (แก้ไข: เพิ่ม s ตัวสุดท้าย) ---
+                "issssssssssssiiiiiis", 
                 $next_emp_id,
                 $emp_code,
                 $emp_national_id,
@@ -343,14 +322,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $departments_dept_id,
                 $branches_branch_id,
                 $next_user_id,
-                $emp_image_filename // --- (แก้ไข: เพิ่มตัวแปร) ---
+                $emp_image_filename 
             );
             if (!$stmt_emp->execute()) {
                 throw new Exception("บันทึกข้อมูลพนักงานล้มเหลว: " . $stmt_emp->error);
             }
             $stmt_emp->close();
 
-            // --- 4. บันทึกบทบาทผู้ใช้ (user_roles) ---
+            // --- บันทึกบทบาทผู้ใช้ (user_roles) ---
             $stmt_ur = $conn->prepare("INSERT INTO user_roles (roles_role_id, users_user_id) VALUES (?, ?)");
             if (!$stmt_ur) {
                 throw new Exception("Prepare failed (user_roles): " . $conn->error);
@@ -366,7 +345,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['message'] = "เพิ่มข้อมูลพนักงาน '$firstname_th $lastname_th' และสร้างบัญชีผู้ใช้ '$username' สำเร็จ";
             $_SESSION['message_type'] = "success";
 
-            // [แก้ไข] ให้ Redirect กลับไปหน้าเดิมทันที เพื่อเคลียร์ค่าและแสดงฟอร์มเปล่า
             header("Location: add_employee.php");
             exit();
             $sql_get_added = "
@@ -388,44 +366,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 LEFT JOIN provinces prov ON dist.provinces_province_id = prov.province_id
                 WHERE e.emp_id = ?";
             $stmt_get_added = $conn->prepare($sql_get_added);
-            if ($stmt_get_added) { // --- ตรวจสอบ Prepare ---
+            if ($stmt_get_added) { 
                 $stmt_get_added->bind_param("i", $next_emp_id);
                 $stmt_get_added->execute();
                 $added_employee_data = $stmt_get_added->get_result()->fetch_assoc();
                 $stmt_get_added->close();
             } else {
-                // --- ถ้าดึงข้อมูลมาแสดงผลไม่ได้ ---
                 error_log("Failed to fetch added employee data: " . $conn->error);
-                // --- ตั้งค่า $added_employee_data เป็นข้อมูลจาก POST (อาจไม่สมบูรณ์) ---
                 $added_employee_data = $_POST;
-                $added_employee_data['emp_id'] = $next_emp_id; // --- ใส่ ID ที่เพิ่งสร้าง ---
-                // --- (แก้ไข: เพิ่ม emp_image) ---
+                $added_employee_data['emp_id'] = $next_emp_id;
                 $added_employee_data['emp_image'] = $emp_image_filename;
-                // --- ดึงข้อมูลที่ขาดมาเพิ่ม (เช่น ชื่อแผนก) ---
                 $added_employee_data['prefix_th'] = $conn->query("SELECT prefix_th FROM prefixs WHERE prefix_id = $prefixs_prefix_id")->fetch_assoc()['prefix_th'] ?? '';
                 $added_employee_data['dept_name'] = $conn->query("SELECT dept_name FROM departments WHERE dept_id = $departments_dept_id")->fetch_assoc()['dept_name'] ?? '';
                 $added_employee_data['branch_name'] = $conn->query("SELECT branch_name FROM branches WHERE branch_id = $branches_branch_id")->fetch_assoc()['branch_name'] ?? '';
                 $added_employee_data['religion_name_th'] = $conn->query("SELECT religion_name_th FROM religions WHERE religion_id = $religions_religion_id")->fetch_assoc()['religion_name_th'] ?? '';
-                // --- ข้อมูลที่อยู่จะดึงยากถ้าไม่ Join ---
             }
 
-            // --- ไม่ต้อง Redirect ---
-
         } catch (Exception $e) {
-            // --- ถ้ามีข้อผิดพลาด ---
             $conn->rollback();
             $_SESSION['error_message'] = "เกิดข้อผิดพลาดในการบันทึก: " . $e->getMessage();
             error_log("Employee Add Error (Attempted EmpID: $next_emp_id): " . $e->getMessage());
-            $_SESSION['form_data'] = $_POST; // --- เก็บข้อมูลที่กรอกไว้ ---
-            header("Location: add_employee.php"); // --- กลับไปหน้า Add พร้อม Error ---
+            $_SESSION['form_data'] = $_POST; 
+            header("Location: add_employee.php");
             exit();
         }
     } else {
         // --- ถ้ามี Error จาก Validation ---
         $_SESSION['errors'] = $errors;
         $_SESSION['form_data'] = $_POST;
-        // --- (เพิ่ม) เก็บ ID จังหวัด/อำเภอ ที่เลือกไว้ (ถ้ามี) ---
-        // --- (จำเป็นสำหรับ JavaScript ตอนโหลดหน้าใหม่) ---
         if ($subdistricts_subdistrict_id) {
             $sql_get_ids = "SELECT d.provinces_province_id, sd.districts_district_id 
                              FROM subdistricts sd 
@@ -441,7 +409,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 } else {
-    // --- ถ้าเป็นการเปิดหน้าครั้งแรก หรือมี Error กลับมา ---
     $form_data = $_SESSION['form_data'] ?? [];
     $errors_to_display = $_SESSION['errors'] ?? [];
     unset($_SESSION['form_data'], $_SESSION['errors']); // --- ล้าง Session ---
@@ -1275,7 +1242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // --- Toggle Password Visibility ---
             document.querySelectorAll('.password-toggle').forEach(button => {
                 button.addEventListener('click', function() {
-                    const input = this.previousElementSibling; // Input element before the button
+                    const input = this.previousElementSibling; 
                     const icon = this.querySelector('i');
                     if (input.type === "password") {
                         input.type = "text";
@@ -1294,13 +1261,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const passwordInput = document.getElementById("password");
             const confirmPasswordInput = document.getElementById("confirm_password");
 
-            /**
-             * ตรวจสอบความถูกต้องและแสดง Error
-             * @param {HTMLElement} input
-             * @returns {boolean}
-             */
             function validateField(input) {
-                if (!input) return true; // ถ้าไม่มี input นี้
+                if (!input) return true; 
                 let isValid = true;
                 const value = input.value.trim();
                 // --- Required ---
@@ -1452,8 +1414,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (firstError) {
                         firstError.focus();
                     }
-                    // --- สร้าง Alert แบบ Bootstrap (ถ้าฟังก์ชัน showAlert ไม่มี) ---
-                    // (ถ้ามีฟังก์ชัน showAlert อยู่แล้ว ก็ใช้ได้เลย)
                     console.error("ข้อมูลในฟอร์มไม่ถูกต้อง");
                 } else {
                     const submitButton = form.querySelector('button[type="submit"]');
@@ -1485,12 +1445,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     districts.filter(d => d.provinces_province_id == provinceId)
                         .forEach(d => {
                             const opt = new Option(d.district_name_th, d.district_id);
-                            if (selectedDistrictId && d.district_id == selectedDistrictId) opt.selected = true; // --- เลือกค่าเดิม ---
+                            if (selectedDistrictId && d.district_id == selectedDistrictId) opt.selected = true;
                             districtSelect.add(opt);
                         });
                 }
                 validateField(districtSelect);
-                onDistrictChange(selectedSubdistrictId); // --- ส่งค่าต่อไป ---
+                onDistrictChange(selectedSubdistrictId);
             }
 
             function onDistrictChange(selectedSubdistrictId = null) {
@@ -1508,7 +1468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         });
                 }
                 validateField(subdistrictSelect);
-                onSubdistrictChange(); // --- เรียกเพื่อให้ zip code แสดง ---
+                onSubdistrictChange();
             }
 
             function onSubdistrictChange() {
@@ -1527,14 +1487,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     });
                 }
             }
-
-            // เรียกใช้งาน (Regex: ^ หมายถึง "ไม่เอา")
-            // 1. ช่องภาษาไทย (อนุญาต: ก-๙, สระ, วรรณยุกต์ไทย และช่องว่าง) -> ลบตัวอื่นทิ้ง
+            // ช่องภาษาไทย (อนุญาต: ก-๙, สระ, วรรณยุกต์ไทย และช่องว่าง) -> ลบตัวอื่นทิ้ง
             const regexNotThai = /[^ก-๙เแโใไฤฦๅ\s]/g;
             restrictInput('firstname_th', regexNotThai);
             restrictInput('lastname_th', regexNotThai);
 
-            // 2. ช่องภาษาอังกฤษ (อนุญาต: a-z, A-Z และช่องว่าง) -> ลบตัวอื่นทิ้ง
+            // ช่องภาษาอังกฤษ (อนุญาต: a-z, A-Z และช่องว่าง) -> ลบตัวอื่นทิ้ง
             const regexNotEng = /[^a-zA-Z\s]/g;
             restrictInput('firstname_en', regexNotEng);
             restrictInput('lastname_en', regexNotEng);

@@ -1,18 +1,15 @@
 <?php
-// === File: districts/districts.php ===
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'districts');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
-// แก้ไข SQL ให้ตรงกับ Schema
 $sql = "SELECT d.district_id, d.district_name_th, d.district_name_en, p.province_name_th
         FROM districts d
         LEFT JOIN provinces p ON d.provinces_province_id = p.province_id
         ORDER BY p.province_name_th ASC, d.district_id ASC";
 $result = $conn->query($sql);
 
-// --- ระบบแจ้งเตือน (Alert System) ---
+// --- แจ้งเตือน ---
 $alert_message = '';
 $alert_type = '';
 if (isset($_GET['add_success']) && $_GET['add_success'] == 'true') {
@@ -186,9 +183,7 @@ if (isset($_GET['add_success']) && $_GET['add_success'] == 'true') {
               button.addEventListener('click', () => {
                 const id = button.getAttribute('data-id');
                 const name = button.getAttribute('data-name');
-                // ปรับปรุงข้อความใน Modal
                 deleteMessage.innerHTML = `คุณแน่ใจหรือไม่ว่าจะลบอำเภอ "<strong>${name}</strong>" (รหัส ${id}) ?<br><span class='text-danger'>การกระทำนี้ไม่สามารถย้อนกลับได้</span>`;
-                // ไฟล์ delete_districts.php นี้ คุณต้องสร้างขึ้นมาเองนะครับ
                 confirmBtn.href = `delete_districts.php?id=${encodeURIComponent(id)}`;
                 modal.show();
               });

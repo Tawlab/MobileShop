@@ -1,12 +1,9 @@
 <?php
-// === File: districts/add_districts.php ===
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_districts');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
 // ดึงข้อมูลจังหวัดทั้งหมดสำหรับ Dropdown
-// (แก้ไขชื่อฟิลด์เป็น province_id, province_name_th)
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th ASC");
 
 $error = '';
@@ -28,7 +25,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $error = 'ชื่ออำเภอ (อังกฤษ) ต้องเป็นภาษาอังกฤษเท่านั้น';
   } else {
     // ตรวจสอบว่ามีข้อมูลซ้ำหรือไม่ (ทั้งรหัสอำเภอ หรือ ชื่ออำเภอในจังหวัดเดียวกัน)
-    // (แก้ไขชื่อฟิลด์)
     $stmt_check = $conn->prepare("SELECT district_id FROM districts WHERE district_id = ? OR (district_name_th = ? AND provinces_province_id = ?)");
     $stmt_check->bind_param("sss", $district_id, $district_name_th, $provinces_province_id);
     $stmt_check->execute();
@@ -37,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($stmt_check->num_rows > 0) {
       $error = 'รหัสอำเภอ หรือ ชื่ออำเภอนี้ มีอยู่แล้วในจังหวัดที่เลือก';
     } else {
-      // บันทึกข้อมูล (แก้ไขชื่อฟิลด์)
+      // บันทึกข้อมูล 
       $stmt_insert = $conn->prepare("INSERT INTO districts (district_id, district_name_th, district_name_en, provinces_province_id) VALUES (?, ?, ?, ?)");
       $stmt_insert->bind_param("ssss", $district_id, $district_name_th, $district_name_en, $provinces_province_id);
 

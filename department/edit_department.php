@@ -6,13 +6,13 @@ checkPageAccess($conn, 'edit_department');
 $error_message = '';
 $old_dept_id = $_GET['id'] ?? '';
 
-// (2) ตรวจสอบว่ามี ID ส่งมาหรือไม่
+// ตรวจสอบว่ามี ID ส่งมาหรือไม่
 if (empty($old_dept_id)) {
   header("Location: department.php?error=not_found");
   exit();
 }
 
-// (3) ดึงข้อมูลเดิม
+// ดึงข้อมูลเดิม
 $stmt_select = $conn->prepare("SELECT * FROM departments WHERE dept_id = ?");
 $stmt_select->bind_param("s", $old_dept_id);
 $stmt_select->execute();
@@ -26,13 +26,13 @@ if (!$data) {
   exit();
 }
 
-// (4) เมื่อมีการกดบันทึก (POST)
+// เมื่อมีการกดบันทึก (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $new_dept_id = trim($_POST['dept_id']);
   $dept_name = trim($_POST['dept_name']);
   $dept_desc = trim($_POST['dept_desc']);
 
-  // (5) Server-side Validation
+  // Server-side Validation
   if (empty($new_dept_id) || empty($dept_name)) {
     $error_message = 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบถ้วน';
   } elseif (!preg_match('/^[0-9]{1,11}$/', $new_dept_id)) {
@@ -43,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $error_message = 'รายละเอียดต้องไม่เกิน 100 ตัวอักษร';
   } else {
 
-    // (6) ตรวจสอบรหัสและชื่อซ้ำ (เฉพาะในกรณีที่มีการเปลี่ยน)
+    // ตรวจสอบรหัสและชื่อซ้ำ
     $stmt_check = $conn->prepare("SELECT dept_id FROM departments WHERE (dept_id = ? OR dept_name = ?) AND dept_id != ?");
     $stmt_check->bind_param("sss", $new_dept_id, $dept_name, $old_dept_id);
     $stmt_check->execute();
@@ -57,7 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error_message = 'ชื่อแผนก "' . $dept_name . '" นี้มีอยู่แล้วในระบบ';
       }
     } else {
-      // (7) บันทึกข้อมูล (UPDATE)
       $sql = "UPDATE departments SET 
                         dept_id = ?, 
                         dept_name = ?, 
@@ -69,7 +68,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt_update->bind_param("ssss", $new_dept_id, $dept_name, $dept_desc, $old_dept_id);
 
       if ($stmt_update->execute()) {
-        // ส่งกลับไปหน้าหลักพร้อมข้อความสำเร็จ
         header("Location: department.php?success=edit");
         exit();
       } else {
@@ -173,7 +171,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </div>
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // (12) เปิดใช้งาน Client-side Validation ของ Bootstrap
     (() => {
       'use strict'
       const forms = document.querySelectorAll('.needs-validation')

@@ -2,7 +2,6 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'department');
-// require '../config/load_theme.php';
 
 // ค่าเริ่มต้น
 $search_term = '';
@@ -28,10 +27,8 @@ if (isset($_GET['page'])) {
 }
 $offset = ($page - 1) * $limit;
 
-// --- (3) สร้าง SQL Query แบบไดนามิก ---
 $sql_where = "";
 if (!empty($search_term)) {
-  // ค้นหาจาก รหัส หรือ ชื่อแผนก
   $sql_where = " WHERE (dept_id LIKE ? OR dept_name LIKE ?)";
 }
 
@@ -41,7 +38,7 @@ $sql_limit = " LIMIT $limit OFFSET $offset";
 // Query หลักสำหรับดึงข้อมูล
 $sql_data = "SELECT * FROM departments $sql_where $sql_order $sql_limit";
 
-// Query สำหรับนับจำนวนทั้งหมด (สำหรับการแบ่งหน้า)
+// Query สำหรับนับจำนวนทั้งหมด
 $sql_count = "SELECT COUNT(*) as total FROM departments $sql_where";
 
 // เตรียม Statement
@@ -266,7 +263,7 @@ $total_pages = ceil($total_rows / $limit);
         alerts.forEach(alert => {
           new bootstrap.Alert(alert).close();
         });
-      }, 4000); // 4 วินาที
+      }, 4000);
     });
   </script>
 </body>
