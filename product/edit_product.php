@@ -2,23 +2,21 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_product');
-// (1) โหลดธีม
 require '../config/load_theme.php';
 
-// (2) ตรวจสอบว่ามี ID ส่งมาหรือไม่ (ใช้ Prepared Statement)
+//  ตรวจสอบว่ามี ID ส่งมาหรือไม่ 
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสสินค้าที่ต้องการแก้ไข";
     header('Location: product.php');
     exit();
 }
 
-$prod_id_to_edit = $_GET['id']; // รับ ID เดิม (อาจเป็น int หรือ string)
+$prod_id_to_edit = $_GET['id']; 
 
-// (3) การจัดการการแก้ไขข้อมูล
+// การจัดการการแก้ไขข้อมูล
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // (4) รับข้อมูลจากฟอร์ม (แก้ชื่อคอลัมน์)
-    $new_prod_id = (int)$_POST['prod_id']; // รับ ID ใหม่จากฟอร์ม
-    $original_prod_id = $_POST['original_prod_id']; // รับ ID เดิมจาก hidden input
+    $new_prod_id = (int)$_POST['prod_id'];
+    $original_prod_id = $_POST['original_prod_id']; 
 
     $prod_name = trim($_POST['prod_name']);
     $prod_brands_brand_id = (int)$_POST['prod_brands_brand_id'];
@@ -38,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (empty($model_no)) $errors[] = "กรุณากรอกรหัสรุ่น";
     if ($prod_price <= 0) $errors[] = "ราคาสินค้าต้องมากกว่า 0";
 
-    // (6) ตรวจสอบรหัสซ้ำ (ถ้าเปลี่ยนรหัส)
+    //  ตรวจสอบรหัสซ้ำ (ถ้าเปลี่ยนรหัส)
     if ($new_prod_id != $original_prod_id) {
         $check_id_sql = "SELECT prod_id FROM products WHERE prod_id = ?";
         $check_id_stmt = $conn->prepare($check_id_sql);
@@ -51,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $check_id_stmt->close();
     }
 
-    // (7) ตรวจสอบว่ารหัสรุ่นซ้ำกับสินค้าอื่นหรือไม่ (ยกเว้นตัวเอง)
+    //  ตรวจสอบว่ารหัสรุ่นซ้ำกับสินค้าอื่นหรือไม่ (ยกเว้นตัวเอง)
     $check_model_sql = "SELECT prod_id FROM products WHERE model_no = ? AND prod_id != ?";
     if ($stmt_model = $conn->prepare($check_model_sql)) {
         $stmt_model->bind_param("si", $model_no, $original_prod_id);
@@ -63,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt_model->close();
     }
 
-    // (8) หากไม่มีข้อผิดพลาด ให้ทำการอัปเดต
+    //  หากไม่มีข้อผิดพลาด ให้ทำการอัปเดต
     if (empty($errors)) {
         $update_sql = "UPDATE products SET 
                       prod_id = ?, 
@@ -77,7 +75,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                       WHERE prod_id = ?";
 
         if ($stmt = $conn->prepare($update_sql)) {
-            // (9) แก้ไข bind_param (i = int, s = string, d = double)
             $stmt->bind_param(
                 "isiisssdi",
                 $new_prod_id,
@@ -96,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 header('Location: product.php');
                 exit();
             } else {
-                // (10) ตรวจจับ Foreign Key Error
+                // ตรวจจับ Foreign Key Error
                 if (mysqli_errno($conn) == 1451 || mysqli_errno($conn) == 1452) {
                     $errors[] = "เกิดข้อผิดพลาด Foreign Key: ไม่สามารถเปลี่ยนรหัสสินค้าที่มีการใช้งานอยู่ (เช่น ในสต็อก หรือ บิล)";
                 } else {
@@ -107,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
 
-    // (11) เก็บข้อผิดพลาดไว้แสดง
+    //  เก็บข้อผิดพลาดไว้แสดง
     if (!empty($errors)) {
         $_SESSION['errors'] = $errors;
     }
@@ -116,7 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     exit();
 }
 
-// (12) ดึงข้อมูลสินค้าที่ต้องการแก้ไข (แก้คอลัมน์)
+//  ดึงข้อมูลสินค้าที่ต้องการแก้ไข
 $product_sql = "SELECT p.*, pb.brand_name_th as brand_name, pt.type_name_th as type_name 
                 FROM products p 
                 LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
@@ -124,7 +121,7 @@ $product_sql = "SELECT p.*, pb.brand_name_th as brand_name, pt.type_name_th as t
                 WHERE p.prod_id = ?";
 
 if ($stmt = mysqli_prepare($conn, $product_sql)) {
-    $stmt->bind_param("s", $prod_id_to_edit); // ใช้ "s" เผื่อ ID เป็น string
+    $stmt->bind_param("s", $prod_id_to_edit); 
     $stmt->execute();
     $product_result = $stmt->get_result();
 
@@ -142,11 +139,11 @@ if ($stmt = mysqli_prepare($conn, $product_sql)) {
     exit();
 }
 
-// (13) ดึงข้อมูลยี่ห้อ (แก้คอลัมน์)
+// ดึงข้อมูลยี่ห้อ 
 $brands_sql = "SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th";
 $brands_result = mysqli_query($conn, $brands_sql);
 
-// (14) ดึงข้อมูลประเภทสินค้า (แก้คอลัมน์)
+// ดึงข้อมูลประเภทสินค้า 
 $types_sql = "SELECT type_id, type_name_th FROM prod_types ORDER BY type_name_th";
 $types_result = mysqli_query($conn, $types_sql);
 ?>
@@ -159,9 +156,7 @@ $types_result = mysqli_query($conn, $types_sql);
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>แก้ไขสินค้า - Mobile Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- (15) เปลี่ยนเป็น Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <!-- (16) ไม่ต้องโหลด Font ซ้ำ load_theme.php ทำแล้ว -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
     <style>
@@ -352,7 +347,6 @@ $types_result = mysqli_query($conn, $types_sql);
                 </div>
 
                 <div class="container">
-                    <!-- (17) แสดงข้อความแจ้งเตือน (Errors) -->
                     <?php if (isset($_SESSION['errors'])): ?>
                         <div class="alert alert-danger alert-dismissible fade show fade-in">
                             <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -367,7 +361,6 @@ $types_result = mysqli_query($conn, $types_sql);
                         <?php unset($_SESSION['errors']); ?>
                     <?php endif; ?>
 
-                    <!-- ฟอร์มแก้ไขสินค้า -->
                     <div class="card form-card fade-in">
                         <div class="form-header">
                             <h4 class="text-light">
@@ -379,11 +372,9 @@ $types_result = mysqli_query($conn, $types_sql);
                         <div class="form-body">
                             <form method="POST" action="edit_product.php?id=<?php echo $prod_id_to_edit; ?>" id="editProductForm" novalidate>
 
-                                <!-- (18) ส่ง ID เดิมไปด้วย (สำคัญมาก) -->
                                 <input type="hidden" name="original_prod_id" value="<?php echo htmlspecialchars($product['prod_id']); ?>">
 
                                 <div class="row">
-                                    <!-- (19) เพิ่มช่องแก้ไขรหัสสินค้า -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="prod_id" class="form-label">
@@ -397,7 +388,6 @@ $types_result = mysqli_query($conn, $types_sql);
                                         </div>
                                     </div>
 
-                                    <!-- ชื่อสินค้า -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="prod_name" class="form-label">
@@ -411,14 +401,12 @@ $types_result = mysqli_query($conn, $types_sql);
                                         </div>
                                     </div>
 
-                                    <!-- ยี่ห้อ -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="prod_brands_brand_id" class="form-label">
                                                 <i class="bi bi-building me-1"></i>
                                                 ยี่ห้อ <span class="required">*</span>
                                             </label>
-                                            <!-- (20) แก้ไข name, id, value, selected -->
                                             <select class="form-select border-secondary" id="prod_brands_brand_id" name="prod_brands_brand_id" required>
                                                 <option value="">-- เลือกยี่ห้อ --</option>
                                                 <?php while ($brand = mysqli_fetch_assoc($brands_result)): ?>
@@ -432,14 +420,12 @@ $types_result = mysqli_query($conn, $types_sql);
                                         </div>
                                     </div>
 
-                                    <!-- ประเภทสินค้า -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="prod_types_type_id" class="form-label">
                                                 <i class="bi bi-diagram-3-fill me-1"></i>
                                                 ประเภทสินค้า <span class="required">*</span>
                                             </label>
-                                            <!-- (21) แก้ไข name, id, value, selected -->
                                             <select class="form-select border-secondary" id="prod_types_type_id" name="prod_types_type_id" required>
                                                 <option value="">-- เลือกประเภท --</option>
                                                 <?php while ($type = mysqli_fetch_assoc($types_result)): ?>
@@ -453,7 +439,6 @@ $types_result = mysqli_query($conn, $types_sql);
                                         </div>
                                     </div>
 
-                                    <!-- ราคา -->
                                     <div class="col-md-6">
                                         <div class="form-group">
                                             <label for="prod_price" class="form-label">
@@ -461,7 +446,6 @@ $types_result = mysqli_query($conn, $types_sql);
                                                 ราคา (บาท) <span class="required">*</span>
                                             </label>
                                             <div class="price-input">
-                                                <!-- (22) แก้ไข name, value -->
                                                 <input type="number" class="form-control border-secondary" id="prod_price" name="prod_price"
                                                     value="<?php echo $product['prod_price']; ?>"
                                                     placeholder="0.00" min="0.01" step="0.01" required>
@@ -498,14 +482,12 @@ $types_result = mysqli_query($conn, $types_sql);
                                         </div>
                                     </div>
 
-                                    <!-- คำอธิบาย -->
                                     <div class="col-12">
                                         <div class="form-group">
                                             <label for="prod_desc" class="form-label">
                                                 <i class="bi bi-file-text-fill me-1"></i>
                                                 คำอธิบาย
                                             </label>
-                                            <!-- (23) แก้ไข name, value -->
                                             <textarea class="form-control border-secondary" id="prod_desc" name="prod_desc"
                                                 rows="4" placeholder="รายละเอียดเพิ่มเติม (ไม่บังคับ)"><?php echo htmlspecialchars($product['prod_desc']); ?></textarea>
                                         </div>
@@ -517,7 +499,6 @@ $types_result = mysqli_query($conn, $types_sql);
                                     <b>คำเตือน:</b> การแก้ไข "รหัสสินค้า" อาจล้มเหลว หากรหัสสินค้านี้ถูกใช้งานในระบบ (เช่น ในสต็อก หรือ บิล)
                                 </div>
 
-                                <!-- ปุ่มดำเนินการ -->
                                 <div class="btn-group-actions">
                                     <button type="submit" class="btn btn-success">
                                         <i class="bi bi-save-fill me-2"></i>
@@ -537,7 +518,7 @@ $types_result = mysqli_query($conn, $types_sql);
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // (24) เพิ่ม Bootstrap Validation
+        //  Bootstrap Validation
         (() => {
             'use strict';
             const forms = document.querySelectorAll('.needs-validation');

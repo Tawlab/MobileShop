@@ -2,10 +2,9 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_product');
-// (1) โหลดธีม
 require '../config/load_theme.php';
 
-// (2) ตรวจสอบว่ามี ID ส่งมาหรือไม่
+// ตรวจสอบว่ามี ID ส่งมาหรือไม่
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสสินค้าที่ต้องการดู";
     header('Location: product.php');
@@ -14,7 +13,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $product_id = $_GET['id'];
 
-// (3) ดึงข้อมูลสินค้า (แก้คอลัมน์และ JOIN)
+// ดึงข้อมูลสินค้า (แก้คอลัมน์และ JOIN)
 $product_sql = "SELECT p.prod_id, p.prod_name, p.model_name, p.model_no, p.prod_desc, p.prod_price, 
                        pb.brand_name_th as brand_name, pt.type_name_th as type_name 
                 FROM products p 
@@ -23,8 +22,7 @@ $product_sql = "SELECT p.prod_id, p.prod_name, p.model_name, p.model_no, p.prod_
                 WHERE p.prod_id = ?";
 
 if ($stmt = mysqli_prepare($conn, $product_sql)) {
-    // (4) ใช้ Prepared Statement
-    mysqli_stmt_bind_param($stmt, "s", $product_id); // "s" เผื่อ ID เป็น string
+    mysqli_stmt_bind_param($stmt, "s", $product_id); 
     mysqli_stmt_execute($stmt);
     $product_result = mysqli_stmt_get_result($stmt);
 
@@ -196,7 +194,6 @@ if ($stmt = mysqli_prepare($conn, $product_sql)) {
 
         .product-id {
             background: <?= $theme_color ?>20;
-            /* 20% opacity */
             color: <?= $theme_color ?>;
             padding: 0.5rem 1rem;
             border-radius: 8px;
@@ -361,7 +358,6 @@ if ($stmt = mysqli_prepare($conn, $product_sql)) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // เพิ่ม animation
             const elements = document.querySelectorAll('.fade-in');
             elements.forEach((el, index) => {
                 el.style.animationDelay = `${index * 0.1}s`;

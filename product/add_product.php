@@ -2,20 +2,18 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_product');
-// (1) โหลดธีม
 require '../config/load_theme.php';
 
-// (2) ดึงข้อมูล brands และ types (แก้คอลัมน์)
+// ดึงข้อมูล brands และ types
 $brands_query = "SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th";
 $brands_result = mysqli_query($conn, $brands_query);
 
 $types_query = "SELECT type_id, type_name_th FROM prod_types ORDER BY type_name_th";
 $types_result = mysqli_query($conn, $types_query);
 
-// (3) ประมวลผลฟอร์ม
+// ประมวลผลฟอร์ม
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // (4) แก้ไขชื่อคอลัมน์ที่รับค่า
-    $prod_id = (int)$_POST['prod_id']; // <-- รับรหัสสินค้า
+    $prod_id = (int)$_POST['prod_id'];
     $prod_name = trim($_POST['prod_name']);
     $prod_brands_brand_id = (int)$_POST['prod_brands_brand_id'];
     $prod_types_type_id = (int)$_POST['prod_types_type_id'];
@@ -24,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $prod_desc = trim($_POST['prod_desc']);
     $prod_price = (float)$_POST['prod_price'];
 
-    // (5) การตรวจสอบข้อมูล (Validation)
+    //  การตรวจสอบข้อมูล
     $errors = [];
     if (empty($prod_id)) $errors[] = "กรุณากรอกรหัสสินค้า";
     if (empty($prod_name)) $errors[] = "กรุณากรอกชื่อสินค้า";
@@ -34,9 +32,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (empty($model_no)) $errors[] = "กรุณากรอกรหัสรุ่น";
     if ($prod_price <= 0) $errors[] = "ราคาสินค้าต้องมากกว่า 0";
 
-    // (6) ตรวจสอบรหัสสินค้า (prod_id) และ รหัสรุ่น (model_no) ซ้ำ
+    // ตรวจสอบรหัสสินค้า (prod_id) และ รหัสรุ่น (model_no) ซ้ำ
     if (empty($errors)) {
-        // เช็ค prod_id
         $check_id_sql = "SELECT prod_id FROM products WHERE prod_id = ?";
         $check_id_stmt = $conn->prepare($check_id_sql);
         $check_id_stmt->bind_param("i", $prod_id);
@@ -60,13 +57,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if (empty($errors)) {
-        // (7) ใช้ Prepared Statement เพื่อความปลอดภัย
+        //  ใช้ Prepared Statement 
         $sql = "INSERT INTO products (prod_id, prod_name, prod_brands_brand_id, prod_types_type_id, model_name, model_no, prod_desc, prod_price) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $conn->prepare($sql);
-        // (8) แก้ไข bind_param (i = int, s = string, d = double)
-        // prod_id (i), prod_name (s), brand_id (i), type_id (i), model_name (s), model_no (s), prod_desc (s), prod_price (d)
         $stmt->bind_param(
             "isiisssd",
             $prod_id,
@@ -105,7 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>เพิ่มสินค้า - Mobile Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- (9) เปลี่ยนเป็น Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
@@ -124,7 +118,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         .card-header {
             background: <?= $theme_color ?>;
-            /* Theme */
             color: white;
             border-radius: 15px 15px 0 0 !important;
             padding: 1.5rem;
@@ -132,7 +125,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         .btn-success {
             background: <?= $btn_add_color ?>;
-            /* Theme */
             border: none;
             border-radius: 10px;
             padding: 0.75rem 2rem;
@@ -160,7 +152,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .form-control:focus,
         .form-select:focus {
             border-color: <?= $theme_color ?>;
-            /* Theme */
             box-shadow: 0 0 0 0.2rem <?= $theme_color ?>40;
         }
 
@@ -192,7 +183,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                     </h4>
                                 </div>
                                 <div class="card-body p-4">
-                                    <!-- (10) แสดง Error จาก Session -->
                                     <?php if (isset($_SESSION['errors'])): ?>
                                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                                             <strong>เกิดข้อผิดพลาด!</strong>
@@ -218,7 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                                     <form method="POST" action="add_product.php" class="needs-validation" novalidate>
                                         <div class="row">
-                                            <!-- (11) เพิ่มช่องกรอกรหัสสินค้า -->
                                             <div class="col-md-6 mb-3">
                                                 <label for="prod_id" class="form-label">
                                                     <i class="bi bi-key-fill me-1"></i>รหัสสินค้า (1-6 หลัก)
@@ -232,7 +221,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                                 <label for="prod_name" class="form-label">
                                                     <i class="bi bi-tag-fill me-1"></i>ชื่อสินค้า
                                                 </label>
-                                                <!-- (12) แก้ name -->
                                                 <input type="text" class="form-control border-secondary" id="prod_name" name="prod_name" required>
                                                 <div class="invalid-feedback">กรุณากรอกชื่อสินค้า</div>
                                             </div>
@@ -243,7 +231,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                                 <label for="prod_brands_brand_id" class="form-label">
                                                     <i class="bi bi-building me-1"></i>ยี่ห้อ
                                                 </label>
-                                                <!-- (13) แก้ name, id, value, text -->
                                                 <select class="form-select border-secondary" id="prod_brands_brand_id" name="prod_brands_brand_id" required>
                                                     <option value="">-- เลือกยี่ห้อ --</option>
                                                     <?php while ($brand = mysqli_fetch_assoc($brands_result)): ?>
@@ -259,7 +246,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                                 <label for="prod_types_type_id" class="form-label">
                                                     <i class="bi bi-diagram-3-fill me-1"></i>ประเภทสินค้า
                                                 </label>
-                                                <!-- (14) แก้ name, id, value, text -->
                                                 <select class="form-select border-secondary" id="prod_types_type_id" name="prod_types_type_id" required>
                                                     <option value="">-- เลือกประเภท --</option>
                                                     <?php while ($type = mysqli_fetch_assoc($types_result)): ?>
@@ -294,7 +280,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                                 <label for="prod_price" class="form-label">
                                                     <i class="bi bi-cash-coin me-1"></i>ราคา (บาท)
                                                 </label>
-                                                <!-- (15) แก้ name -->
                                                 <input type="number" class="form-control border-secondary" id="prod_price" name="prod_price" step="0.01" min="0.01" required>
                                                 <div class="invalid-feedback">กรุณากรอกราคาที่ถูกต้อง (มากกว่า 0)</div>
                                             </div>
@@ -304,7 +289,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                             <label for="prod_desc" class="form-label">
                                                 <i class="bi bi-file-text-fill me-1"></i>รายละเอียด
                                             </label>
-                                            <!-- (16) แก้ name -->
                                             <textarea class="form-control border-secondary" id="prod_desc" name="prod_desc" rows="3"
                                                 placeholder="รายละเอียดเพิ่มเติมของสินค้า (ไม่บังคับ)"></textarea>
                                         </div>
@@ -328,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // (17) เพิ่ม Bootstrap Validation
+        //  Bootstrap Validation
         (() => {
             'use strict';
             const forms = document.querySelectorAll('.needs-validation');

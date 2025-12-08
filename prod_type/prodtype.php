@@ -1,24 +1,22 @@
 <?php
-// เริ่ม session และ output buffering
 session_start();
 ob_start();
 
 require '../config/config.php';
 checkPageAccess($conn, 'prodtype');
-// (1) โหลดธีมก่อน
 require '../config/load_theme.php';
 
-// (2) การจัดการการลบประเภท (แก้คอลัมน์เป็น type_id)
+// การจัดการการลบประเภท 
 if (isset($_GET['delete_id'])) {
-  $delete_id = $_GET['delete_id']; // ID เป็น string (int(4))
+  $delete_id = $_GET['delete_id']; 
   $delete_sql = "DELETE FROM prod_types WHERE type_id = ?";
 
   if ($stmt = mysqli_prepare($conn, $delete_sql)) {
-    mysqli_stmt_bind_param($stmt, "s", $delete_id); // "s" for string
+    mysqli_stmt_bind_param($stmt, "s", $delete_id);
     if (mysqli_stmt_execute($stmt)) {
       $_SESSION['success'] = "ลบประเภทสินค้าสำเร็จ";
     } else {
-      // (3) ตรวจจับ Foreign Key Error (ถ้าประเภทนี้ถูกใช้โดยสินค้า)
+      // ตรวจจับ Foreign Key Error (ถ้าประเภทนี้ถูกใช้โดยสินค้า)
       if (mysqli_errno($conn) == 1451) {
         $_SESSION['error'] = "ลบไม่สำเร็จ: ประเภทนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
       } else {
@@ -34,7 +32,7 @@ if (isset($_GET['delete_id'])) {
   exit();
 }
 
-// (4) การค้นหา (แก้คอลัมน์)
+//  การค้นหา 
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'type_id'; // default sort
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
@@ -44,7 +42,7 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-// (5) สร้าง WHERE clause (แก้คอลัมน์)
+// สร้าง WHERE clause
 $where_clause = '';
 if (!empty($search)) {
   $where_clause = "WHERE type_name_th LIKE '%$search%' OR type_name_en LIKE '%$search%'";
@@ -55,12 +53,10 @@ $count_sql = "SELECT COUNT(*) as total FROM prod_types $where_clause";
 $count_result = mysqli_query($conn, $count_sql);
 $total_types = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_types / $items_per_page);
-
-// (6) คำสั่ง SQL สำหรับดึงข้อมูลยี่ห้อ (แก้คอลัมน์)
 $sql = "SELECT type_id, type_name_th, type_name_en FROM prod_types $where_clause ORDER BY $sort_by $order LIMIT $items_per_page OFFSET $offset";
 $result = mysqli_query($conn, $sql);
 
-// สร้าง query string สำหรับ pagination
+// ฟังก์ชันช่วยสร้าง query string สำหรับ pagination links
 function build_query_string($exclude = [])
 {
   $params = $_GET;
@@ -70,7 +66,6 @@ function build_query_string($exclude = [])
   return !empty($params) ? '&' . http_build_query($params) : '';
 }
 
-// ปิด output buffering สำหรับการแสดงผลปกติ
 ob_end_flush();
 ?>
 
@@ -85,14 +80,10 @@ ob_end_flush();
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
   <style>
-    /* (9) นำ CSS มาจาก prodbrand.php และเชื่อมกับ Theme */
     body {
       background-color: <?= $background_color ?>;
-      /* Theme */
       color: <?= $text_color ?>;
-      /* Theme */
       font-family: '<?= $font_style ?>', sans-serif;
-      /* Theme */
       min-height: 100vh;
     }
 
@@ -134,9 +125,7 @@ ob_end_flush();
 
     .table th {
       background-color: <?= $header_bg_color ?>;
-      /* Theme */
       color: <?= $header_text_color ?>;
-      /* Theme */
       font-weight: 600;
       border: 1px solid <?= $header_bg_color ?>;
       padding: 0.4rem 0.6rem;
@@ -168,7 +157,6 @@ ob_end_flush();
       transition: all 0.3s ease;
     }
 
-    /* ใช้คลาสจาก load_theme.php */
     .btn-success {
       background: <?= $btn_add_color ?>;
       border: none;
@@ -353,7 +341,6 @@ ob_end_flush();
                     <tbody>
                       <?php
                       $index = ($page - 1) * $items_per_page + 1;
-                      // (13) แก้ไขการดึงข้อมูล (แก้คอลัมน์)
                       while ($row = mysqli_fetch_assoc($result)):
                       ?>
                         <tr class="small">
@@ -490,7 +477,6 @@ ob_end_flush();
     // ฟังก์ชันยืนยันการลบ
     function confirmDelete(id, name) {
       document.getElementById('typeName').textContent = name;
-      // (17) แก้ไข link ที่ส่งไป
       document.getElementById('confirmDeleteBtn').href = 'prodtype.php?delete_id=' + id;
       new bootstrap.Modal(document.getElementById('deleteModal')).show();
     }

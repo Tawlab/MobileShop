@@ -2,10 +2,9 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_prodtype');
-// (1) โหลดธีมก่อน
 require '../config/load_theme.php';
 
-// (ฟังก์ชัน getNextTypeId, getNextTypeIds เหมือนเดิม)
+// ฟังก์ชัน getNextTypeId, getNextTypeIds
 function getNextTypeId($conn)
 {
   $query = "SELECT type_id FROM prod_types ORDER BY type_id DESC LIMIT 1";
@@ -41,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   foreach ($types as $index => $type) {
     $type_name_th = trim($type['type_name_th'] ?? '');
-    // (2) รับค่าชื่ออังกฤษ (ถ้าว่าง ให้เป็น NULL)
+    // รับค่าชื่ออังกฤษ 
     $type_name_en_input = trim($type['type_name_en'] ?? '');
     $type_name_en = !empty($type_name_en_input) ? $type_name_en_input : NULL;
 
@@ -52,13 +51,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       continue;
     }
 
-    // (3) ตรวจสอบค่าที่จำเป็น (แก้การตรวจสอบ: เอาชื่ออังกฤษออก)
+    //  ตรวจสอบค่าที่จำเป็น 
     if (empty($type_id)) {
       $errors[] = "แถวที่ " . ($index + 1) . ": เกิดข้อผิดพลาด ไม่พบรหัสประเภท";
       continue;
     }
 
-    // (4) ตรวจสอบ ID ซ้ำ (เหมือนเดิม)
+    //  ตรวจสอบ ID ซ้ำ 
     $stmt_check_id = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_id = ?");
     $stmt_check_id->bind_param("s", $type_id);
     $stmt_check_id->execute();
@@ -83,7 +82,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       continue;
     }
 
-    // (6) ตรวจสอบชื่ออังกฤษซ้ำ (เฉพาะเมื่อกรอก)
+    // ตรวจสอบชื่ออังกฤษซ้ำ 
     if ($type_name_en !== NULL) {
       $stmt_check_en = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_name_en = ?");
       $stmt_check_en->bind_param("s", $type_name_en);
@@ -98,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       }
     }
 
-    // (7) เพิ่มข้อมูล (แก้ bind_param เป็น sss)
+    // เพิ่มข้อมูล 
     $stmt = $conn->prepare("INSERT INTO prod_types (type_id, type_name_th, type_name_en) VALUES (?, ?, ?)");
     $stmt->bind_param("sss", $type_id, $type_name_th, $type_name_en); // $type_name_en อาจเป็น NULL
 
@@ -111,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $stmt->close();
   }
 
-  // (แสดงผลลัพธ์เหมือนเดิม)
   if ($success_count > 0 && empty($errors)) {
     $_SESSION['success'] = "เพิ่มประเภทสินค้าสำเร็จ จำนวน $success_count รายการ";
     echo "<script>window.location.href='prodtype.php';</script>";
@@ -129,7 +127,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   }
 }
 
-// (ดึง $form_count และ $next_ids เหมือนเดิม)
 $form_count = isset($_GET['count']) ? max(1, intval($_GET['count'])) : 1;
 $next_ids = getNextTypeIds($conn, $form_count);
 ?>
@@ -148,11 +145,8 @@ $next_ids = getNextTypeIds($conn, $form_count);
   <style>
     body {
       background-color: <?= $background_color ?>;
-      /* Theme */
       color: <?= $text_color ?>;
-      /* Theme */
       font-family: '<?= $font_style ?>', sans-serif;
-      /* Theme */
     }
 
     .main-card {
@@ -164,7 +158,6 @@ $next_ids = getNextTypeIds($conn, $form_count);
 
     .card-header {
       background: <?= $theme_color ?>;
-      /* Theme */
       color: white;
       padding: 1.5rem 2rem;
       border-bottom: none;
@@ -185,9 +178,7 @@ $next_ids = getNextTypeIds($conn, $form_count);
 
     .form-control:focus {
       border-color: <?= $theme_color ?>;
-      /* Theme */
       box-shadow: 0 0 0 0.2rem <?= $theme_color ?>40;
-      /* Theme (with opacity) */
     }
 
     .required-label::after {
@@ -205,7 +196,6 @@ $next_ids = getNextTypeIds($conn, $form_count);
 
     .btn-success {
       background: <?= $btn_add_color ?>;
-      /* Theme */
       color: white !important;
       box-shadow: 0 4px 15px <?= $btn_add_color ?>40;
     }
@@ -217,7 +207,6 @@ $next_ids = getNextTypeIds($conn, $form_count);
 
     .btn-primary {
       background: <?= $theme_color ?>;
-      /* Theme */
       color: white !important;
       box-shadow: 0 4px 15px <?= $theme_color ?>40;
     }
@@ -322,7 +311,6 @@ $next_ids = getNextTypeIds($conn, $form_count);
                 unset($_SESSION['error']); ?>
               <?php endif; ?>
 
-              <!-- ส่วนเลือกจำนวน -->
               <div class="count-selector">
                 <div class="row align-items-center">
                   <div class="col-md-8">
@@ -355,14 +343,13 @@ $next_ids = getNextTypeIds($conn, $form_count);
                           <input type="hidden" name="types[<?php echo $i; ?>][type_id]" value="<?php echo $next_ids[$i]; ?>">
 
                           <div class="col-md-6">
-                            <!-- (8) ชื่อไทยยังคงบังคับกรอก -->
                             <label class="form-label required-label">ชื่อประเภท (ภาษาไทย)</label>
                             <input type="text" name="types[<?php echo $i; ?>][type_name_th]"
                               class="form-control border-secondary"
                               maxlength="50"
                               pattern="^[ก-๙\s.]+$"
                               title="กรุณากรอกชื่อประเภทเป็นภาษาไทย"
-                              required> <!-- (9) เพิ่ม required ที่ HTML -->
+                              required>
                             <div class="invalid-feedback">ชื่อประเภทต้องเป็นภาษาไทย</div>
                           </div>
 
@@ -421,16 +408,16 @@ $next_ids = getNextTypeIds($conn, $form_count);
             const nameTh = nameThInput.value.trim();
             const nameEn = nameEnInput.value.trim();
 
-            // (12) แก้ไข Logic: ถ้ามีการกรอก (ไทย หรือ อังกฤษ)
+            // ถ้ามีการกรอก (ไทย หรือ อังกฤษ)
             if (nameTh || nameEn) {
               hasData = true;
 
-              // (13) บังคับเฉพาะชื่อไทย
+              // บังคับเฉพาะชื่อไทย
               if (!nameTh) {
                 nameThInput.setCustomValidity('กรุณากรอกชื่อภาษาไทย');
                 formValid = false;
               } else {
-                // (14) ตรวจสอบ pattern ภาษาไทย
+                // ตรวจสอบ pattern ภาษาไทย
                 if (nameThInput.validity.patternMismatch) {
                   nameThInput.setCustomValidity('ต้องเป็นภาษาไทยเท่านั้น');
                   formValid = false;
@@ -439,7 +426,7 @@ $next_ids = getNextTypeIds($conn, $form_count);
                 }
               }
 
-              // (15) ไม่บังคับชื่ออังกฤษ แต่ถ้ากรอก ต้องถูก pattern
+              // ไม่บังคับชื่ออังกฤษ แต่ถ้ากรอก ต้องถูก pattern
               if (nameEn && nameEnInput.validity.patternMismatch) {
                 nameEnInput.setCustomValidity('ต้องเป็นภาษาอังกฤษเท่านั้น');
                 formValid = false;
@@ -461,7 +448,7 @@ $next_ids = getNextTypeIds($conn, $form_count);
             return;
           }
 
-          // (16) ใช้ form.checkValidity() เพื่อทริกเกอร์ HTML required
+          // ใช้ form.checkValidity()
           if (!form.checkValidity() || !formValid) {
             event.preventDefault();
             event.stopPropagation();

@@ -2,10 +2,9 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_prodtype');
-// (1) โหลดธีมก่อน
 require '../config/load_theme.php';
 
-// (2) ตรวจสอบ ID ที่ส่งมา
+// ตรวจสอบ ID ที่ส่งมา
 if (!isset($_GET['id']) || empty($_GET['id'])) {
   $_SESSION['error'] = "ไม่พบรหัสประเภทสินค้า";
   header('Location: prodtype.php');
@@ -13,7 +12,6 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 }
 
 $type_id_to_edit = $_GET['id'];
-// (3) แก้ไข SQL SELECT ให้ตรงกับ DB
 $stmt = $conn->prepare("SELECT * FROM prod_types WHERE type_id = ?");
 $stmt->bind_param("s", $type_id_to_edit);
 $stmt->execute();
@@ -28,25 +26,23 @@ if (!$row) {
 $stmt->close();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  // (4) รับ ID เดิม (ห้ามเปลี่ยน)
+  // รับ ID เดิม 
   $original_type_id = trim($_POST['original_type_id']);
 
-  // (5) รับค่าที่แก้ไข (แก้ชื่อคอลัมน์)
+  // รับค่าที่แก้ไข 
   $type_name_th = trim($_POST['type_name_th']);
-  // (6) แก้ไข: รับชื่ออังกฤษ (ถ้าว่าง ให้เป็น NULL)
+  //  รับชื่ออังกฤษ 
   $type_name_en_input = trim($_POST['type_name_en']);
   $type_name_en = !empty($type_name_en_input) ? $type_name_en_input : NULL;
 
 
-  // (7) ตรวจสอบ input (บังคับเฉพาะชื่อไทย)
+  // ตรวจสอบ input (บังคับเฉพาะชื่อไทย)
   if (empty($type_name_th)) {
     echo "<script>alert('กรุณากรอกชื่อประเภทภาษาไทย'); window.history.back();</script>";
     exit();
   }
 
-  // (8) ลบการตรวจสอบ Regex/ซ้ำ ของ ID (เพราะเราไม่เปลี่ยน ID)
-
-  // (9) ตรวจสอบชื่อไทยซ้ำ (ยกเว้นตัวเอง)
+  //  ตรวจสอบชื่อไทยซ้ำ (ยกเว้นตัวเอง)
   $check_th_stmt = $conn->prepare("SELECT type_id FROM prod_types WHERE type_name_th = ? AND type_id != ?");
   $check_th_stmt->bind_param("ss", $type_name_th, $original_type_id);
   $check_th_stmt->execute();
@@ -57,7 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
   $check_th_stmt->close();
 
-  // (10) ตรวจสอบชื่ออังกฤษซ้ำ (เฉพาะเมื่อกรอก และยกเว้นตัวเอง)
+  // ตรวจสอบชื่ออังกฤษซ้ำ (เฉพาะเมื่อกรอก และยกเว้นตัวเอง)
   if ($type_name_en !== NULL) {
     $check_en_stmt = $conn->prepare("SELECT type_id FROM prod_types WHERE type_name_en = ? AND type_id != ?");
     $check_en_stmt->bind_param("ss", $type_name_en, $original_type_id);
@@ -71,7 +67,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   }
 
 
-  // (11) อัพเดทข้อมูล (แก้ SQL - ไม่อัปเดต ID)
+  // อัพเดทข้อมูล 
   $stmt = $conn->prepare("UPDATE prod_types SET type_name_th = ?, type_name_en = ? WHERE type_id = ?");
   $stmt->bind_param("sss", $type_name_th, $type_name_en, $original_type_id);
 
@@ -96,16 +92,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-  <!-- (12) ไม่ต้องโหลด Font ซ้ำ load_theme.php ทำแล้ว -->
 
   <style>
     body {
       background-color: <?= $background_color ?>;
-      /* Theme */
       color: <?= $text_color ?>;
-      /* Theme */
       font-family: '<?= $font_style ?>', sans-serif;
-      /* Theme */
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -122,7 +114,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     .card-header {
       background: <?= $theme_color ?>;
-      /* Theme */
       color: white;
       padding: 2rem;
       border-bottom: none;
@@ -152,9 +143,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     .form-control:focus {
       border-color: <?= $theme_color ?>;
-      /* Theme */
       box-shadow: 0 0 0 0.2rem <?= $theme_color ?>40;
-      /* Theme (with opacity) */
     }
 
     .form-label {
@@ -178,7 +167,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     .btn-success {
       background: <?= $btn_add_color ?>;
-      /* Theme */
       color: white !important;
       box-shadow: 0 4px 15px <?= $btn_add_color ?>40;
     }
@@ -212,7 +200,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     .alert-warning {
       background-color: <?= $warning_bg_color ?>;
-      /* Theme */
       border: 1px solid #ffeaa7;
       border-radius: 12px;
       color: #856404;
@@ -255,13 +242,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
             <div class="form-section">
               <form method="post" class="needs-validation" novalidate>
-
-                <!-- (13) ส่ง ID เดิมไปแบบซ่อนไว้ -->
                 <input type="hidden" name="original_type_id" value="<?= htmlspecialchars($row['type_id']) ?>">
-
                 <div class="form-group">
                   <label class="form-label required-label">รหัสประเภท (4 หลัก)</label>
-                  <!-- (14) แก้ไข name, value และเพิ่ม readonly -->
                   <input type="text" name="type_id" class="form-control"
                     maxlength="4"
                     pattern="\d{4}"
@@ -278,7 +261,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                   <div class="col-md-6">
                     <div class="form-group">
                       <label class="form-label required-label">ชื่อประเภท (ภาษาไทย)</label>
-                      <!-- (15) แก้ไข name, value -->
                       <input type="text" name="type_name_th" class="form-control border-secondary"
                         maxlength="50"
                         pattern="^[ก-๙\s.]+$"
@@ -293,9 +275,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
                   <div class="col-md-6">
                     <div class="form-group">
-                      <!-- (16) ชื่ออังกฤษ ไม่บังคับ (ลบ required-label) -->
                       <label class="form-label">ชื่อประเภท (ภาษาอังกฤษ)</label>
-                      <!-- (17) แก้ไข name, value (ลบ required) -->
                       <input type="text" name="type_name_en" class="form-control border-secondary"
                         maxlength="50"
                         pattern="^[A-Za-z\s.]+$"
@@ -317,7 +297,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                   <a href="prodtype.php" class="btn btn-outline-secondary">
                     <i class="bi bi-arrow-left"></i> ย้อนกลับ
                   </a>
-                  <!-- (18) เปลี่ยนปุ่มจาก .btn-warning เป็น .btn-success -->
                   <button type="submit" class="btn btn-success">
                     <i class="bi bi-save"></i> บันทึกการเปลี่ยนแปลง
                   </button>
@@ -339,7 +318,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       Array.from(forms).forEach(form => {
         form.addEventListener('submit', event => {
 
-          // (19) ตรวจสอบ pattern ของชื่ออังกฤษ (เฉพาะเมื่อกรอก)
+          // ตรวจสอบ pattern ของชื่ออังกฤษ (เฉพาะเมื่อกรอก)
           const nameEnInput = form.querySelector('[name="type_name_en"]');
           if (nameEnInput.value.trim() && nameEnInput.validity.patternMismatch) {
             nameEnInput.setCustomValidity('ต้องเป็นภาษาอังกฤษเท่านั้น');

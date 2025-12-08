@@ -1,12 +1,12 @@
 <?php
 session_start();
-ob_start(); // เริ่ม Output Buffering
+ob_start(); 
 
 require '../config/config.php';
 checkPageAccess($conn, 'product');
 require '../config/load_theme.php';
 
-// (3) การค้นหาและกรองข้อมูล
+// การค้นหาและกรองข้อมูล
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $brand_filter = isset($_GET['brand']) ? mysqli_real_escape_string($conn, $_GET['brand']) : '';
 $type_filter = isset($_GET['type']) ? mysqli_real_escape_string($conn, $_GET['type']) : '';
@@ -20,10 +20,9 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-// (4) สร้าง WHERE clause (แก้ไขเพิ่มการค้นหาด้วย prod_id)
+//  สร้าง WHERE clause
 $where_conditions = [];
 if (!empty($search)) {
-    // เพิ่ม p.prod_id เข้าไปในเงื่อนไข OR
     $where_conditions[] = "(p.prod_id LIKE '%$search%' OR p.prod_name LIKE '%$search%' OR p.model_name LIKE '%$search%' OR p.model_no LIKE '%$search%')";
 }
 if (!empty($brand_filter)) {
@@ -47,7 +46,7 @@ $count_result = mysqli_query($conn, $count_sql);
 $total_products = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_products / $items_per_page);
 
-// (5) คำสั่ง SQL สำหรับดึงข้อมูลสินค้า
+//  สำหรับดึงข้อมูลสินค้า
 $sql = "SELECT p.prod_id, p.prod_name, p.prod_desc, p.model_name, p.model_no, p.prod_price, 
                pb.brand_name_th as brand_name, pt.type_name_th as type_name 
         FROM products p 
@@ -59,7 +58,7 @@ $sql = "SELECT p.prod_id, p.prod_name, p.prod_desc, p.model_name, p.model_no, p.
 
 $result = mysqli_query($conn, $sql);
 
-// (6) ดึงข้อมูลสำหรับ dropdown filter
+// ดึงข้อมูลสำหรับ dropdown filter
 $brands_sql = "SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th";
 $brands_result = mysqli_query($conn, $brands_sql);
 
@@ -86,12 +85,10 @@ ob_end_flush();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>รายการสินค้า - Mobile Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- (7) เปลี่ยนเป็น Bootstrap Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
     <style>
-        /* (9) CSS ทั้งหมดเชื่อมโยงกับตัวแปร Theme */
         body {
             background-color: <?= $background_color ?>;
             font-family: '<?= $font_style ?>', sans-serif;
@@ -166,7 +163,6 @@ ob_end_flush();
             background-color: #f8f9fa;
         }
 
-        /* (10) แก้ไข .btn-warning, .btn-danger, .btn-info ให้ใช้สีจาก Theme */
         .btn-success {
             background-color: <?= $btn_add_color ?>;
             border: none;
@@ -190,8 +186,6 @@ ob_end_flush();
             border: none;
             color: white !important;
         }
-
-        /* สี info มาตรฐาน */
 
         .btn:hover {
             filter: brightness(90%);
@@ -234,7 +228,6 @@ ob_end_flush();
             color: white;
         }
 
-        /* ใช้สี Status on */
         .product-name {
             font-weight: 600;
             color: #2c3e50;
@@ -265,13 +258,12 @@ ob_end_flush();
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
-                <!-- Header -->
                 <div class="main-header">
                     <div class="container">
                         <div class="row align-items-center">
                             <div class="col-md-4">
                                 <h1 class="text-light">
-                                    <i class="bi bi-boxes me-3"></i> <!-- Icon -->
+                                    <i class="bi bi-boxes me-3"></i> 
                                     จัดการสินค้า
                                     <small class="fs-6 opacity-75 d-block">(<?php echo number_format($total_products); ?> รายการ)</small>
                                 </h1>
@@ -287,7 +279,7 @@ ob_end_flush();
                                                     value="<?php echo htmlspecialchars($search); ?>"
                                                     placeholder="ค้นหารหัสสินค้า, ชื่อสินค้า, รุ่น, หรือรหัสสินค้า...">
                                                 <button type="submit" class="btn btn-light">
-                                                    <i class="bi bi-search"></i> <!-- Icon -->
+                                                    <i class="bi bi-search"></i>
                                                 </button>
                                             </div>
                                         </div>
@@ -309,7 +301,6 @@ ob_end_flush();
                 </div>
 
                 <div class="container">
-                    <!-- แสดงข้อความแจ้งเตือน -->
                     <?php if (isset($_SESSION['success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show">
                             <i class="bi bi-check-circle-fill me-2"></i>
@@ -342,7 +333,6 @@ ob_end_flush();
                                     <select class="form-select" name="brand">
                                         <option value="">-- ทุกยี่ห้อ --</option>
                                         <?php while ($brand = mysqli_fetch_assoc($brands_result)): ?>
-                                            <!-- (11) แก้ value/selected (brand_id) -->
                                             <option value="<?php echo $brand['brand_id']; ?>"
                                                 <?php echo $brand_filter == $brand['brand_id'] ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($brand['brand_name_th']); ?>
@@ -357,7 +347,6 @@ ob_end_flush();
                                     <select class="form-select" name="type">
                                         <option value="">-- ทุกประเภท --</option>
                                         <?php while ($type = mysqli_fetch_assoc($types_result)): ?>
-                                            <!-- (12) แก้ value/selected (type_id) -->
                                             <option value="<?php echo $type['type_id']; ?>"
                                                 <?php echo $type_filter == $type['type_id'] ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($type['type_name_th']); ?>
@@ -393,7 +382,6 @@ ob_end_flush();
                                 </div>
                             </form>
 
-                            <!-- (13) แสดงตัวกรองที่ใช้งานอยู่ (แก้คอลัมน์) -->
                             <?php
                             $active_filters = [];
                             if (!empty($search)) $active_filters[] = "ค้นหา: " . htmlspecialchars($search);
@@ -416,7 +404,15 @@ ob_end_flush();
                                 }
                             }
                             if ($price_min !== '' || $price_max !== '') {
-                                // ... (ส่วนนี้เหมือนเดิม)
+                                $price_text = "ราคา: ";
+                                if ($price_min !== '' && $price_max !== '') {
+                                    $price_text .= number_format($price_min) . " - " . number_format($price_max);
+                                } elseif ($price_min !== '') {
+                                    $price_text .= "ตั้งแต่ " . number_format($price_min);
+                                } else {
+                                    $price_text .= "ไม่เกิน " . number_format($price_max);
+                                }
+                                $active_filters[] = $price_text;
                             }
                             ?>
                             <?php if (!empty($active_filters)): ?>
@@ -432,7 +428,6 @@ ob_end_flush();
                         </div>
                     </div>
 
-                    <!-- ตารางแสดงข้อมูล -->
                     <div class="card table-card">
                         <div class="card-body p-0">
                             <?php if (mysqli_num_rows($result) > 0): ?>
@@ -440,7 +435,6 @@ ob_end_flush();
                                     <table class="table table-hover mb-0">
                                         <thead>
                                             <tr>
-                                                <!-- (14) แก้ Sort links (แก้คอลัมน์) -->
                                                 <th width="6%">
                                                     <a href="?sort=p.prod_id&order=<?php echo ($sort_by == 'p.prod_id' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo build_query_string(['sort', 'order']); ?>" class="sort-link">
                                                         ID <i class="bi bi-arrow-down-up"></i>
@@ -465,7 +459,6 @@ ob_end_flush();
                                         <tbody>
                                             <?php while ($row = mysqli_fetch_assoc($result)): ?>
                                                 <tr>
-                                                    <!-- (15) แก้ไขการแสดงผล (แก้คอลัมน์) -->
                                                     <td class="text-center">
                                                         <span class="badge bg-secondary">#<?php echo $row['prod_id']; ?></span>
                                                     </td>
@@ -496,7 +489,6 @@ ob_end_flush();
                                                     </td>
                                                     <td class="text-center">
                                                         <div class="d-flex justify-content-center" style="gap: 3px;">
-                                                            <!-- (16) แก้ไข Links (แก้คอลัมน์ + Icon) -->
                                                             <a href="view_product.php?id=<?php echo $row['prod_id']; ?>"
                                                                 class="btn btn-info btn-sm text-light" title="ดูรายละเอียด">
                                                                 <i class="bi bi-eye-fill"></i>
@@ -530,12 +522,10 @@ ob_end_flush();
                         </div>
                     </div>
 
-                    <!-- Pagination -->
                     <?php if ($total_pages > 1): ?>
                         <div class="d-flex justify-content-center mt-4">
                             <nav aria-label="Page navigation">
                                 <ul class="pagination">
-                                    <!-- Previous Page -->
                                     <?php if ($page > 1): ?>
                                         <li class="page-item">
                                             <a class="page-link" href="?page=<?php echo ($page - 1); ?><?php echo build_query_string(['page']); ?>">
@@ -548,7 +538,6 @@ ob_end_flush();
                                         </li>
                                     <?php endif; ?>
 
-                                    <!-- Page Numbers (ส่วนที่เพิ่มเข้ามา) -->
                                     <?php
                                     $start = max(1, $page - 2);
                                     $end = min($total_pages, $page + 2);
@@ -577,9 +566,7 @@ ob_end_flush();
                                         echo '<li class="page-item"><a class="page-link" href="?page=' . $total_pages . build_query_string(['page']) . '">' . $total_pages . '</a></li>';
                                     }
                                     ?>
-                                    <!-- End Page Numbers -->
 
-                                    <!-- Next Page -->
                                     <?php if ($page < $total_pages): ?>
                                         <li class="page-item">
                                             <a class="page-link" href="?page=<?php echo ($page + 1); ?><?php echo build_query_string(['page']); ?>">
@@ -597,12 +584,10 @@ ob_end_flush();
                     <?php endif; ?>
                 </div>
 
-                <!-- Modal ยืนยันการลบ -->
                 <div class="modal fade" id="deleteModal" tabindex="-1">
                     <div class="modal-dialog">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <!-- (17) ใช้ .danger จากธีม -->
                                 <h5 class="modal-title danger">
                                     <i class="bi bi-exclamation-triangle-fill me-2"></i>ยืนยันการลบ
                                 </h5>
@@ -615,7 +600,6 @@ ob_end_flush();
                                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                                     <i class="bi bi-x-lg me-1"></i>ยกเลิก
                                 </button>
-                                <!-- (18) ใช้ .btn-delete จากธีม -->
                                 <a href="#" id="confirmDeleteBtn" class="btn btn-delete">
                                     <i class="bi bi-trash3-fill me-1"></i>ลบสินค้า
                                 </a>
@@ -631,7 +615,6 @@ ob_end_flush();
         // ฟังก์ชันยืนยันการลบ
         function confirmDelete(id, name) {
             document.getElementById('productName').textContent = name;
-            // (19) แก้ไข Link ให้ชี้ไปที่ delete_product.php
             document.getElementById('confirmDeleteBtn').href = 'delete_product.php?id=' + id;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         }
@@ -641,7 +624,7 @@ ob_end_flush();
             const toggleBtn = document.getElementById('toggleFilter');
             const filterCard = document.getElementById('filterCard');
 
-            // (20) ตรวจสอบว่ามีการกรองอยู่หรือไม่ ถ้ามี ให้เปิด filter card
+            // ตรวจสอบว่ามีการกรองอยู่หรือไม่
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('brand') || urlParams.has('type') || urlParams.has('price_min') || urlParams.has('price_max')) {
                 if (urlParams.get('brand') || urlParams.get('type') || urlParams.get('price_min') || urlParams.get('price_max')) {
@@ -672,7 +655,6 @@ ob_end_flush();
 
         // Clear all filters function
         function clearAllFilters() {
-            // (21) ล้าง search ด้วย
             window.location.href = 'product.php';
         }
 
