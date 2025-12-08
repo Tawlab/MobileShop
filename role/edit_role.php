@@ -1,36 +1,35 @@
 <?php
-// --- role/edit_role.php ---
 session_start();
-require '../config/config.php'; // (ตรวจสอบว่า Path 'config.php' ถูกต้อง)
+require '../config/config.php'; 
 checkPageAccess($conn, 'edit_role');
 
-// --- (1. รับ ID ที่จะแก้ไข) ---
+// รับ ID ที่จะแก้ไข
 $role_id_to_edit = (int)($_GET['id'] ?? 0);
 if ($role_id_to_edit === 0) {
     die("ไม่พบ ID บทบาทที่ต้องการแก้ไข");
 }
 
-// --- (ตัวแปรสำหรับเก็บข้อมูล) ---
-$form_data = []; // (สำหรับเก็บค่าถ้ามี Error หรือค่าจาก DB)
+// ตัวแปรสำหรับเก็บข้อมูล
+$form_data = []; 
 $errors_to_display = [];
-$permissions_list = []; // (สำหรับเก็บสิทธิ์ทั้งหมดที่จะแสดง)
-$checked_permissions = []; // (สำหรับเก็บสิทธิ์ที่ถูกเลือกไว้)
+$permissions_list = []; 
+$checked_permissions = [];
 
-// --- (A. ส่วนจัดการ POST: เมื่อกดบันทึก) ---
+//ส่วนจัดการ POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // --- (ตรวจสอบ ID ว่าตรงกัน) ---
+    // ตรวจสอบ ID ว่าตรงกัน
     $post_id = (int)$_POST['role_id'];
     if ($post_id !== $role_id_to_edit) {
         die("ID ที่ส่งมาไม่ตรงกัน!");
     }
 
-    // --- (รับค่าจากฟอร์ม) ---
+    // รับค่าจากฟอร์ม
     $role_name = trim($_POST['role_name']);
     $role_desc = trim($_POST['role_desc']) ?: NULL;
     $selected_permissions = $_POST['permissions'] ?? [];
 
-    // --- (ตรวจสอบข้อมูล) ---
+    // ตรวจสอบข้อมูล
     $errors = [];
     if (empty($role_name)) {
         $errors[] = "กรุณากรอก 'ชื่อบทบาท (Name)'";
@@ -39,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors[] = "กรุณาเลือกสิทธิ์ (Permissions) อย่างน้อย 1 รายการ";
     }
 
-    // --- (ตรวจสอบว่าชื่อบทบาท (Name) ซ้ำกับ *คนอื่น* หรือไม่) ---
+    //ตรวจสอบว่าชื่อบทบาทซ้ำหรือไม่
     if (empty($errors)) {
         $stmt_check = $conn->prepare("SELECT role_id FROM roles WHERE role_name = ? AND role_id != ?");
         $stmt_check->bind_param("si", $role_name, $role_id_to_edit);
@@ -52,13 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_check->close();
     }
 
-    // --- (ถ้าไม่มี Error ให้เริ่ม Transaction) ---
     if (empty($errors)) {
-
-        $conn->begin_transaction(); // <-- เริ่ม Transaction
+        $conn->begin_transaction(); 
 
         try {
-            // --- 1. UPDATE ข้อมูลในตาราง 'roles' ---
             $sql_role = "UPDATE roles SET role_name = ?, role_desc = ?, update_at = NOW()
                          WHERE role_id = ?";
             $stmt_role = $conn->prepare($sql_role);
@@ -67,23 +63,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_role->bind_param("ssi", $role_name, $role_desc, $role_id_to_edit);
             if (!$stmt_role->execute()) throw new Exception("Execute failed (roles): " . $stmt_role->error);
             $stmt_role->close();
-
-            // --- 2. DELETE สิทธิ์เก่าทั้งหมดของ Role นี้ ---
             $sql_del_perm = "DELETE FROM role_permissions WHERE roles_role_id = ?";
             $stmt_del = $conn->prepare($sql_del_perm);
             if (!$stmt_del) throw new Exception("Prepare failed (delete role_permissions): " . $conn->error);
-
             $stmt_del->bind_param("i", $role_id_to_edit);
             if (!$stmt_del->execute()) throw new Exception("Execute failed (delete role_permissions): " . $stmt_del->error);
             $stmt_del->close();
-
-            // --- 3. INSERT สิทธิ์ใหม่ทั้งหมดลง 'role_permissions' (Loop) ---
             $sql_perm = "INSERT INTO role_permissions (roles_role_id, permissions_permission_id, create_at) 
                          VALUES (?, ?, NOW())";
             $stmt_perm = $conn->prepare($sql_perm);
             if (!$stmt_perm) throw new Exception("Prepare failed (insert role_permissions): " . $conn->error);
-
-            // (วนลูปตาม Array สิทธิ์ที่เลือก)
             foreach ($selected_permissions as $perm_id) {
                 $stmt_perm->bind_param("ii", $role_id_to_edit, $perm_id);
                 if (!$stmt_perm->execute()) {
@@ -92,37 +81,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_perm->close();
 
-            // --- (สำเร็จทั้งหมด) ---
-            $conn->commit(); // <-- ยืนยัน Transaction
+            // สำเร็จทั้งหมด
+            $conn->commit();
 
             $_SESSION['message'] = "แก้ไขบทบาท '$role_name' (ID: $role_id_to_edit) สำเร็จ";
             $_SESSION['message_type'] = "success";
-            header("Location: role.php"); // --- กลับไปหน้ารายการ ---
+            header("Location: role.php");
             exit();
         } catch (Exception $e) {
-            // --- (ถ้าเกิด Error ระหว่างบันทึก) ---
-            $conn->rollback(); // <-- ยกเลิก Transaction
+            $conn->rollback(); 
             $errors_to_display = ["เกิดข้อผิดพลาดในการบันทึก: " . $e->getMessage()];
-            $form_data = $_POST; // --- เก็บค่าที่กรอกไว้ (รวม Checkbox ที่เลือก) ---
+            $form_data = $_POST; 
             $form_data['role_id'] = $role_id_to_edit;
         }
     } else {
-        // --- (ถ้า Error จาก Validation) ---
         $errors_to_display = $errors;
-        $form_data = $_POST; // --- เก็บค่าที่กรอกไว้ ---
+        $form_data = $_POST;
         $form_data['role_id'] = $role_id_to_edit;
     }
 }
-// --- (จบส่วน POST) ---
-
-
-// --- (B. ส่วนจัดการ GET: เมื่อเปิดหน้า) ---
-
-// (รับค่าตัวกรองและค้นหา "สิทธิ์" จาก URL)
 $search_perm = isset($_GET['search_perm']) ? trim($_GET['search_perm']) : '';
 $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'all';
 
-// (Helper สำหรับสร้าง Label ปุ่มกรอง)
 $filter_labels = [
     'all' => '<i class="fas fa-list me-1"></i> ทั้งหมด',
     'list' => '<i class="fas fa-chalkboard me-1"></i> หน้าหลัก',
@@ -133,7 +113,6 @@ $filter_labels = [
 ];
 $current_filter_label = $filter_labels[$filter_type] ?? $filter_labels['all'];
 
-// (Query สิทธิ์ (Permissions) ทั้งหมด โดยใช้ตัวกรอง)
 $sql_perms = "SELECT permission_id, permission_name, permission_desc FROM permissions";
 $where_clauses = [];
 $bind_types = "";
@@ -172,11 +151,10 @@ if ($stmt_perms) {
 }
 
 
-// --- (ดึงข้อมูล Role หลัก และ สิทธิ์ที่เลือกไว้) ---
+// ดึงข้อมูล Role หลัก และ สิทธิ์ที่เลือกไว้
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    // (ถ้าไม่ใช่ POST (คือเปิดหน้าครั้งแรก) ให้ดึงข้อมูลจาก DB)
 
-    // 1. ดึงข้อมูล Role
+    // ดึงข้อมูล Role
     $stmt_get_role = $conn->prepare("SELECT * FROM roles WHERE role_id = ?");
     $stmt_get_role->bind_param("i", $role_id_to_edit);
     $stmt_get_role->execute();
@@ -188,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     $form_data = $result_role->fetch_assoc();
     $stmt_get_role->close();
 
-    // 2. ดึงสิทธิ์ที่ Role นี้มี (เก็บ ID ไว้ใน Array)
+    // ดึงสิทธิ์ที่ Role 
     $stmt_get_checked = $conn->prepare("SELECT permissions_permission_id FROM role_permissions WHERE roles_role_id = ?");
     $stmt_get_checked->bind_param("i", $role_id_to_edit);
     $stmt_get_checked->execute();
@@ -199,12 +177,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         $checked_permissions_from_db[] = $row['permissions_permission_id'];
     }
     $stmt_get_checked->close();
-
-    // (เก็บค่าที่ติ๊กไว้ใน $form_data เพื่อให้ฟอร์มใช้)
     $form_data['permissions'] = $checked_permissions_from_db;
 }
 
-// (เก็บค่าที่เลือกค้างไว้ ถ้ามี Error)
 $checked_permissions = $form_data['permissions'] ?? [];
 
 ?>
@@ -515,7 +490,6 @@ $checked_permissions = $form_data['permissions'] ?? [];
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- (JS สำหรับฟอร์มกรองสิทธิ์ (แก้ไขให้ส่งฟอร์ม)) ---
         document.addEventListener('DOMContentLoaded', function() {
 
             const filterOptions = document.getElementById('filterOptions');
@@ -529,11 +503,11 @@ $checked_permissions = $form_data['permissions'] ?? [];
                     if (!target) return;
 
                     filterInput.value = target.dataset.filter;
-                    filterForm.submit(); // (ส่งฟอร์มกรอง)
+                    filterForm.submit();
                 });
             }
 
-            // --- (JS สำหรับปุ่มเลือกทั้งหมด) ---
+            //  สำหรับปุ่มเลือกทั้งหมด
             const selectAllBtn = document.getElementById('selectAllBtn');
             const deselectAllBtn = document.getElementById('deselectAllBtn');
             const permissionCheckboxes = document.querySelectorAll('.permission-grid input[type="checkbox"]');
@@ -554,7 +528,7 @@ $checked_permissions = $form_data['permissions'] ?? [];
                 });
             }
 
-            // --- (JS สำหรับฟอร์มหลัก - Validation) ---
+            // สำหรับฟอร์มหลัก
             const mainForm = document.getElementById('editRoleForm');
             mainForm.addEventListener('submit', function(event) {
                 const roleName = document.getElementById('role_name').value.trim();

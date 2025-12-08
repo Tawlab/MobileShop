@@ -1,9 +1,7 @@
 <?php
-// === File: subdistricts/edit_subdistrict.php ===
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_subdistrict');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
 $error = '';
 $subdistrict_id = '';
@@ -12,7 +10,7 @@ $subdistrict_name_en = '';
 $zip_code = '';
 $current_district_id = '';
 
-// 1. ตรวจสอบว่ามี ID ส่งมาหรือไม่ (แก้ไขเป็น subdistrict_id)
+// ตรวจสอบว่ามี ID ส่งมาหรือไม่
 if (!isset($_GET['id']) || empty($_GET['id'])) {
   header("Location: subdistricts.php?error=not_found");
   exit();
@@ -20,7 +18,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $id_to_edit = $_GET['id'];
 
-// 2. ดึงข้อมูลตำบลเดิม (แก้ไขชื่อฟิลด์)
+//  ดึงข้อมูลตำบลเดิม
 $stmt_select = $conn->prepare("SELECT subdistrict_id, subdistrict_name_th, subdistrict_name_en, zip_code, districts_district_id FROM subdistricts WHERE subdistrict_id = ?");
 $stmt_select->bind_param("s", $id_to_edit);
 $stmt_select->execute();
@@ -34,19 +32,16 @@ if (!$row) {
   exit();
 }
 
-// 3. ดึงรายการอำเภอ (แก้ไขชื่อฟิลด์)
+// ดึงรายการอำเภอ
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th FROM districts ORDER BY district_name_th ASC");
-
-// 4. เมื่อมีการส่งฟอร์ม (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  // ดึงข้อมูลจากฟอร์ม (แก้ไขชื่อฟิลด์)
-  $subdistrict_id_post = trim($_POST['subdistrict_id']); // ID ที่ส่งมาจาก form (readonly)
+  $subdistrict_id_post = trim($_POST['subdistrict_id']); 
   $subdistrict_name_th_post = trim($_POST['subdistrict_name_th']);
   $subdistrict_name_en_post = trim($_POST['subdistrict_name_en']);
   $zip_code_post = trim($_POST['zip_code']);
   $districts_district_id_post = trim($_POST['districts_district_id']);
 
-  // 5. ตรวจสอบความถูกต้องของข้อมูล
+  // ตรวจสอบความถูกต้องของข้อมูล
   if (empty($subdistrict_name_th_post) || empty($subdistrict_name_en_post) || empty($zip_code_post) || empty($districts_district_id_post)) {
     $error = 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบถ้วน';
   } elseif (!preg_match('/^\d{5}$/', $zip_code_post)) {
@@ -58,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   } elseif ($subdistrict_id_post !== $id_to_edit) {
     $error = 'รหัสตำบลไม่ตรงกัน ไม่สามารถดำเนินการได้';
   } else {
-    // 6. ตรวจสอบชื่อซ้ำ (เฉพาะกรณีที่ชื่อ หรือ อำเภอ มีการเปลี่ยนแปลง)
+    // ตรวจสอบชื่อซ้ำ 
     if ($subdistrict_name_th_post != $row['subdistrict_name_th'] || $districts_district_id_post != $row['districts_district_id']) {
       $stmt_check = $conn->prepare("SELECT subdistrict_id FROM subdistricts WHERE subdistrict_name_th = ? AND districts_district_id = ?");
       $stmt_check->bind_param("ss", $subdistrict_name_th_post, $districts_district_id_post);
@@ -70,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $stmt_check->close();
     }
 
-    // 7. ถ้าไม่มี error ให้ทำการอัปเดต (แก้ไขชื่อฟิลด์)
+    // ถ้าไม่มี error ให้ทำการอัปเดต 
     if (empty($error)) {
       $stmt_update = $conn->prepare("UPDATE subdistricts SET subdistrict_name_th = ?, subdistrict_name_en = ?, zip_code = ?, districts_district_id = ? WHERE subdistrict_id = ?");
       $stmt_update->bind_param("sssss", $subdistrict_name_th_post, $subdistrict_name_en_post, $zip_code_post, $districts_district_id_post, $id_to_edit);
@@ -85,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
   }
 
-  // ถ้ามี error ให้เติมค่าเดิม (ที่ผู้ใช้กรอก) กลับเข้าไปในฟอร์ม
+  // ถ้ามี error ให้เติมค่าเดิม 
   if (!empty($error)) {
     $subdistrict_id = $subdistrict_id_post;
     $subdistrict_name_th = $subdistrict_name_th_post;
@@ -94,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $current_district_id = $districts_district_id_post;
   }
 } else {
-  // 5. ถ้าไม่ใช่ POST (โหลดหน้าครั้งแรก) ให้แสดงข้อมูลเดิม
+  // ถ้าไม่ใช่ POSTให้แสดงข้อมูลเดิม
   $subdistrict_id = $row['subdistrict_id'];
   $subdistrict_name_th = $row['subdistrict_name_th'];
   $subdistrict_name_en = $row['subdistrict_name_en'];

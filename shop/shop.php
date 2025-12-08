@@ -3,12 +3,9 @@ session_start();
 require_once '../config/config.php';
 checkPageAccess($conn, 'shop');
 
-// (2) รับค่าการค้นหา
+// รับค่าการค้นหา
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
-// (3)
-// *** แก้ไข SQL Query ให้ตรงกับ DB Schema (mobileshop_db) ***
-// (JOIN 5 ตาราง: shop_info -> addresses -> subdistricts -> districts -> provinces)
 $sql = "SELECT 
             s.shop_id, s.shop_name, s.tax_id, s.shop_phone, s.shop_email, s.logo,
             a.home_no, a.moo, a.soi, a.road, a.village,
@@ -33,7 +30,7 @@ if ($search) {
 $sql .= " ORDER BY s.shop_id DESC";
 $result = mysqli_query($conn, $sql);
 
-// (5) ฟังก์ชันตัดข้อความ (เหมือนเดิม)
+// ฟังก์ชันตัดข้อความ
 function truncateText($text, $length = 50)
 {
     if (mb_strlen($text) > $length) {
@@ -42,7 +39,7 @@ function truncateText($text, $length = 50)
     return $text;
 }
 
-// (6) ฟังก์ชันแสดงที่อยู่ (แก้ไขชื่อฟิลด์เล็กน้อยให้ตรง Query)
+//  ฟังก์ชันแสดงที่อยู่ 
 function formatAddress($shop)
 {
     $address_parts = [];
@@ -76,7 +73,6 @@ function formatAddress($shop)
     <?php require '../config/load_theme.php'; ?>
     <style>
         body {
-            /* (ใช้ $background_color, $font_style, $text_color จากธีม) */
             background: <?= $background_color ?>;
             font-family: '<?= $font_style ?>', sans-serif;
             font-size: 15px;
@@ -90,7 +86,6 @@ function formatAddress($shop)
         }
 
         .page-header {
-            /* (ใช้ $theme_color) */
             background: <?= $theme_color ?>;
             color: white;
             padding: 30px;
@@ -121,7 +116,6 @@ function formatAddress($shop)
         }
 
         .btn-search {
-            /* (ปุ่มค้นหาใช้สีน้ำเงินตามดีไซน์เดิม) */
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
@@ -130,7 +124,6 @@ function formatAddress($shop)
         }
 
         .btn-add {
-            /* (ใช้ $btn_add_color จากธีม) */
             background: <?= $btn_add_color ?>;
             color: white;
             border: none;
@@ -221,7 +214,6 @@ function formatAddress($shop)
             padding-top: 15px;
         }
 
-        /* (ใช้สีจากธีมสำหรับปุ่ม Edit/Delete) */
         .btn-action {
             flex: 1;
             padding: 8px 15px;
@@ -239,7 +231,6 @@ function formatAddress($shop)
             color: white;
         }
 
-        /* (สีน้ำเงินตามดีไซน์) */
         .btn-edit {
             background-color: <?= $btn_edit_color ?>;
         }
@@ -261,7 +252,6 @@ function formatAddress($shop)
             margin-bottom: 20px;
         }
 
-        /* (Alerts ใช้ CSS จากไฟล์เดิม) */
         .custom-alert {
             position: fixed;
             top: 20px;
@@ -439,7 +429,6 @@ function formatAddress($shop)
     <script>
         function confirmDelete(id, name) {
             document.getElementById('shopName').textContent = name;
-            // (11) *** แก้ไข delete_shop.php (ยังไม่ได้สร้าง แต่เตรียมไว้) ***
             document.getElementById('deleteLink').href = 'delete_shop.php?id=' + id;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         }

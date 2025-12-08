@@ -1,18 +1,15 @@
 <?php
-// === File: subdistricts/subdistricts.php ===
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'subdistricts');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
-// แก้ไข SQL ให้ตรงกับ Schema
 $sql = "SELECT s.subdistrict_id, s.subdistrict_name_th, s.subdistrict_name_en, s.zip_code, d.district_name_th
         FROM subdistricts s
         LEFT JOIN districts d ON s.districts_district_id = d.district_id
         ORDER BY d.district_name_th ASC, s.subdistrict_id ASC";
 $result = $conn->query($sql);
 
-// --- ระบบแจ้งเตือน (Alert System) ---
+// ระบบแจ้งเตือน 
 $alert_message = '';
 $alert_type = '';
 if (isset($_GET['add_success']) && $_GET['add_success'] == 'true') {
@@ -25,7 +22,6 @@ if (isset($_GET['add_success']) && $_GET['add_success'] == 'true') {
   $alert_message = 'ลบข้อมูลตำบลสำเร็จ';
   $alert_type = 'success';
 } elseif (isset($_GET['error'])) {
-  // (ปรับปรุง error message จากไฟล์ต้นฉบับ)
   if ($_GET['error'] == 'has_addresses') {
     $alert_message = 'ไม่สามารถลบตำบลได้ เนื่องจากมีข้อมูลที่อยู่ (Addresses) อ้างอิงอยู่';
   } elseif ($_GET['error'] == 'not_found') {
@@ -188,7 +184,6 @@ if (isset($_GET['add_success']) && $_GET['add_success'] == 'true') {
           const id = button.getAttribute('data-id');
           const name = button.getAttribute('data-name');
           deleteMessage.innerHTML = `คุณแน่ใจหรือไม่ว่าจะลบตำบล "<strong>${name}</strong>" (รหัส ${id}) ?<br><span class='text-danger'>การกระทำนี้ไม่สามารถย้อนกลับได้</span>`;
-          // ไฟล์ delete_subdistrict.php นี้ คุณต้องสร้างขึ้นมาเองนะครับ
           confirmBtn.href = `delete_subdistrict.php?id=${encodeURIComponent(id)}`;
           modal.show();
         });

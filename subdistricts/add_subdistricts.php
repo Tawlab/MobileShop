@@ -1,11 +1,9 @@
 <?php
-// === File: subdistricts/add_subdistricts.php ===
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_subdistricts');
-// require '../config/load_theme.php'; // ธีมจะถูกกำหนดในไฟล์นี้โดยตรง
 
-// ดึงรายชื่ออำเภอ (แก้ไขชื่อฟิลด์)
+// ดึงรายชื่ออำเภอ 
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th FROM districts ORDER BY district_name_th ASC");
 
 $error = '';
@@ -18,7 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $zip_code = trim($_POST['zip_code']);
   $districts_district_id = trim($_POST['districts_district_id']);
 
-  // --- การตรวจสอบข้อมูล (Server-side) ---
+  // การตรวจสอบข้อมูล
   if (empty($subdistrict_id) || empty($subdistrict_name_th) || empty($subdistrict_name_en) || empty($zip_code) || empty($districts_district_id)) {
     $error = 'กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง';
   } elseif (!preg_match('/^\d{6}$/', $subdistrict_id)) {
@@ -30,7 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   } elseif (!preg_match('/^[A-Za-z\s]+$/', $subdistrict_name_en)) {
     $error = 'ชื่อตำบล (อังกฤษ) ต้องเป็นภาษาอังกฤษเท่านั้น';
   } else {
-    // ตรวจสอบซ้ำ (รหัสตำบล หรือ ชื่อตำบลในอำเภอเดียวกัน)
+    // ตรวจสอบซ้ำ 
     $stmt_check = $conn->prepare("SELECT subdistrict_id FROM subdistricts WHERE subdistrict_id = ? OR (subdistrict_name_th = ? AND districts_district_id = ?)");
     $stmt_check->bind_param("sss", $subdistrict_id, $subdistrict_name_th, $districts_district_id);
     $stmt_check->execute();
@@ -39,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if ($stmt_check->num_rows > 0) {
       $error = 'รหัสตำบล หรือ ชื่อตำบลนี้ มีอยู่แล้วในอำเภอที่เลือก';
     } else {
-      // บันทึกข้อมูล (แก้ไขชื่อฟิลด์)
+      // บันทึกข้อมูล
       $stmt_insert = $conn->prepare("INSERT INTO subdistricts (subdistrict_id, subdistrict_name_th, subdistrict_name_en, zip_code, districts_district_id) VALUES (?, ?, ?, ?, ?)");
       $stmt_insert->bind_param("sssss", $subdistrict_id, $subdistrict_name_th, $subdistrict_name_en, $zip_code, $districts_district_id);
 

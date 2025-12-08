@@ -3,23 +3,23 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_shop');
 
-// (2) ตรวจสอบ ID
+// ตรวจสอบ ID
 $shop_id = $_GET['id'] ?? 0;
 if (empty($shop_id)) {
     echo "<script>alert('Shop ID not found'); window.location='shop.php';</script>";
     exit;
 }
 
-// (3) ดึงข้อมูล Address Dropdowns
+// ดึงข้อมูล Address Dropdowns
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th, provinces_province_id FROM districts");
 $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts");
 
-// (4) เก็บข้อมูล dropdown ไว้สำหรับ JS
+//  เก็บข้อมูล dropdown 
 $all_districts = $districts_result->fetch_all(MYSQLI_ASSOC);
 $all_subdistricts = $subdistricts_result->fetch_all(MYSQLI_ASSOC);
 
-// (5) ดึงข้อมูลเดิม
+// ดึงข้อมูลเดิม
 $sql_data = "SELECT 
                 s.*, 
                 a.address_id, a.home_no, a.moo, a.soi, a.road, a.village,
@@ -45,7 +45,7 @@ if (!$data) {
     exit();
 }
 
-// (6) เก็บ ID ปัจจุบันไว้สำหรับ JS และการ UPDATE
+// เก็บ ID ปัจจุบันไว้สำหรับ JS และการ UPDATE
 $current_address_id = $data['address_id'];
 $selected_province_id = $data['provinces_province_id'];
 $selected_district_id = $data['districts_district_id'];
@@ -53,10 +53,8 @@ $selected_subdistrict_id = $data['subdistricts_subdistrict_id'];
 $current_logo_list = !empty($data['logo']) ? explode(',', $data['logo']) : [];
 
 
-// (7) จัดการบันทึกข้อมูล
+// จัดการบันทึกข้อมูล
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    // (8) *** รับค่าตาม DB Schema (mobileshop_db) ***
     $shop_name = mysqli_real_escape_string($conn, trim($_POST['shop_name']));
     $tax_id = mysqli_real_escape_string($conn, trim($_POST['tax_id']));
     $shop_phone = mysqli_real_escape_string($conn, trim($_POST['shop_phone'])) ?: NULL;
@@ -69,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $village = mysqli_real_escape_string($conn, trim($_POST['village'])) ?: NULL;
     $subdistricts_id = !empty($_POST['subdistricts_id']) ? (int)$_POST['subdistricts_id'] : NULL;
 
-    // (9) จัดการรูปภาพ (ลบรูปเดิมที่ติ๊กออก + เพิ่มรูปใหม่)
+    //  จัดการรูปภาพ
     $upload_dir = '../uploads/shops/';
     $final_logo_list = $_POST['existing_images'] ?? []; // รูปเดิมที่ยังเหลือ
 
@@ -98,29 +96,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $logo_db_string = !empty($final_logo_list) ? implode(',', $final_logo_list) : NULL;
 
-    // (10) ตรวจสอบข้อมูล (Validation)
+    // ตรวจสอบข้อมูล 
     $errors = [];
     if (empty($shop_name)) $errors[] = "กรุณากรอกชื่อร้านค้า";
     if (empty($tax_id)) $errors[] = "กรุณากรอกเลขผู้เสียภาษี";
     if (empty($subdistricts_id)) $errors[] = "กรุณาเลือกที่อยู่ (จังหวัด/อำเภอ/ตำบล)";
 
-    // [เพิ่ม] ตรวจสอบเบอร์โทรศัพท์
+    // ตรวจสอบเบอร์โทรศัพท์
     if (!empty($shop_phone)) {
         if (!preg_match('/^(02|05|06|08|09)[0-9]{8}$/', $shop_phone)) {
             $errors[] = "เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)";
         }
     }
 
-    if (empty($errors) && !isset($_SESSION['error_message'])) { // (เช็ค error จากการอัปโหลดรูปด้วย)
+    if (empty($errors) && !isset($_SESSION['error_message'])) { 
 
-        // (11) *** เริ่ม Transaction ***
         $conn->begin_transaction();
         try {
-            // 11.1) อัปเดต Address
+            // อัปเดต Address
             $stmt_addr = $conn->prepare("UPDATE addresses SET
                 home_no = ?, moo = ?, soi = ?, road = ?, village = ?, 
                 subdistricts_subdistrict_id = ?
-                WHERE address_id = ?"); // (ใช้ $current_address_id ที่ดึงมาตอนแรก)
+                WHERE address_id = ?");
             $stmt_addr->bind_param(
                 "sssssii",
                 $home_no,
@@ -134,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_addr->execute();
             $stmt_addr->close();
 
-            // 11.2) อัปเดต Shop Info
+            // อัปเดต Shop Info
             $stmt_shop = $conn->prepare("UPDATE shop_info SET
                 shop_name = ?, tax_id = ?, shop_phone = ?, shop_email = ?, 
                 logo = ?, update_at = NOW()
@@ -152,13 +149,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_shop->execute();
             $stmt_shop->close();
 
-            // (12) ถ้าสำเร็จทั้งหมด
+            //  ถ้าสำเร็จทั้งหมด
             $conn->commit();
             $_SESSION['success_message'] = "แก้ไขข้อมูลร้านค้า (ID: $shop_id) สำเร็จ!";
             echo "<script>window.location.href = 'shop.php';</script>";
             exit;
         } catch (Exception $e) {
-            // (13) ถ้ายกเลิก
+            // ถ้ายกเลิก
             $conn->rollback();
             $_SESSION['error_message'] = "เกิดข้อผิดพลาดในการบันทึก: " . $e->getMessage();
         }
@@ -170,12 +167,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // (14) หาก Error, ให้โหลดข้อมูลจาก POST กลับเข้าไปในฟอร์ม
+    //  หาก Error, ให้โหลดข้อมูลจาก POST กลับเข้าไปในฟอร์ม
     $data = $_POST;
     $data['shop_id'] = $shop_id;
     $data['address_id'] = $current_address_id;
     $current_logo_list = $_POST['existing_images'] ?? [];
-    // (ต้องดึง ID ของ Address/Province/District กลับมาด้วย)
     $selected_subdistrict_id = $subdistricts_id;
     if ($selected_subdistrict_id) {
         $sd_lookup = $conn->query("SELECT d.districts_district_id, dt.provinces_province_id, d.zip_code
@@ -623,11 +619,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
     <script>
-        // (Address data)
+        // Address data
         const districts = <?php echo json_encode($all_districts); ?>;
         const subdistricts = <?php echo json_encode($all_subdistricts); ?>;
 
-        // (Address IDs ที่เลือกไว้)
+        // Address IDs ที่เลือกไว้
         let selected_province_id = '<?= $selected_province_id ?>';
         let selected_district_id = '<?= $selected_district_id ?>';
         let selected_subdistrict_id = '<?= $selected_subdistrict_id ?>';
@@ -637,7 +633,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const subdistrictSelect = document.getElementById('subdistrictSelect');
         const zipcodeInput = document.getElementById('zip_code_display');
 
-        // (ฟังก์ชันเติมอำเภอ)
+        // ฟังก์ชันเติมอำเภอ
         function populateDistricts(provinceId) {
             districtSelect.innerHTML = '<option value="">-- เลือกอำเภอ --</option>';
             subdistrictSelect.innerHTML = '<option value="">-- เลือกตำบล --</option>';
@@ -657,7 +653,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
-        // (ฟังก์ชันเติมตำบล)
+        // ฟังก์ชันเติมตำบล
         function populateSubdistricts(districtId) {
             subdistrictSelect.innerHTML = '<option value="">-- เลือกตำบล --</option>';
             zipcodeInput.value = '';
@@ -674,16 +670,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     subdistrictSelect.appendChild(option);
                 }
             });
-            // (เติม Zip Code หลังจากโหลดตำบลเสร็จ)
+            // เติม Zip Code หลังจากโหลดตำบลเสร็จ
             if (selected_subdistrict_id) {
                 const selectedSub = subdistricts.find(s => s.subdistrict_id == selected_subdistrict_id);
                 if (selectedSub) zipcodeInput.value = selectedSub.zip_code;
             }
         }
 
-        // (Event Listeners สำหรับ Dropdown)
+        // Event Listeners สำหรับ Dropdown
         provinceSelect.addEventListener('change', function() {
-            selected_district_id = ''; // (ล้างค่าที่เลือกไว้)
+            selected_district_id = ''; 
             selected_subdistrict_id = '';
             populateDistricts(this.value);
         });
@@ -703,7 +699,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // *** (เรียกใช้งานครั้งแรกตอนโหลดหน้า) ***
+        // เรียกใช้งานครั้งแรกตอนโหลดหน้า
         if (selected_province_id) {
             populateDistricts(selected_province_id);
         }
@@ -711,17 +707,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             populateSubdistricts(selected_district_id);
         }
 
-        // (JS จัดการรูปภาพ)
-        let newSelectedFiles = []; // (ใช้ตัวแปรใหม่สำหรับรูปใหม่)
+        // จัดการรูปภาพ
+        let newSelectedFiles = []; 
         const maxFiles = 4;
 
-        // (19) *** ฟังก์ชันลบ "รูปเดิม" ***
+        // ฟังก์ชันลบ "รูปเดิม" 
         function removeExistingImage(button, fileName) {
             button.parentElement.remove();
 
             const hiddenInput = document.querySelector(`input[name="existing_images[]"][value="${fileName}"]`);
             if (hiddenInput) {
-                hiddenInput.remove(); // (ลบออกจาก POST)
+                hiddenInput.remove();
             }
 
             if (document.getElementById('existingImagePreview').children.length === 0) {
@@ -729,15 +725,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // (ฟังก์ชันจัดการ "รูปใหม่")
+        // ฟังก์ชันจัดการ "รูปใหม่"
         document.getElementById('shop_images').addEventListener('change', function(e) {
             const files = Array.from(e.target.files);
             const existingCount = document.querySelectorAll('input[name="existing_images[]"]').length;
 
-            // (เตือนถ้าไฟล์ใหม่ + ไฟล์เดิม เกิน 4)
+            // เตือนถ้าไฟล์ใหม่ + ไฟล์เดิม เกิน 4
             if (existingCount + newSelectedFiles.length + files.length > maxFiles) {
                 showAlert('error', `สามารถอัปโหลดได้สูงสุด ${maxFiles} รูปเท่านั้น`);
-                // (ล้างไฟล์ที่เลือกใหม่)
                 e.target.value = null;
                 return;
             }
@@ -754,7 +749,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         function displayNewImage(file) {
             const reader = new FileReader();
             reader.onload = function(e) {
-                const previewContainer = document.getElementById('newImagePreview'); // (แสดงในช่องใหม่)
+                const previewContainer = document.getElementById('newImagePreview');
                 const itemDiv = document.createElement('div');
                 itemDiv.className = 'image-preview-item';
                 itemDiv.innerHTML = `
@@ -780,7 +775,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('shop_images').files = dataTransfer.files;
         }
 
-        // (JS Validation และ Alerts)
+        // Validation และ Alerts
 
         function showError(input, message) {
             input.classList.add('is-invalid');
@@ -823,26 +818,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const phoneError = document.getElementById("phone_no_error");
 
         phoneInput.addEventListener("input", function() {
-            // 1. ลบตัวอักษรที่ไม่ใช่ตัวเลขออกทันที
+            // ลบตัวอักษรที่ไม่ใช่ตัวเลขออกทันที
             this.value = this.value.replace(/[^0-9]/g, '');
 
             const value = this.value.trim();
 
-            // 2. ตรวจสอบเงื่อนไข (ขึ้นต้น 02,05,06,08,09 และครบ 10 หลัก)
+            //  ตรวจสอบเงื่อนไข
             const phonePattern = /^(02|05|06|08|09)[0-9]{8}$/;
 
             if (value.length > 0) {
                 if (!phonePattern.test(value)) {
-                    // แสดง Error ถ้าผิดเงื่อนไข
                     phoneError.style.display = "block";
                     phoneInput.classList.add("is-invalid");
                 } else {
-                    // ซ่อน Error ถ้าถูกต้อง
                     phoneError.style.display = "none";
                     phoneInput.classList.remove("is-invalid");
                 }
             } else {
-                // ถ้าเป็นค่าว่าง ให้เอา Error ออก
                 phoneError.style.display = "none";
                 phoneInput.classList.remove("is-invalid");
             }

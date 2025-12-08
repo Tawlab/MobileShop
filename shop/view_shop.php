@@ -3,14 +3,14 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_shop');
 
-// (2) ตรวจสอบ ID
+// ตรวจสอบ ID
 $shop_id = $_GET['id'] ?? 0;
 if (empty($shop_id)) {
     echo "<script>alert('Shop ID not found'); window.location='shop.php';</script>";
     exit;
 }
 
-// (3) ดึงข้อมูล (JOIN 5 ตารางเพื่อเอาชื่อเต็ม)
+// ดึงข้อมูล
 $sql = "SELECT 
             s.shop_id, s.shop_name, s.tax_id, s.shop_phone, s.shop_email, s.logo,
             a.home_no, a.moo, a.soi, a.road, a.village,
@@ -36,10 +36,10 @@ if (!$data) {
     exit();
 }
 
-// (4) เตรียมข้อมูลรูปภาพ
+//  เตรียมข้อมูลรูปภาพ
 $current_logo_list = !empty($data['logo']) ? explode(',', $data['logo']) : [];
 
-// (5) ฟังก์ชันสำหรับแสดง '-' ถ้าค่าว่าง
+// ฟังก์ชันสำหรับแสดง '-' ถ้าค่าว่าง
 function displayValue($value)
 {
     $value = trim($value ?? '');
@@ -114,10 +114,8 @@ function displayValue($value)
             font-weight: 500;
             font-size: 15px;
             color: #555;
-            /* (สีเทาเข้มเล็กน้อย) */
         }
 
-        /* (7) CSS สำหรับช่องแสดงผล (เหมือน view_supplier.php) */
         .view-field {
             display: block;
             width: 100%;
@@ -127,9 +125,7 @@ function displayValue($value)
             line-height: 1.5;
             color: #212529;
             background-color: #e9ecef;
-            /* (สีเทา Disabled) */
             border: 1px solid #ced4da;
-            /* (กรอบเทา) */
             border-radius: 0.375rem;
             min-height: calc(1.5em + 0.75rem + 2px);
         }
@@ -161,7 +157,6 @@ function displayValue($value)
             background: #cbd5e0;
         }
 
-        /* (CSS แสดงรูปภาพ) */
         .image-preview {
             display: flex;
             flex-wrap: wrap;

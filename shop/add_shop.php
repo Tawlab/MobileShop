@@ -3,21 +3,16 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_shop');
 
-// (2) ดึงข้อมูล Address Dropdowns
+//  ดึงข้อมูล Address Dropdowns
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th, provinces_province_id FROM districts");
 $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts");
 
-// (3) เก็บข้อมูล dropdown ไว้สำหรับ JS
+//  เก็บข้อมูล dropdown 
 $all_districts = $districts_result->fetch_all(MYSQLI_ASSOC);
 $all_subdistricts = $subdistricts_result->fetch_all(MYSQLI_ASSOC);
 
-
-// (4) จัดการบันทึกข้อมูล
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
-    // (5) *** รับค่าตาม DB Schema (mobileshop_db) ***
-    // ข้อมูล shop_info
     $shop_name = mysqli_real_escape_string($conn, trim($_POST['shop_name']));
     $tax_id = mysqli_real_escape_string($conn, trim($_POST['tax_id']));
     $shop_phone = mysqli_real_escape_string($conn, trim($_POST['shop_phone'])) ?: NULL;
@@ -32,7 +27,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $subdistricts_id = !empty($_POST['subdistricts_id']) ? (int)$_POST['subdistricts_id'] : NULL;
 
 
-    // (6) จัดการอัปโหลดรูปภาพ (สูงสุด 4 รูป)
+    // จัดการอัปโหลดรูปภาพ (สูงสุด 4 รูป)
     $logo_filenames = [];
     if (!empty($_FILES['shop_images']['name'][0])) {
         $upload_dir = '../uploads/shops/';
@@ -57,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $logo_db_string = !empty($logo_filenames) ? implode(',', $logo_filenames) : NULL;
 
 
-    // (7) ตรวจสอบข้อมูล
+    // ตรวจสอบข้อมูล
     $errors = [];
     if (empty($shop_name)) $errors[] = "กรุณากรอกชื่อร้านค้า";
     if (empty($tax_id)) $errors[] = "กรุณากรอกเลขผู้เสียภาษี";
@@ -72,29 +67,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
     if (empty($errors)) {
-        // (8) *** เริ่ม Transaction ***
         $conn->begin_transaction();
         try {
 
-            // (8.1) *** สร้าง Shop ID อัตโนมัติ (MAX + 1) ***
+            // สร้าง Shop ID อัตโนมัติ (MAX + 1) 
             $sql_max_shop_id = "SELECT MAX(shop_id) AS max_id FROM shop_info";
             $max_shop_result = $conn->query($sql_max_shop_id);
             $max_shop_row = $max_shop_result->fetch_assoc();
-            $new_shop_id = ($max_shop_row['max_id'] ?? 0) + 1; // (ถ้าตารางว่าง, เริ่มที่ 1)
+            $new_shop_id = ($max_shop_row['max_id'] ?? 0) + 1;
 
-            // (8.2) *** สร้าง Address ID อัตโนมัติ (MAX + 1) ***
+            //  สร้าง Address ID อัตโนมัติ (MAX + 1) 
             $sql_max_addr_id = "SELECT MAX(address_id) AS max_id FROM addresses";
             $max_addr_result = $conn->query($sql_max_addr_id);
             $max_addr_row = $max_addr_result->fetch_assoc();
-            $new_address_id = ($max_addr_row['max_id'] ?? 0) + 1; // (ถ้าตารางว่าง, เริ่มที่ 1)
+            $new_address_id = ($max_addr_row['max_id'] ?? 0) + 1;
 
 
-            // 8.3) สร้าง Address (โดยใช้ $new_address_id ที่สร้างเอง)
+            //สร้าง Address
             $stmt_addr = $conn->prepare("INSERT INTO addresses (
                 address_id, home_no, moo, soi, road, village, subdistricts_subdistrict_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt_addr->bind_param(
-                "isssssi", // i = address_id (int)
+                "isssssi", 
                 $new_address_id,
                 $home_no,
                 $moo,
@@ -107,14 +101,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_addr->close();
 
 
-            // 8.4) สร้าง Shop Info (โดยใช้ $new_shop_id และ $new_address_id)
+            // สร้าง Shop Info 
             $stmt_shop = $conn->prepare("INSERT INTO shop_info (
                 shop_id, shop_name, tax_id, shop_phone, shop_email, logo, 
                 Addresses_address_id, create_at, update_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
 
             $stmt_shop->bind_param(
-                "isssssi", // i = shop_id (int), i = Addresses_address_id (int)
+                "isssssi",
                 $new_shop_id,
                 $shop_name,
                 $tax_id,
@@ -132,11 +126,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo "<script>window.location.href = 'shop.php';</script>";
             exit;
         } catch (Exception $e) {
-            // (10) ถ้ายกเลิก
+            // ถ้ายกเลิก
             $conn->rollback();
-            // (ตรวจสอบว่า Error เกิดจาก Primary Key (ID ซ้ำ) หรือไม่)
+            // ตรวจสอบว่า Error เกิดจาก Primary Key (ID ซ้ำ
             if ($conn->errno == 1062) {
-                // (1062 = Duplicate entry)
+                //  Duplicate entry
                 if (strpos($e->getMessage(), 'addresses.PRIMARY') !== false) {
                     $_SESSION['error_message'] = "เกิดข้อผิดพลาด: Address ID ($new_address_id) นี้มีอยู่แล้ว";
                 } elseif (strpos($e->getMessage(), 'shop_info.PRIMARY') !== false) {
@@ -170,7 +164,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php require '../config/load_theme.php'; ?>
     <style>
         body {
-            /* (ใช้ $background_color, $font_style, $text_color จากธีม) */
             background: <?= $background_color ?>;
             font-family: '<?= $font_style ?>', sans-serif;
             font-size: 15px;
@@ -184,7 +177,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .page-header {
-            /* (ใช้ $theme_color) */
             background: <?= $theme_color ?>;
             color: white;
             padding: 30px;
@@ -204,7 +196,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin-top: 0;
             padding-bottom: 15px;
             font-weight: 600;
-            /* (ใช้ $theme_color) */
             color: <?= $theme_color ?>;
             border-bottom: 2px solid #e2e8f0;
             margin-bottom: 25px;
@@ -236,7 +227,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .form-control:focus,
         .form-select:focus {
-            /* (ใช้ $theme_color) */
             border-color: <?= $theme_color ?>;
             box-shadow: 0 0 0 3px rgba(<?= hexdec(substr($theme_color, 1, 2)) ?>, <?= hexdec(substr($theme_color, 3, 2)) ?>, <?= hexdec(substr($theme_color, 5, 2)) ?>, 0.1);
             background-color: #fff;
@@ -251,7 +241,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .btn-success {
-            /* (ใช้ $btn_add_color) */
             background: <?= $btn_add_color ?>;
             color: white;
         }
@@ -290,7 +279,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background-color: #f0f8ff;
         }
 
-        /* (ใช้สีธีมเมื่อ hover) */
         .image-preview {
             display: flex;
             flex-wrap: wrap;
@@ -569,7 +557,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
     <script>
-        // (Address data)
+        // Address data
         const districts = <?php echo json_encode($all_districts); ?>;
         const subdistricts = <?php echo json_encode($all_subdistricts); ?>;
 
@@ -585,11 +573,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             zipcodeInput.value = '';
 
             if (provinceId) {
-                // (DB Schema: provinces_province_id)
                 const filteredDistricts = districts.filter(d => d.provinces_province_id == provinceId);
                 filteredDistricts.forEach(district => {
                     const option = document.createElement('option');
-                    // (DB Schema: district_id, district_name_th)
                     option.value = district.district_id;
                     option.textContent = district.district_name_th;
                     districtSelect.appendChild(option);
@@ -603,11 +589,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             zipcodeInput.value = '';
 
             if (districtId) {
-                // (DB Schema: districts_district_id)
                 const filteredSubdistricts = subdistricts.filter(s => s.districts_district_id == districtId);
                 filteredSubdistricts.forEach(subdistrict => {
                     const option = document.createElement('option');
-                    // (DB Schema: subdistrict_id, subdistrict_name_th)
                     option.value = subdistrict.subdistrict_id;
                     option.textContent = subdistrict.subdistrict_name_th;
                     subdistrictSelect.appendChild(option);
@@ -618,7 +602,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         subdistrictSelect.addEventListener('change', function() {
             const subdistrictId = this.value;
             if (subdistrictId) {
-                // (DB Schema: subdistrict_id, zip_code)
                 const selectedSubdistrict = subdistricts.find(s => s.subdistrict_id == subdistrictId);
                 if (selectedSubdistrict && selectedSubdistrict.zip_code) {
                     zipcodeInput.value = selectedSubdistrict.zip_code;
@@ -630,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // (Image upload JS)
+        // Image upload
         let selectedFiles = [];
         const maxFiles = 4;
         document.getElementById('shop_images').addEventListener('change', function(e) {
@@ -681,7 +664,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         uploadContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
-            uploadContainer.style.borderColor = '<?= $theme_color ?>'; // (ใช้สีธีม)
+            uploadContainer.style.borderColor = '<?= $theme_color ?>';
             uploadContainer.style.backgroundColor = '#f0f8ff';
         });
 
@@ -712,7 +695,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             updateFileInput();
         });
 
-        // (Form validation JS)
+        // Form validation
         function showError(input, message) {
             input.classList.add('is-invalid');
             let errorDiv = input.nextElementSibling;
@@ -736,7 +719,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // (14) *** แก้ไข Validation fields ***
+        // Validation fields 
         const emailInput = document.getElementById("shop_email");
         const emailError = document.getElementById("email_error");
         emailInput.addEventListener("input", function() {
@@ -755,33 +738,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const phoneError = document.getElementById("phone_no_error");
 
         phoneInput.addEventListener("input", function() {
-            // 1. ลบตัวอักษรที่ไม่ใช่ตัวเลขออกทันที (พิมพ์ ก-ฮ หรือ a-z ไม่ได้)
+            // ลบตัวอักษรที่ไม่ใช่ตัวเลขออกทันที (พิมพ์ ก-ฮ หรือ a-z ไม่ได้)
             this.value = this.value.replace(/[^0-9]/g, '');
 
             const value = this.value.trim();
 
-            // 2. ตรวจสอบเงื่อนไข (ขึ้นต้นด้วย 02,05,06,08,09 และต้องครบ 10 หลัก)
-            // Regex อธิบาย: ^(กลุ่มตัวเลขนำหน้า) ตามด้วยตัวเลขอีก 8 ตัว
+            //ตรวจสอบเงื่อนไข
             const phonePattern = /^(02|05|06|08|09)[0-9]{8}$/;
 
             if (value.length > 0) {
                 if (!phonePattern.test(value)) {
-                    // ถ้าไม่ตรงเงื่อนไข ให้แสดง Error
                     phoneError.style.display = "block";
                     phoneInput.classList.add("is-invalid");
                 } else {
-                    // ถ้าตรงเงื่อนไข ซ่อน Error
                     phoneError.style.display = "none";
                     phoneInput.classList.remove("is-invalid");
                 }
             } else {
-                // ถ้าช่องว่าง ให้เอา Error ออก (เพราะไม่ได้บังคับกรอก)
                 phoneError.style.display = "none";
                 phoneInput.classList.remove("is-invalid");
             }
         });
 
-        // (Alert function)
+        // Alert function
         function showAlert(type, message) {
             const alertDiv = document.createElement('div');
             alertDiv.className = `custom-alert alert-${type}`;
@@ -800,11 +779,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }, 3000);
         }
 
-        // (Form submission validation)
+        // Form submission validation
         const form = document.getElementById('shopForm');
         form.addEventListener('submit', function(e) {
             let isValid = true;
-            // (ตรวจสอบ Required fields)
+            // ตรวจสอบ Required fields
             const requiredFields = form.querySelectorAll('input[required], select[required]');
             requiredFields.forEach(field => {
                 if (!field.value.trim()) {
@@ -815,7 +794,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
-            // (ตรวจสอบ Format)
+            // ตรวจสอบ Format
             if (emailInput.value && emailInput.classList.contains('is-invalid')) isValid = false;
             if (phoneInput.value && phoneInput.classList.contains('is-invalid')) isValid = false;
 
@@ -827,7 +806,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         });
 
-        // (Clear error on input)
+        // Clear error on input
         form.querySelectorAll('input, select').forEach(element => {
             element.addEventListener('input', function() {
                 if (this.classList.contains('is-invalid')) {
@@ -842,7 +821,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
-        // (Auto-hide alerts)
+        // Auto-hide alerts
         setTimeout(() => {
             const alerts = document.querySelectorAll('.custom-alert');
             alerts.forEach(alert => {

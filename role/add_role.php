@@ -1,17 +1,12 @@
 <?php
-// --- role/add_role.php ---
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_role');
-
-// --- (ตัวแปรสำหรับเก็บข้อมูล) ---
 $form_data = [];
 $errors_to_display = [];
 $permissions_list = [];
 
-// --- (A. ส่วนจัดการ POST: เมื่อกดบันทึก) ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // ... (ส่วนบันทึกข้อมูล เหมือนเดิมทุกประการ) ...
     $role_name = trim($_POST['role_name']);
     $role_desc = trim($_POST['role_desc']) ?: NULL;
     $selected_permissions = $_POST['permissions'] ?? [];
@@ -62,15 +57,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// --- (B. ส่วนดึงข้อมูลสิทธิ์ - แก้ไขให้ดึงทั้งหมดมาเลย) ---
-// ไม่ต้องรับค่า GET search/filter แล้ว เพราะเราจะกรองด้วย JS
+// ส่วนดึงข้อมูลสิทธิ์ 
 $sql_perms = "SELECT * FROM permissions ORDER BY permission_name ASC";
 $result_perms = $conn->query($sql_perms);
 while ($row = $result_perms->fetch_assoc()) {
     $permissions_list[] = $row;
 }
 
-// Helper labels สำหรับ JS
+// Helper labels 
 $filter_labels = [
     'all' => '<i class="fas fa-list me-1"></i> ทั้งหมด',
     'list' => '<i class="fas fa-chalkboard me-1"></i> หน้าหลัก',
@@ -142,7 +136,6 @@ $checked_permissions = $form_data['permissions'] ?? [];
             font-size: 0.85rem;
         }
 
-        /* ปรับขนาดตัวอักษรเล็กน้อยเพื่อให้พอดี 5 คอลัมน์ */
     </style>
 </head>
 
@@ -202,13 +195,10 @@ $checked_permissions = $form_data['permissions'] ?? [];
                                 <div class="permission-grid">
                                     <div class="row row-cols-2 row-cols-md-5 g-2" id="permContainer">
                                         <?php foreach ($permissions_list as $perm):
-                                            // แยกประเภทสิทธิ์จากชื่อ (เช่น add_product -> add)
                                             $parts = explode('_', $perm['permission_name']);
                                             $type = $parts[0];
-                                            // ถ้าไม่ใช่ประเภทมาตรฐาน ให้เป็น list
                                             if (!in_array($type, ['add', 'edit', 'del', 'view'])) $type = 'list';
 
-                                            // ข้อความสำหรับค้นหา (รวมชื่อและคำอธิบาย)
                                             $searchText = strtolower($perm['permission_name'] . ' ' . $perm['permission_desc']);
                                         ?>
                                             <div class="col perm-item" data-type="<?= $type ?>" data-text="<?= $searchText ?>">
@@ -256,8 +246,6 @@ $checked_permissions = $form_data['permissions'] ?? [];
                 permItems.forEach(item => {
                     const itemText = item.dataset.text;
                     const itemType = item.dataset.type;
-
-                    // เช็คเงื่อนไข: ข้อความตรงไหม AND ประเภทตรงไหม
                     const matchSearch = itemText.includes(searchText);
                     const matchType = (filterType === 'all' || filterType === itemType);
 
@@ -269,10 +257,10 @@ $checked_permissions = $form_data['permissions'] ?? [];
                 });
             }
 
-            // Event: พิมพ์ค้นหา
+            // พิมพ์ค้นหา
             searchInput.addEventListener('keyup', filterItems);
 
-            // Event: เลือก Dropdown ประเภท
+            //  เลือก Dropdown ประเภท
             filterOptions.forEach(opt => {
                 opt.addEventListener('click', function(e) {
                     e.preventDefault();

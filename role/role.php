@@ -1,19 +1,18 @@
 <?php
-// --- role/role.php ---
 session_start();
-require '../config/config.php'; // (ตรวจสอบว่า Path 'config.php' ถูกต้อง)
+require '../config/config.php';
 checkPageAccess($conn, 'role');
 
-// --- (ส่วนรับข้อความแจ้งเตือน) ---
+// ส่วนรับข้อความแจ้งเตือน
 $message = $_SESSION['message'] ?? null;
 $message_type = $_SESSION['message_type'] ?? null;
 unset($_SESSION['message'], $_SESSION['message_type']);
 
-// --- (ส่วนจัดการการค้นหา) ---
+//ส่วนจัดการการค้นห
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 $roles = [];
 
-// --- (SQL Query หลัก) ---
+// SQL Query หลัก
 $sql = "SELECT 
             role_id, 
             role_name, 
@@ -23,7 +22,6 @@ $sql = "SELECT
         FROM roles
 ";
 
-// --- (เพิ่มเงื่อนไข WHERE ถ้ามีการค้นหา) ---
 if (!empty($search_term)) {
     $sql .= "
         WHERE role_name LIKE ?
@@ -31,32 +29,26 @@ if (!empty($search_term)) {
     ";
 }
 
-$sql .= " ORDER BY role_id ASC"; // เรียงตาม ID
-
-// --- (ใช้ Prepared Statement เพื่อความปลอดภัย) ---
+$sql .= " ORDER BY role_id ASC";
 $stmt = $conn->prepare($sql);
-
 if ($stmt) {
     if (!empty($search_term)) {
         $search_like = "%" . $search_term . "%";
-        // --- ผูกค่า s (string) 2 ตัวสำหรับ LIKE ---
         $stmt->bind_param("ss", $search_like, $search_like);
     }
 
     $stmt->execute();
     $result = $stmt->get_result();
 
-    // --- ดึงข้อมูลทั้งหมดมาเก็บใน array ---
+    //  ดึงข้อมูลทั้งหมดมาเก็บใน array 
     while ($row = $result->fetch_assoc()) {
         $roles[] = $row;
     }
     $stmt->close();
 } else {
-    // --- จัดการกรณี Query ผิดพลาด ---
+    // จัดการกรณี Query ผิดพลาด 
     die("Error preparing statement: " . $conn->error);
 }
-
-// $conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -301,7 +293,7 @@ if ($stmt) {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- (Script สำหรับซ่อน Alert) ---
+        // สำหรับซ่อน Alert
         setTimeout(() => {
             document.querySelectorAll('.custom-alert').forEach(alert => {
                 const bsAlert = bootstrap.Alert.getInstance(alert);
@@ -313,11 +305,10 @@ if ($stmt) {
                     setTimeout(() => alert.remove(), 500);
                 }
             });
-        }, 5000); // 5 วินาที
+        }, 5000);
     </script>
 
     <?php
-    // ✅ ปิดตรงนี้ (ล่างสุด) หรือปล่อยให้ PHP ปิดเองอัตโนมัติก็ได้
     if (isset($conn)) $conn->close();
     ?>
 
