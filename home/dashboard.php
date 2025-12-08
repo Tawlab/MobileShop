@@ -10,7 +10,7 @@ if (!isset($_SESSION['user_id'])) {
 }
 
 // =============================================================================
-// 1. WIDGET DATA (ข้อมูลสรุป Real-time - ไม่ขึ้นกับตัวกรอง)
+// ข้อมูลสรุป Real-time 
 // =============================================================================
 $today = date('Y-m-d');
 
@@ -31,53 +31,53 @@ $sql_cust = "SELECT COUNT(*) as count FROM customers";
 $cust_count = mysqli_fetch_assoc(mysqli_query($conn, $sql_cust))['count'];
 
 // =============================================================================
-// 2. FILTER LOGIC (ตัวกรองช่วงเวลา)
+// ตัวกรองช่วงเวลา
 // =============================================================================
-$period = $_GET['period'] ?? 'week'; // ค่าเริ่มต้น: สัปดาห์นี้
+$period = $_GET['period'] ?? 'week'; 
 $where_date = "";
 $group_by = "";
-$date_format = ""; // Format ของ Label แกน X
+$date_format = "";
 
 switch ($period) {
     case 'today':
         $where_date = "DATE(bh.create_at) = CURDATE()";
         $group_by = "HOUR(bh.create_at)";
-        $date_format = "H:00"; // 08:00, 09:00
+        $date_format = "H:00"; 
         $chart_title = "รายได้วันนี้ (รายชั่วโมง)";
         break;
     case 'month':
         $where_date = "MONTH(bh.create_at) = MONTH(CURDATE()) AND YEAR(bh.create_at) = YEAR(CURDATE())";
         $group_by = "DAY(bh.create_at)";
-        $date_format = "d"; // วันที่ 1, 2, 3
+        $date_format = "d";
         $chart_title = "รายได้เดือนนี้ (รายวัน)";
         break;
     case 'quarter':
         $where_date = "QUARTER(bh.create_at) = QUARTER(CURDATE()) AND YEAR(bh.create_at) = YEAR(CURDATE())";
         $group_by = "MONTH(bh.create_at)";
-        $date_format = "M"; // Jan, Feb
+        $date_format = "M";
         $chart_title = "รายได้ไตรมาสนี้ (รายเดือน)";
         break;
     case 'year':
         $where_date = "YEAR(bh.create_at) = YEAR(CURDATE())";
         $group_by = "MONTH(bh.create_at)";
-        $date_format = "M"; // Jan, Feb
+        $date_format = "M"; 
         $chart_title = "รายได้ปีนี้ (รายเดือน)";
         break;
     case 'week':
     default:
-        // สัปดาห์นี้ (จันทร์-อาทิตย์)
+        // สัปดาห์นี้
         $where_date = "YEARWEEK(bh.create_at, 1) = YEARWEEK(CURDATE(), 1)";
         $group_by = "DATE(bh.create_at)";
-        $date_format = "D d"; // Mon 01
+        $date_format = "D d";
         $chart_title = "รายได้สัปดาห์นี้ (รายวัน)";
         break;
 }
 
 // =============================================================================
-// 3. CHART DATA (ข้อมูลกราฟตามตัวกรอง)
+// ข้อมูลกราฟตามตัวกรอง
 // =============================================================================
 
-// --- Chart 1: แนวโน้มรายได้ (Bar/Line) ---
+// แนวโน้มรายได้ 
 $revenue_labels = [];
 $revenue_data = [];
 
@@ -96,7 +96,7 @@ while ($row = mysqli_fetch_assoc($res_rev)) {
     $revenue_data[] = $row['total'];
 }
 
-// --- Chart 2: สัดส่วนรายได้ ขาย vs ซ่อม (Doughnut) ---
+// สัดส่วนรายได้ ขาย vs ซ่อม 
 $income_labels = ['ขายสินค้า', 'บริการซ่อม'];
 $income_values = [0, 0];
 
@@ -111,9 +111,6 @@ while ($row = mysqli_fetch_assoc($res_inc)) {
     if ($row['bill_type'] == 'Sale') $income_values[0] = $row['total'];
     elseif ($row['bill_type'] == 'Repair') $income_values[1] = $row['total'];
 }
-
-// --- Chart 3 & 4 & 5 (ข้อมูลทั่วไป ไม่ขึ้นกับตัวกรองเวลา หรือจะให้ขึ้นก็ได้ ในที่นี้ขอ Fix เพื่อดูภาพรวม) ---
-// ... (ใช้ Logic เดิม หรือจะเปลี่ยน $where_date ลงไปใส่ก็ได้ถ้าต้องการให้เปลี่ยนตาม) ...
 
 // Top 5 สินค้า
 $top_prod_labels = [];
@@ -142,8 +139,6 @@ while ($row = mysqli_fetch_assoc($res_rep)) {
     $repair_status_values[] = $row['c'];
 }
 
-
-// JSON ENCODE
 $json_rev_lbl = json_encode($revenue_labels);
 $json_rev_val = json_encode($revenue_data);
 $json_inc_val = json_encode($income_values);
@@ -427,9 +422,7 @@ $json_rep_val = json_encode($repair_status_values);
             });
         });
 
-        // --- Charts ---
-
-        // 1. Sales Trend
+        // Sales Trend
         let salesChart = new Chart(document.getElementById('salesTrendChart'), {
             type: 'bar',
             data: {
@@ -454,9 +447,9 @@ $json_rep_val = json_encode($repair_status_values);
             salesChart.update();
         }
 
-        // 2. Income Source (Doughnut)
+        // Income Source (Doughnut)
         new Chart(document.getElementById('incomeSourceChart'), {
-            type: 'doughnut', // [แก้ไข] เป็น Doughnut
+            type: 'doughnut', 
             data: {
                 labels: ['ขายสินค้า', 'บริการซ่อม'],
                 datasets: [{
@@ -470,7 +463,7 @@ $json_rep_val = json_encode($repair_status_values);
             }
         });
 
-        // 3. Repair Status
+        // Repair Status
         new Chart(document.getElementById('repairStatusChart'), {
             type: 'pie',
             data: {
@@ -491,7 +484,7 @@ $json_rep_val = json_encode($repair_status_values);
             }
         });
 
-        // 4. Best Sellers
+        // Best Sellers
         new Chart(document.getElementById('bestSellerChart'), {
             type: 'bar',
             data: {
@@ -509,7 +502,7 @@ $json_rep_val = json_encode($repair_status_values);
             }
         });
 
-        // 5. Top Symptoms
+        // Top Symptoms
         new Chart(document.getElementById('topSymptomChart'), {
             type: 'bar',
             data: {
