@@ -1,16 +1,12 @@
 <?php
 session_start();
 require '../config/config.php';
-// checkPageAccess($conn, 'reset_settings');
 
-// (1) เปลี่ยนตัวแปรที่รับค่า GET จาก employees_id เป็น user_id
 $user_id = $_GET['user_id'] ?? 0;
 if (!$user_id) {
-  // (2) เปลี่ยนข้อความแจ้งเตือน
   die("ไม่ได้ระบุรหัสผู้ใช้");
 }
 
-// ✅ ค่าเริ่มต้นของระบบ ครบทั้ง 14 ฟิลด์ (ตามโค้ดเดิม)
 $default_theme_config = [
   'theme_color'        => '#198754',
   'background_color'   => '#ffffff',
@@ -25,10 +21,8 @@ $default_theme_config = [
   'status_off_color'   => '#dc3545',
   'warning_bg_color'   => '#fff3cd',
   'danger_text_color'  => '#dc3545'
-  // 'btn_back_color' ไม่มีในนี้ (และไม่มีใน DB)
 ];
 
-// (3) แก้ SQL REPLACE ให้ใช้ user_id เป็นคอลัมน์แรก
 $sql = "REPLACE INTO systemconfig (
   user_id,
   theme_color, background_color, font_style, text_color,

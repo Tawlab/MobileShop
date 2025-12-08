@@ -1,11 +1,8 @@
 <?php
 session_start();
 require '../config/config.php';
-// checkPageAccess($conn, 'settings');
 
-$user_id = $_SESSION['user_id']; // ใช้ค่าจากการล็อกอินจริง
-
-// (2) แก้ SQL query ให้ใช้ user_id
+$user_id = $_SESSION['user_id'];
 $sql = "SELECT * FROM systemconfig WHERE user_id = $user_id";
 $result = mysqli_query($conn, $sql);
 $config = mysqli_fetch_assoc($result);
