@@ -3,7 +3,6 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_stock');
 
-// 1. รับ ID สต็อกที่ต้องการดู (ใช้ stock_id)
 $stock_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if (!$stock_id) {
@@ -12,8 +11,6 @@ if (!$stock_id) {
     exit;
 }
 
-// 2. SQL QUERY (แก้ไขใหม่ทั้งหมด)
-// (อ้างอิงฐานข้อมูลล่าสุด)
 $stock_sql = "SELECT 
                 ps.stock_id,
                 ps.serial_no,
@@ -28,12 +25,8 @@ $stock_sql = "SELECT
                 p.prod_price as original_price,
                 pb.brand_name_th as brand_name,
                 pt.type_name_th as type_name,
-
-                -- (ดึงข้อมูลการรับเข้า)
                 sm.ref_table as entry_type,
                 sm.ref_id as entry_ref_id,
-                
-                -- (ดึงข้อมูลการขาย ถ้ามี)
                 bh.bill_id AS receipt_id,
                 bh.bill_date as sale_date,
                 bd.warranty_duration_months,
@@ -50,7 +43,7 @@ $stock_sql = "SELECT
             LEFT JOIN bill_headers bh ON bh.bill_id = bd.bill_headers_bill_id
 
             WHERE ps.stock_id = $stock_id
-            LIMIT 1"; // (เนื่องจาก join sm/bd อาจทำให้ได้หลายแถว แต่เราเอาแค่ 1)
+            LIMIT 1"; 
 
 $stock_result = mysqli_query($conn, $stock_sql);
 $stock_data = mysqli_fetch_assoc($stock_result);
@@ -61,7 +54,7 @@ if (!$stock_data) {
     exit;
 }
 
-// 3. ดึงข้อมูล Supplier (ถ้ามาจาก PO)
+// ดึงข้อมูล Supplier 
 $supplier_name = null;
 if ($stock_data['entry_type'] == 'order_details' && !empty($stock_data['entry_ref_id'])) {
     $order_detail_id = $stock_data['entry_ref_id'];
@@ -76,8 +69,8 @@ if ($stock_data['entry_type'] == 'order_details' && !empty($stock_data['entry_re
     }
 }
 
-// 4. ตรวจสอบสถานะการรับประกัน (ถ้าขายแล้ว)
-$warranty_status = 'pending'; // (สถานะเริ่มต้น: รอขาย)
+// ตรวจสอบสถานะการรับประกัน (ถ้าขายแล้ว)
+$warranty_status = 'pending'; 
 $warranty_display = 'รอการขาย (ยังไม่เริ่ม)';
 $warranty_days_left = 0;
 
@@ -146,7 +139,6 @@ if ($stock_data['stock_status'] === 'Sold' && !empty($stock_data['sale_date'])) 
             margin-bottom: 1.5rem;
             overflow: hidden;
             height: 100%;
-            /* (ทำให้การ์ดสูงเท่ากัน) */
         }
 
         .card-header {
@@ -169,7 +161,6 @@ if ($stock_data['stock_status'] === 'Sold' && !empty($stock_data['sale_date'])) 
             display: inline-block;
         }
 
-        /* (ใช้ CSS จาก prod_stock.php) */
         .status-in-stock {
             background-color: #d1e7dd;
             color: #0f5132;

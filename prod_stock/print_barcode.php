@@ -3,8 +3,6 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'print_barcode');
 
-// (FIXED: 1 - แก้ไข SQL Query ทั้งหมด)
-
 // ดึงข้อมูลสต็อก
 $stocks = [];
 $stock_ids_str = $_GET['stock_ids'] ?? '';
@@ -13,19 +11,19 @@ if (!empty($stock_ids_str)) {
     // แปลง string เป็น array
     $stock_ids_array = explode(',', $stock_ids_str);
     $stock_ids_escaped = array_map(function ($id) use ($conn) {
-        return (int)trim($id); // (ป้องกัน SQL Injection)
+        return (int)trim($id); 
     }, $stock_ids_array);
 
-    // (ป้องกันการใส่ค่าที่ไม่ใช่ตัวเลข)
+    // ป้องกันการใส่ค่าที่ไม่ใช่ตัวเลข
     $stock_ids_safe = implode(',', $stock_ids_escaped);
 
     if (empty($stock_ids_safe)) {
-        // (ถ้าค่าที่ส่งมาไม่ใช่ตัวเลขเลย)
+        // ถ้าค่าที่ส่งมาไม่ใช่ตัวเลขเลย
         $stocks = [];
     } else {
         $where_clause = "ps.stock_id IN ($stock_ids_safe)";
 
-        // (FIXED: 2 - Query ใหม่ อ้างอิง DB ล่าสุด)
+        // Query ใหม่ 
         $sql = "SELECT 
                     ps.stock_id,
                     ps.serial_no,
@@ -47,7 +45,6 @@ if (!empty($stock_ids_str)) {
 
         if ($result) {
             while ($row = mysqli_fetch_assoc($result)) {
-                // (FIXED: 3 - แก้ไข Array ข้อมูล)
                 $stocks[] = [
                     'stock_id' => str_pad($row['stock_id'], 6, '0', STR_PAD_LEFT),
                     'serial_no' => $row['serial_no'],
@@ -57,7 +54,6 @@ if (!empty($stock_ids_str)) {
                     'type' => $row['type_name'],
                     'price' => floatval($row['stock_price'] ?: $row['original_price']),
                     'date_in' => $row['date_in']
-                    // (ลบ warranty และ supplier ที่ไม่มีใน DB ออก)
                 ];
             }
         }
@@ -142,13 +138,11 @@ $stock_range = $total_items > 1
             line-height: 1.1;
         }
 
-        /* (FIXED: 4 - เปลี่ยน imei เป็น serial) */
         .serial-info {
             font-size: 9px;
             color: #666;
             margin-top: 3px;
             word-wrap: break-word;
-            /* (เผื่อ Serial ยาว) */
         }
 
         .price-info {
@@ -163,7 +157,6 @@ $stock_range = $total_items > 1
             color: #333;
             margin: 2px 0;
             word-wrap: break-word;
-            /* (เผื่อ Serial ยาว) */
         }
 
         .btn-print {
@@ -263,7 +256,6 @@ $stock_range = $total_items > 1
                 border-radius: 2px !important;
                 box-sizing: border-box !important;
                 overflow: hidden !important;
-                /* (ป้องกันข้อความล้น) */
             }
 
             /* ขนาดบาร์โค้ดสำหรับการพิมพ์ */
@@ -296,7 +288,7 @@ $stock_range = $total_items > 1
                 line-height: 1.1 !important;
             }
 
-            /* (FIXED: 5 - เปลี่ยน imei เป็น serial) */
+            /* เปลี่ยน imei เป็น serial */
             .serial-info {
                 font-size: 7px !important;
                 margin-top: 1mm !important;
@@ -609,7 +601,7 @@ $stock_range = $total_items > 1
                 updateLayoutInfo();
                 adjustForMobile();
 
-                // (Event listeners สำหรับ Toggles)
+                // Event listeners สำหรับ Toggles
                 document.getElementById('showPrice').addEventListener('change', () => toggleDisplay('price-info'));
                 document.getElementById('showSerial').addEventListener('change', () => toggleDisplay('serial-info'));
                 document.getElementById('showStockId').addEventListener('change', () => toggleDisplay('stock-id-info'));
@@ -624,7 +616,7 @@ $stock_range = $total_items > 1
         function generateBarcodes() {
             stockData.forEach((item, index) => {
                 const canvas = document.getElementById(`barcode-${index}`);
-                // (FIXED: 7 - ใช้ item.serial_no)
+                // ใช้ item.serial_no
                 const valueToEncode = item.serial_no;
 
                 if (canvas && valueToEncode) {
@@ -633,14 +625,14 @@ $stock_range = $total_items > 1
                             format: "CODE128",
                             width: 2,
                             height: 50,
-                            displayValue: false, // (เราแสดง Serial No แยกเอง)
+                            displayValue: false, 
                             margin: 5,
                             background: "#ffffff",
                             lineColor: "#000000"
                         });
                     } catch (error) {
                         console.error('Error generating barcode:', error, 'Value:', valueToEncode);
-                        // (แสดง S/N แทน ถ้า Barcode พัง)
+                        // แสดง S/N แทน ถ้า Barcode พัง
                         const ctx = canvas.getContext('2d');
                         ctx.font = '10px Arial';
                         ctx.fillText(valueToEncode, 10, 30);
@@ -675,7 +667,7 @@ $stock_range = $total_items > 1
             setTimeout(generateBarcodes, 100);
         }
 
-        // (FIXED: 8 - ฟังก์ชัน Toggle แบบรวม)
+        //  ฟังก์ชัน Toggle แบบรวม
         function toggleDisplay(className) {
             const isChecked = event.target.checked;
             const elements = document.querySelectorAll(`.${className}`);
@@ -692,7 +684,7 @@ $stock_range = $total_items > 1
             });
         }
 
-        // อัปเดตข้อมูลการจัดเรียง
+        // ข้อมูลการจัดเรียง
         function updateLayoutInfo() {
             const size = document.getElementById('barcodeSize').value;
             const layoutInfo = document.getElementById('layoutInfo');

@@ -4,22 +4,24 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_prodStock');
 
 // -----------------------------------------------------------------------------
-// 1. HELPER FUNCTIONS
+// HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
-function getNextStockId($conn) {
+function getNextStockId($conn)
+{
     $sql = "SELECT IFNULL(MAX(stock_id), 100000) + 1 as next_id FROM prod_stocks";
     $result = mysqli_query($conn, $sql);
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
-function getNextMovementId($conn) {
+function getNextMovementId($conn)
+{
     $sql = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
     $result = mysqli_query($conn, $sql);
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
 // -----------------------------------------------------------------------------
-// 2. FETCH PRODUCTS
+// FETCH PRODUCTS
 // -----------------------------------------------------------------------------
 $sql_prod = "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th 
              FROM products p
@@ -29,18 +31,17 @@ $sql_prod = "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th
 $products = mysqli_query($conn, $sql_prod);
 
 // -----------------------------------------------------------------------------
-// 3. HANDLE SAVE (บันทึกข้อมูล)
+// HANDLE SAVE (บันทึกข้อมูล)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
     $prod_id = (int)$_POST['product_id'];
-    $items = $_POST['items'] ?? []; // รับค่าเป็น Array [index][serial], [index][price]
-    
+    $items = $_POST['items'] ?? [];
+
     if (empty($prod_id) || empty($items)) {
         $_SESSION['error'] = "ข้อมูลไม่ครบถ้วน หรือยังไม่ได้สแกนสินค้า";
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // --- จัดการอัปโหลดรูปภาพ (ใช้รูปเดียวร่วมกันทั้งล็อต) ---
             $image_filename = NULL;
             if (!empty($_FILES['stock_image']['name'])) {
                 $allowed = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -56,25 +57,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
             $count = 0;
             foreach ($items as $item) {
                 $sn = mysqli_real_escape_string($conn, trim($item['serial']));
-                $price = floatval($item['price']); // ราคาของชิ้นนั้นๆ
+                $price = floatval($item['price']);
 
                 if (empty($sn)) continue;
 
-                // 1. สร้าง Stock ID
+                // สร้าง Stock ID
                 $stock_id = getNextStockId($conn);
 
-                // 2. Insert prod_stocks (บันทึกราคาและรูปภาพ)
+                // บันทึกราคาและรูปภาพ
                 $sql_insert = "INSERT INTO prod_stocks (stock_id, serial_no, price, stock_status, image_path, create_at, update_at, products_prod_id) 
                                VALUES (?, ?, ?, 'In Stock', ?, NOW(), NOW(), ?)";
                 $stmt = $conn->prepare($sql_insert);
                 $stmt->bind_param("isdsi", $stock_id, $sn, $price, $image_filename, $prod_id);
-                
+
                 if (!$stmt->execute()) {
                     throw new Exception("บันทึก Serial: $sn ไม่สำเร็จ (อาจซ้ำ)");
                 }
                 $stmt->close();
 
-                // 3. Insert Movement (IN)
+                // Insert Movement
                 $move_id = getNextMovementId($conn);
                 $sql_move = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) 
                              VALUES (?, 'IN', 'manual_scan_barcode', ?, NOW(), ?)";
@@ -91,7 +92,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
             $_SESSION['success'] = "นำเข้าสินค้าสำเร็จจำนวน $count ชิ้น";
             header("Location: add_stock_barcode.php");
             exit;
-
         } catch (Exception $e) {
             mysqli_rollback($conn);
             $_SESSION['error'] = "เกิดข้อผิดพลาด: " . $e->getMessage();
@@ -102,6 +102,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
 
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -111,30 +112,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body { background: <?= $background_color ?>; font-family: '<?= $font_style ?>'; }
-        .card-custom { border-radius: 15px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.08); }
-        .scan-btn { height: 80px; font-size: 1.3rem; border-radius: 12px; border: 2px dashed #198754; background: #f0fff4; color: #198754; transition: all 0.3s; }
-        .scan-btn:hover { background: #198754; color: #fff; border-color: #198754; }
-        #reader { width: 100%; border-radius: 10px; overflow: hidden; background: #000; }
-        .price-input { width: 120px; text-align: right; }
+        body {
+            background: <?= $background_color ?>;
+            font-family: '<?= $font_style ?>';
+        }
+
+        .card-custom {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+
+        .scan-btn {
+            height: 80px;
+            font-size: 1.3rem;
+            border-radius: 12px;
+            border: 2px dashed #198754;
+            background: #f0fff4;
+            color: #198754;
+            transition: all 0.3s;
+        }
+
+        .scan-btn:hover {
+            background: #198754;
+            color: #fff;
+            border-color: #198754;
+        }
+
+        #reader {
+            width: 100%;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #000;
+        }
+
+        .price-input {
+            width: 120px;
+            text-align: right;
+        }
     </style>
 </head>
+
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
                 <div class="container" style="max-width: 1000px;">
-                    
+
                     <?php if (isset($_SESSION['success'])): ?>
                         <div class="alert alert-success alert-dismissible fade show">
-                            <i class="fas fa-check-circle me-2"></i> <?= $_SESSION['success']; unset($_SESSION['success']); ?>
+                            <i class="fas fa-check-circle me-2"></i> <?= $_SESSION['success'];
+                                                                        unset($_SESSION['success']); ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php endif; ?>
                     <?php if (isset($_SESSION['error'])): ?>
                         <div class="alert alert-danger alert-dismissible fade show">
-                            <i class="fas fa-exclamation-circle me-2"></i> <?= $_SESSION['error']; unset($_SESSION['error']); ?>
+                            <i class="fas fa-exclamation-circle me-2"></i> <?= $_SESSION['error'];
+                                                                            unset($_SESSION['error']); ?>
                             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                         </div>
                     <?php endif; ?>
@@ -144,21 +180,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
                             <h4 class="mb-0 text-primary"><i class="fas fa-barcode me-2"></i>รับสินค้าเข้า (Scan Barcode)</h4>
                             <a href="prod_stock.php" class="btn btn-outline-secondary btn-sm">กลับหน้ารายการ</a>
                         </div>
-                        
+
                         <form method="POST" id="mainForm" enctype="multipart/form-data">
                             <input type="hidden" name="save_stock" value="1">
-                            
+
                             <div class="card-body p-4">
                                 <div class="row g-4">
-                                    
+
                                     <div class="col-md-4 border-end">
                                         <h6 class="fw-bold mb-3 text-secondary">1. ตั้งค่าสินค้า</h6>
-                                        
+
                                         <div class="mb-3">
                                             <label class="form-label">สินค้า <span class="text-danger">*</span></label>
                                             <select name="product_id" id="product_id" class="form-select" required>
                                                 <option value="">-- กรุณาเลือกสินค้า --</option>
-                                                <?php while($p = mysqli_fetch_assoc($products)): ?>
+                                                <?php while ($p = mysqli_fetch_assoc($products)): ?>
                                                     <option value="<?= $p['prod_id'] ?>">
                                                         <?= $p['prod_name'] ?> <?= $p['model_name'] ?>
                                                     </option>
@@ -182,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
                                         </div>
 
                                         <hr>
-                                        
+
                                         <button type="button" class="btn w-100 scan-btn mb-2" onclick="openScanner()">
                                             <i class="fas fa-qrcode fa-lg"></i> เริ่มสแกน
                                         </button>
@@ -212,14 +248,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
                                                     </tr>
                                                 </thead>
                                                 <tbody id="scanListBody">
-                                                    <tr><td colspan="4" class="text-center text-muted py-5">ยังไม่มีรายการที่สแกน<br>กรุณาเลือกสินค้าและเริ่มสแกน</td></tr>
+                                                    <tr>
+                                                        <td colspan="4" class="text-center text-muted py-5">ยังไม่มีรายการที่สแกน<br>กรุณาเลือกสินค้าและเริ่มสแกน</td>
+                                                    </tr>
                                                 </tbody>
                                             </table>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </form> </div>
+                        </form>
+                    </div>
                 </div>
             </div>
         </div>
@@ -227,67 +266,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    
+
     <script>
         let html5QrcodeScanner = null;
-        let scannedItems = []; // เก็บ Object: { serial: 'xxx', price: 100 }
+        let scannedItems = [];
         let isScanning = false;
 
         function openScanner() {
             const prodId = document.getElementById('product_id').value;
-            if(!prodId) {
+            if (!prodId) {
                 Swal.fire('แจ้งเตือน', 'กรุณาเลือกสินค้าก่อนเริ่มสแกน', 'warning');
                 return;
             }
 
             document.getElementById('scanner-container').style.display = 'block';
-            if (!html5QrcodeScanner) { html5QrcodeScanner = new Html5Qrcode("reader"); }
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("reader");
+            }
 
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
-            .catch(err => {
-                // Fallback ถ้าเปิดกล้องหลังไม่ได้ ให้ลองเปิดกล้องหน้าหรือ Webcam
-                html5QrcodeScanner.start({ facingMode: "user" }, config, onScanSuccess, onScanFailure)
-                .catch(err2 => {
-                    Swal.fire('เปิดกล้องไม่ได้', 'กรุณาตรวจสอบการอนุญาต หรือใช้งานผ่าน HTTPS', 'error');
-                    document.getElementById('scanner-container').style.display = 'none';
+            const config = {
+                fps: 10,
+                qrbox: {
+                    width: 250,
+                    height: 250
+                }
+            };
+            html5QrcodeScanner.start({
+                    facingMode: "environment"
+                }, config, onScanSuccess, onScanFailure)
+                .catch(err => {
+                    // ถ้าเปิดกล้องหลังไม่ได้ ให้ลองเปิดกล้องหน้าหรือ Webcam
+                    html5QrcodeScanner.start({
+                            facingMode: "user"
+                        }, config, onScanSuccess, onScanFailure)
+                        .catch(err2 => {
+                            Swal.fire('เปิดกล้องไม่ได้', 'กรุณาตรวจสอบการอนุญาต หรือใช้งานผ่าน HTTPS', 'error');
+                            document.getElementById('scanner-container').style.display = 'none';
+                        });
                 });
-            });
             isScanning = true;
         }
 
         async function onScanSuccess(decodedText, decodedResult) {
             if (!isScanning) return;
-            
+
             const serial = decodedText.trim();
             // เช็คซ้ำในรายการหน้าเว็บ
             if (scannedItems.some(item => item.serial === serial)) {
-                Swal.fire({ toast: true, position: 'top-end', icon: 'warning', title: 'ซ้ำ! สแกนไปแล้ว', showConfirmButton: false, timer: 1000 });
-                return; 
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'ซ้ำ! สแกนไปแล้ว',
+                    showConfirmButton: false,
+                    timer: 1000
+                });
+                return;
             }
 
-            // หยุดสแกนชั่วคราวเพื่อถาม
-            // (ถ้าไม่ต้องการถาม ให้ comment ส่วน Swal.fire นี้ แล้วเรียก addItem() เลย)
-            /*
-            html5QrcodeScanner.pause();
-            const { isConfirmed } = await Swal.fire({
-                title: 'สแกนสำเร็จ: ' + serial,
-                text: 'ต้องการบันทึกและสแกนต่อหรือไม่?',
-                showCancelButton: true,
-                confirmButtonText: 'บันทึก & ต่อ',
-                cancelButtonText: 'ยกเลิก'
+            // Scan Loop
+            addItem(serial);
+            Swal.fire({
+                toast: true,
+                position: 'center',
+                icon: 'success',
+                title: 'เพิ่ม: ' + serial,
+                showConfirmButton: false,
+                timer: 800
             });
-            if(isConfirmed) {
-                addItem(serial);
-                html5QrcodeScanner.resume();
-            } else {
-                html5QrcodeScanner.resume();
-            }
-            */
-           
-           // แบบไม่ถาม (Scan Loop เร็วๆ)
-           addItem(serial);
-           Swal.fire({ toast: true, position: 'center', icon: 'success', title: 'เพิ่ม: ' + serial, showConfirmButton: false, timer: 800 });
         }
 
         function onScanFailure(error) {}
@@ -304,7 +350,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
         // เพิ่มรายการลง Array และอัปเดตตาราง
         function addItem(serial) {
             const defaultPrice = document.getElementById('default_price').value || 0;
-            scannedItems.push({ serial: serial, price: defaultPrice });
+            scannedItems.push({
+                serial: serial,
+                price: defaultPrice
+            });
             renderTable();
         }
 
@@ -321,9 +370,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
             } else {
                 // วนลูปสร้างแถว (ย้อนกลับเพื่อให้ล่าสุดอยู่บน)
                 [...scannedItems].reverse().forEach((item, index) => {
-                    // index จริงใน array (เพราะเรา reverse loop)
                     const realIndex = scannedItems.length - 1 - index;
-                    
+
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td class="text-center">${scannedItems.length - index}</td>
@@ -359,18 +407,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
                 Swal.fire('ข้อผิดพลาด', 'กรุณาสแกนสินค้าอย่างน้อย 1 ชิ้น', 'error');
             }
         });
-        
+
         // เตือนเมื่อเปลี่ยนสินค้า
         document.getElementById('product_id').addEventListener('change', function() {
-            if(scannedItems.length > 0) {
-                if(confirm('การเปลี่ยนสินค้าจะล้างรายการที่สแกนไว้ทั้งหมด ยืนยัน?')) {
+            if (scannedItems.length > 0) {
+                if (confirm('การเปลี่ยนสินค้าจะล้างรายการที่สแกนไว้ทั้งหมด ยืนยัน?')) {
                     scannedItems = [];
                     renderTable();
                 } else {
-                    // (คืนค่าเดิม ต้องเขียน logic เพิ่มถ้าต้องการเป๊ะๆ)
                 }
             }
         });
     </script>
 </body>
+
 </html>

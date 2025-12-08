@@ -2,19 +2,17 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_prodbrand');
-// (1) โหลดธีมก่อน
 require '../config/load_theme.php';
 
 // ฟังก์ชันสำหรับดึงรหัสล่าสุดและสร้างรหัสใหม่
 function getNextBrandId($conn)
 {
-  // (2) แก้ไข Query ให้ตรงกับ DB
   $query = "SELECT brand_id FROM prod_brands ORDER BY brand_id DESC LIMIT 1";
   $result = mysqli_query($conn, $query);
 
   if ($result && mysqli_num_rows($result) > 0) {
     $row = mysqli_fetch_assoc($result);
-    $lastId = intval($row['brand_id']); // brand_id
+    $lastId = intval($row['brand_id']);
     return str_pad($lastId + 1, 4, '0', STR_PAD_LEFT);
   }
   return '0001'; // ถ้ายังไม่มีข้อมูล เริ่มที่ 0001
@@ -24,14 +22,13 @@ function getNextBrandId($conn)
 function getNextBrandIds($conn, $count)
 {
   $ids = array();
-  // (3) แก้ไข Query ให้ตรงกับ DB
   $query = "SELECT brand_id FROM prod_brands ORDER BY brand_id DESC LIMIT 1";
   $result = mysqli_query($conn, $query);
 
   $startId = 1;
   if ($result && mysqli_num_rows($result) > 0) {
     $row = mysqli_fetch_assoc($result);
-    $startId = intval($row['brand_id']) + 1; // brand_id
+    $startId = intval($row['brand_id']) + 1;
   }
 
   for ($i = 0; $i < $count; $i++) {
@@ -47,10 +44,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $errors = [];
 
   foreach ($brands as $index => $brand) {
-    // (4) แก้ไขชื่อตัวแปรที่รับค่า (brand_id, brand_name_th, brand_name_en)
     $brand_name_th = trim($brand['brand_name_th'] ?? '');
     $brand_name_en = trim($brand['brand_name_en'] ?? '');
-    $brand_id = trim($brand['brand_id'] ?? ''); // id จาก hidden input
+    $brand_id = trim($brand['brand_id'] ?? '');
 
     // ข้ามถ้าไม่มีข้อมูล
     if (empty($brand_name_th) && empty($brand_name_en)) {
@@ -63,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       continue;
     }
 
-    // (5) ตรวจสอบ ID ซ้ำ (เผื่อมีคนเพิ่มพร้อมกัน)
+    // ตรวจสอบ ID ซ้ำ
     $stmt_check_id = $conn->prepare("SELECT COUNT(*) FROM prod_brands WHERE brand_id = ?");
     $stmt_check_id->bind_param("s", $brand_id);
     $stmt_check_id->execute();
@@ -75,7 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       continue;
     }
 
-    // (6) ตรวจสอบค่าซ้ำ (ชื่อไทย/อังกฤษ)
+    // ตรวจสอบค่าซ้ำ (ชื่อไทย/อังกฤษ)
     $stmt_check_name = $conn->prepare("SELECT COUNT(*) FROM prod_brands WHERE brand_name_th = ? OR brand_name_en = ?");
     $stmt_check_name->bind_param("ss", $brand_name_th, $brand_name_en);
     $stmt_check_name->execute();
@@ -88,7 +84,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       continue;
     }
 
-    // (7) เพิ่มข้อมูล (แก้คอลัมน์)
+    // เพิ่มข้อมูล
     $stmt = $conn->prepare("INSERT INTO prod_brands (brand_id, brand_name_th, brand_name_en) VALUES (?, ?, ?)");
     $stmt->bind_param("sss", $brand_id, $brand_name_th, $brand_name_en);
 
@@ -108,14 +104,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
   } elseif ($success_count > 0 && !empty($errors)) {
     $_SESSION['warning'] = "เพิ่มยี่ห้อสำเร็จ $success_count รายการ แต่มีข้อผิดพลาดบางรายการ";
-    $_SESSION['errors'] = $errors; // ส่ง errors ไปแสดงผลที่หน้า prodbrand.php
+    $_SESSION['errors'] = $errors; 
     echo "<script>window.location.href='prodbrand.php';</script>";
     exit();
   } else {
     // กรณีล้มเหลวทั้งหมด
     $_SESSION['error'] = "ไม่สามารถเพิ่มยี่ห้อได้";
     $_SESSION['errors'] = $errors;
-    // ส่งกลับไปหน้า add พร้อมแสดง error (ดีกว่า)
     echo "<script>window.location.href='add_prodbrand.php?count=$form_count';</script>";
     exit();
   }
@@ -139,11 +134,8 @@ $next_ids = getNextBrandIds($conn, $form_count);
   <style>
     body {
       background-color: <?= $background_color ?>;
-      /* Theme */
       color: <?= $text_color ?>;
-      /* Theme */
       font-family: '<?= $font_style ?>', sans-serif;
-      /* Theme */
     }
 
     .main-card {
@@ -155,7 +147,6 @@ $next_ids = getNextBrandIds($conn, $form_count);
 
     .card-header {
       background: <?= $theme_color ?>;
-      /* Theme */
       color: white;
       padding: 1.5rem 2rem;
       border-bottom: none;
@@ -176,9 +167,7 @@ $next_ids = getNextBrandIds($conn, $form_count);
 
     .form-control:focus {
       border-color: <?= $theme_color ?>;
-      /* Theme */
       box-shadow: 0 0 0 0.2rem <?= $theme_color ?>40;
-      /* Theme (with opacity) */
     }
 
     .required-label::after {
@@ -196,7 +185,6 @@ $next_ids = getNextBrandIds($conn, $form_count);
 
     .btn-success {
       background: <?= $btn_add_color ?>;
-      /* Theme */
       color: white !important;
       box-shadow: 0 4px 15px <?= $btn_add_color ?>40;
     }
@@ -208,7 +196,6 @@ $next_ids = getNextBrandIds($conn, $form_count);
 
     .btn-primary {
       background: <?= $theme_color ?>;
-      /* Theme */
       color: white !important;
       box-shadow: 0 4px 15px <?= $theme_color ?>40;
     }
@@ -241,13 +228,11 @@ $next_ids = getNextBrandIds($conn, $form_count);
 
     .brand-row:hover {
       border-color: <?= $theme_color ?>;
-      /* Theme */
       box-shadow: 0 3px 15px <?= $theme_color ?>20;
     }
 
     .row-number {
       background: <?= $theme_color ?>;
-      /* Theme */
       color: white;
       width: 35px;
       height: 35px;
@@ -407,7 +392,6 @@ $next_ids = getNextBrandIds($conn, $form_count);
           let hasData = false;
           let formValid = true;
 
-          // (15) แก้ไข selector ให้ตรงกับ name
           const rows = form.querySelectorAll('.brand-row');
 
           rows.forEach(row => {
@@ -417,10 +401,10 @@ $next_ids = getNextBrandIds($conn, $form_count);
             const nameTh = nameThInput.value.trim();
             const nameEn = nameEnInput.value.trim();
 
-            if (nameTh || nameEn) { // ถ้าแถวนี้มีการกรอก
+            if (nameTh || nameEn) { 
               hasData = true;
 
-              // ตรวจสอบว่ากรอกครบทั้งคู่
+              // ตรวจสอบว่ากรอกครบ
               if (!nameTh) {
                 nameThInput.setCustomValidity('กรุณากรอกชื่อภาษาไทย');
                 formValid = false;
@@ -435,7 +419,6 @@ $next_ids = getNextBrandIds($conn, $form_count);
                 nameEnInput.setCustomValidity('');
               }
             } else {
-              // ถ้าแถวนี้ว่าง
               nameThInput.setCustomValidity('');
               nameEnInput.setCustomValidity('');
             }

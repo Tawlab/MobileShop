@@ -4,7 +4,7 @@ require '../config/config.php';
 checkPageAccess($conn, 'edit_stock');
 
 // -----------------------------------------------------------------------------
-// 1. VALIDATE & GET STOCK ID
+//  VALIDATE & GET STOCK ID
 // -----------------------------------------------------------------------------
 $stock_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 if (!$stock_id) {
@@ -14,7 +14,7 @@ if (!$stock_id) {
 }
 
 // -----------------------------------------------------------------------------
-// 2. GET DATA (สำหรับแสดงฟอร์ม)
+// GET DATA (สำหรับแสดงฟอร์ม)
 // -----------------------------------------------------------------------------
 $stock_sql = "SELECT 
                 ps.stock_id,
@@ -41,14 +41,11 @@ if (!$stock_data) {
     exit;
 }
 
-// (สำคัญ!) ตรวจสอบว่า "ขายแล้ว" หรือยัง
 $is_sold = ($stock_data['stock_status'] === 'Sold');
-
-// (ดึงข้อมูล Dropdown สถานะ - ไม่รวม Sold)
 $status_options = ['In Stock', 'Damage', 'Reserved', 'Repair'];
 
 // -----------------------------------------------------------------------------
-// 3. SHARED FUNCTIONS
+// SHARED FUNCTIONS
 // -----------------------------------------------------------------------------
 
 function checkSerialExists($conn, $serial, $exclude_id)
@@ -69,7 +66,7 @@ function getNextMovementId($conn)
 }
 
 // -----------------------------------------------------------------------------
-// 4. AJAX HANDLER (เช็ค Serial ซ้ำ)
+// AJAX HANDLER (เช็ค Serial ซ้ำ)
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -87,7 +84,7 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// 5. POST HANDLER (บันทึกการแก้ไข)
+// POST HANDLER (บันทึกการแก้ไข)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -122,21 +119,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mysqli_autocommit($conn, false);
 
     try {
-        // (A) --- จัดการรูปภาพ ---
+        //  --- จัดการรูปภาพ ---
 
-        // (A.1 - ถ้ามีการอัปโหลดรูปใหม่)
+        // ถ้ามีการอัปโหลดรูปใหม่
         if (isset($_FILES['new_image']) && $_FILES['new_image']['error'] === UPLOAD_ERR_OK) {
             $upload_dir = '../uploads/products/';
             if (!is_dir($upload_dir)) {
                 mkdir($upload_dir, 0777, true);
             }
 
-            // (ลบรูปเก่า ถ้ามี)
+            // ลบรูปเก่า ถ้ามี
             if (!empty($current_image) && file_exists($upload_dir . $current_image)) {
                 unlink($upload_dir . $current_image);
             }
 
-            // (อัปโหลดรูปใหม่)
+            // อัปโหลดรูปใหม่
             $tmp_name = $_FILES['new_image']['tmp_name'];
             $file_extension = pathinfo($_FILES['new_image']['name'], PATHINFO_EXTENSION);
             $new_filename = uniqid('stock_', true) . '.' . $file_extension;
@@ -148,7 +145,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('ไม่สามารถอัปโหลดรูปภาพใหม่ได้');
             }
 
-            // (A.2 - ถ้าติ๊กลบรูป (โดยไม่อัปใหม่))
+            // ถ้าติ๊กลบรูป 
         } elseif ($delete_image == 1 && !empty($current_image)) {
             $upload_dir = '../uploads/products/';
             if (file_exists($upload_dir . $current_image)) {
@@ -157,7 +154,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $new_image_name = NULL;
         }
 
-        // (B) --- อัปเดตตาราง prod_stocks ---
         $sql_update = "UPDATE prod_stocks SET 
                         serial_no = ?,
                         price = ?,
@@ -180,13 +176,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt_update->close();
 
-        // (C) --- บันทึกการเคลื่อนไหว (ถ้าสถานะเปลี่ยน) ---
+        // --- บันทึกการเคลื่อนไหว (ถ้าสถานะเปลี่ยน) ---
         if ($stock_status != $stock_data['stock_status']) {
             $move_id = getNextMovementId($conn);
             $ref_table = 'EDIT_STOCK_STATUS'; // (เหตุผล)
             $comment = "เปลี่ยนสถานะจาก: {$stock_data['stock_status']} เป็น: $stock_status";
 
-            // (เราจะใช้ ref_table เก็บเหตุผล และ ref_id เก็บ comment (แม้จะไม่ตรงหลัก DB แต่สะดวก))
             $move_stmt = $conn->prepare(
                 "INSERT INTO stock_movements 
                     (movement_id, movement_type, ref_table, prod_stocks_stock_id, create_at) 
@@ -198,8 +193,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $move_stmt->close();
         }
-
-        // (D) --- Commit ---
         mysqli_commit($conn);
         $_SESSION['success'] = "แก้ไขข้อมูลสต็อก #$stock_id สำเร็จ";
         header('Location: prod_stock.php');
@@ -469,7 +462,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script>
         document.addEventListener('DOMContentLoaded', function() {
 
-            // (JS: AJAX เช็ค Serial ซ้ำ)
+            // AJAX เช็ค Serial ซ้ำ
             const serialInput = document.querySelector('.serial-input');
             const errorFeedback = document.querySelector('.error-feedback');
 
@@ -481,7 +474,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         const formData = new FormData();
                         formData.append('action', 'check_serial');
                         formData.append('serial_no', value);
-                        formData.append('stock_id', <?= $stock_id ?>); // (ส่ง ID ปัจจุบันไปด้วย)
+                        formData.append('stock_id', <?= $stock_id ?>);
 
                         const response = await fetch('', {
                             method: 'POST',
@@ -505,7 +498,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
-            // (JS: Preview รูปใหม่)
+            // Preview รูปใหม่
             const newImageInput = document.getElementById('new_image');
             const imagePreview = document.getElementById('imagePreview');
             const imagePreviewText = document.getElementById('imagePreviewText');
@@ -518,13 +511,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         imagePreview.src = event.target.result;
                         imagePreview.style.display = 'block';
                         imagePreviewText.style.display = 'none';
-                        if (deleteCheckbox) deleteCheckbox.checked = false; // (ถ้าอัปใหม่ ให้ยกเลิกการลบ)
+                        if (deleteCheckbox) deleteCheckbox.checked = false;
                     }
                     reader.readAsDataURL(e.target.files[0]);
                 }
             });
 
-            // (JS: Validation ตอน Submit)
+            // Validation ตอน Submit
             document.getElementById('editStockForm').addEventListener('submit', function(e) {
                 const serialInput = document.querySelector('.serial-input');
                 const priceInput = document.getElementById('price');

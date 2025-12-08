@@ -1,21 +1,20 @@
 <?php
-// --- permission/delete_permission.php ---
 session_start();
-require '../config/config.php'; // (ตรวจสอบว่า Path 'config.php' ถูกต้อง)
+require '../config/config.php'; 
 checkPageAccess($conn, 'delete_permission');
 
-// --- 1. ตรวจสอบว่ามี ID ส่งมาหรือไม่ ---
+// --- ตรวจสอบว่ามี ID ส่งมาหรือไม่ ---
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['message'] = "ไม่ได้ระบุ ID สิทธิ์ที่ต้องการลบ";
-    $_SESSION['message_type'] = "danger"; // (ใช้ danger สำหรับ error)
+    $_SESSION['message_type'] = "danger"; 
     header("Location: permission.php");
     exit();
 }
 
 $permission_id = (int)$_GET['id'];
 
-// --- 2. (เผื่อไว้) ดึงชื่อมาก่อนลบ เพื่อใช้ในข้อความแจ้งเตือน ---
-$perm_name = "(ID: $permission_id)"; // (ชื่อเริ่มต้น)
+// --- ดึงชื่อมาก่อนลบ เพื่อใช้ในข้อความแจ้งเตือน ---
+$perm_name = "(ID: $permission_id)";
 try {
     $stmt_get = $conn->prepare("SELECT permission_name FROM permissions WHERE permission_id = ?");
     $stmt_get->bind_param("i", $permission_id);
@@ -26,13 +25,9 @@ try {
     }
     $stmt_get->close();
 } catch (Exception $e) {
-    // (ไม่เป็นไรถ้าดึงชื่อไม่สำเร็จ ก็แค่ใช้ ID)
 }
 
-
-// --- 3. เริ่มกระบวนการลบ ---
 try {
-    // --- (เตรียม SQL DELETE) ---
     $sql = "DELETE FROM permissions WHERE permission_id = ?";
 
     $stmt = $conn->prepare($sql);
@@ -41,32 +36,22 @@ try {
     }
 
     $stmt->bind_param("i", $permission_id);
-
-    // --- (รันคำสั่ง) ---
     if ($stmt->execute()) {
-        // --- (ตรวจสอบว่าลบสำเร็จจริง) ---
         if ($stmt->affected_rows > 0) {
-            // --- (สำเร็จ) ---
             $_SESSION['message'] = "ลบสิทธิ์ '$perm_name' สำเร็จ (และลบสิทธิ์นี้ออกจากทุกบทบาทแล้ว)";
             $_SESSION['message_type'] = "success";
         } else {
-            // --- (ไม่สำเร็จ - ไม่พบ ID) ---
             throw new Exception("ไม่พบสิทธิ์ ID: $permission_id ที่จะลบ");
         }
     } else {
-        // --- (ล้มเหลว - Execute) ---
+        // --- ล้มเหลว  ---
         throw new Exception("Execute failed: " . $stmt->error);
     }
     $stmt->close();
 } catch (Exception $e) {
-    // --- (ถ้าเกิด Error) ---
-    // (แม้จะมี ON DELETE CASCADE แต่เราก็ควรดักจับ Error อื่นๆ ที่อาจเกิดขึ้น)
     $_SESSION['message'] = "ลบสิทธิ์ล้มเหลว: " . $e->getMessage();
     $_SESSION['message_type'] = "danger";
 }
-
 $conn->close();
-
-// --- 4. กลับไปหน้ารายการเสมอ ---
 header("Location: permission.php");
 exit();

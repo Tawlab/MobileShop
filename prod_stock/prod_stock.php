@@ -3,12 +3,11 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'prod_stock');
 
-// (2) ตั้งค่า Pagination
 $limit = 10; // จำนวนสินค้าต่อหน้า
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
-// (3) รับค่าการค้นหาและกรอง (แก้ไขฟิลด์ให้ตรง DB)
+// รับค่าการค้นหาและกรอง
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
 $filter_brand = isset($_GET['filter_brand']) ? mysqli_real_escape_string($conn, $_GET['filter_brand']) : '';
 $filter_type = isset($_GET['filter_type']) ? mysqli_real_escape_string($conn, $_GET['filter_type']) : '';
@@ -18,11 +17,11 @@ $filter_price_max = isset($_GET['filter_price_max']) ? floatval($_GET['filter_pr
 $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'ps.stock_id';
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
 
-// (4) สร้าง WHERE clause (แก้ไขฟิลด์)
+// WHERE clause 
 $where_conditions = ["1=1"];
 
 if (!empty($search)) {
-    // (ค้นหาจาก serial_no แทน imei/barcode)
+    // ค้นหาจาก serial_no แทน imei/barcode
     $where_conditions[] = "(p.prod_name LIKE '%$search%' OR 
                           p.model_name LIKE '%$search%' OR 
                           ps.serial_no LIKE '%$search%' OR 
@@ -31,17 +30,14 @@ if (!empty($search)) {
 }
 
 if (!empty($filter_brand)) {
-    // (ใช้ prod_brands_brand_id)
     $where_conditions[] = "p.prod_brands_brand_id = '$filter_brand'";
 }
 
 if (!empty($filter_type)) {
-    // (ใช้ prod_types_type_id)
     $where_conditions[] = "p.prod_types_type_id = '$filter_type'";
 }
 
 if (!empty($filter_status)) {
-    // (ใช้ stock_status)
     $where_conditions[] = "ps.stock_status = '$filter_status'";
 }
 
@@ -55,14 +51,10 @@ if ($filter_price_max > 0) {
 
 $where_clause = implode(' AND ', $where_conditions);
 
-// (5) ดึงข้อมูลสำหรับ dropdown filters (แก้ไขฟิลด์)
+// ดึงข้อมูลสำหรับ dropdown filters
 $brands_result = mysqli_query($conn, "SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th");
 $types_result = mysqli_query($conn, "SELECT type_id, type_name_th FROM prod_types ORDER BY type_name_th");
-// (สถานะ เราจะ hardcode จาก Enum)
 $status_options = ['In Stock', 'Sold', 'Damage', 'Reserved', 'Repair'];
-
-
-// (6) *** SQL หลัก (FIXED: 2 - เพิ่ม Subquery) ***
 $main_sql = "SELECT 
     ps.stock_id,
     ps.serial_no,
@@ -91,21 +83,21 @@ WHERE $where_clause
 ORDER BY $sort_by $order";
 
 
-// (7) นับจำนวนทั้งหมด
+// นับจำนวนทั้งหมด
 $count_sql = "SELECT COUNT(*) as total FROM ($main_sql) as count_table";
 $count_result = mysqli_query($conn, $count_sql);
 $total_records = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_records / $limit);
 
-// (8) ดึงข้อมูลพร้อม pagination
+// ดึงข้อมูลพร้อม pagination
 $data_sql = $main_sql . " LIMIT $limit OFFSET $offset";
 $result = mysqli_query($conn, $data_sql);
 
-// (9) *** จัดการลบข้อมูลรายการเดียว (FIXED: 1 - เพิ่มลบ Movement) ***
+// จัดการลบข้อมูลรายการเดียว 
 if (isset($_POST['delete_stock']) && isset($_POST['stock_id'])) {
     $stock_id = mysqli_real_escape_string($conn, $_POST['stock_id']);
 
-    // (9.1) ตรวจสอบว่าสินค้าถูกขายไปแล้วหรือไม่ (ใช้ stock_status)
+    // ตรวจสอบว่าสินค้าถูกขายไปแล้วหรือไม่ 
     $check_sql = "SELECT stock_status, image_path FROM prod_stocks WHERE stock_id = '$stock_id'";
     $check_result = mysqli_query($conn, $check_sql);
     $stock_info = mysqli_fetch_assoc($check_result);
@@ -116,11 +108,11 @@ if (isset($_POST['delete_stock']) && isset($_POST['stock_id'])) {
         exit;
     }
 
-    // (9.2) ลบข้อมูลสต็อก
+    // ลบข้อมูลสต็อก
     mysqli_autocommit($conn, false);
 
     try {
-        // (9.3) ลบรูปภาพ (ใช้ image_path)
+        // ลบรูปภาพ 
         if (!empty($stock_info['image_path'])) {
             $image_path = '../uploads/products/' . $stock_info['image_path'];
             if (file_exists($image_path)) {
@@ -128,13 +120,12 @@ if (isset($_POST['delete_stock']) && isset($_POST['stock_id'])) {
             }
         }
 
-        // (*** FIXED 1.1 ***: ต้องลบจาก stock_movements ก่อน)
+        // ต้องลบจาก stock_movements ก่อน
         $delete_movements_sql = "DELETE FROM stock_movements WHERE prod_stocks_stock_id = '$stock_id'";
         if (!mysqli_query($conn, $delete_movements_sql)) {
-            // (เราอนุญาตให้ลบได้ แม้ว่า movement จะไม่มีก็ตาม)
         }
 
-        // (9.4) ลบสต็อก
+        // ลบสต็อก
         $delete_stock_sql = "DELETE FROM prod_stocks WHERE stock_id = '$stock_id'";
 
         if (mysqli_query($conn, $delete_stock_sql)) {
@@ -146,7 +137,7 @@ if (isset($_POST['delete_stock']) && isset($_POST['stock_id'])) {
     } catch (Exception $e) {
         mysqli_rollback($conn);
         $_SESSION['error'] = 'เกิดข้อผิดพลาดในการลบ: '
-            . $e->getMessage() // (เปิด Error)
+            . $e->getMessage()
         ;
     }
 
@@ -155,7 +146,7 @@ if (isset($_POST['delete_stock']) && isset($_POST['stock_id'])) {
     exit;
 }
 
-// (10) *** จัดการลบหลายรายการ (FIXED: 1 - เพิ่มลบ Movement) ***
+// จัดการลบหลายรายการ ***
 if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
     $selected_stocks = $_POST['selected_stocks'];
 
@@ -165,11 +156,11 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
         exit;
     }
 
-    // (10.1) สร้าง list ของ stock IDs ที่ปลอดภัย
+    // สร้าง list ของ stock IDs
     $stock_ids = array_map('intval', $selected_stocks);
     $stock_ids_str = implode(',', $stock_ids);
 
-    // (10.2) ตรวจสอบสินค้าที่ขายแล้ว (ใช้ stock_status)
+    // ตรวจสอบสินค้าที่ขายแล้ว 
     $check_sold_sql = "SELECT stock_id, stock_status FROM prod_stocks WHERE stock_id IN ($stock_ids_str) AND stock_status = 'Sold'";
     $check_sold_result = mysqli_query($conn, $check_sold_sql);
 
@@ -183,7 +174,7 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
         exit;
     }
 
-    // (10.3) ดึงข้อมูลรูปภาพก่อนลบ
+    // ดึงข้อมูลรูปภาพก่อนลบ
     $data_sql = "SELECT stock_id, image_path FROM prod_stocks WHERE stock_id IN ($stock_ids_str)";
     $data_result = mysqli_query($conn, $data_sql);
 
@@ -192,14 +183,12 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
         $delete_data[] = $row;
     }
 
-    // (10.4) เริ่ม Transaction
     mysqli_autocommit($conn, false);
-
     try {
         $deleted_count = 0;
 
         foreach ($delete_data as $item) {
-            // (10.5) ลบรูปภาพ
+            // ลบรูปภาพ
             if (!empty($item['image_path'])) {
                 $image_path = '../uploads/products/' . $item['image_path'];
                 if (file_exists($image_path)) {
@@ -209,13 +198,12 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
             $deleted_count++;
         }
 
-        // (*** FIXED 1.2 ***: ต้องลบจาก stock_movements ก่อน)
+        // ต้องลบจาก stock_movements ก่อน
         $delete_movements_sql = "DELETE FROM stock_movements WHERE prod_stocks_stock_id IN ($stock_ids_str)";
         if (!mysqli_query($conn, $delete_movements_sql)) {
-            // (เราอนุญาตให้ลบได้ แม้ว่า movement จะไม่มีก็ตาม)
         }
 
-        // (10.6) ลบสต็อกทั้งหมด
+        // ลบสต็อกทั้งหมด
         $delete_stocks_sql = "DELETE FROM prod_stocks WHERE stock_id IN ($stock_ids_str)";
 
         if (mysqli_query($conn, $delete_stocks_sql)) {
@@ -227,7 +215,7 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
     } catch (Exception $e) {
         mysqli_rollback($conn);
         $_SESSION['error'] = 'เกิดข้อผิดพลาดในการลบ: '
-            . $e->getMessage() // (เปิด Error)
+            . $e->getMessage()
         ;
     }
 
@@ -236,7 +224,7 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
     exit;
 }
 
-// (11) สร้าง query string สำหรับ pagination
+// สร้าง query string สำหรับ pagination
 function build_query_string($exclude = [])
 {
     $params = $_GET;
@@ -267,7 +255,6 @@ function build_query_string($exclude = [])
 
         .main-header {
             background-color: <?= $theme_color ?>;
-            /* (ใช้สีธีม) */
             color: white;
             padding: 2rem 0;
             margin-bottom: 2rem;
@@ -311,9 +298,7 @@ function build_query_string($exclude = [])
 
         .table th {
             background-color: <?= $header_bg_color ?>;
-            /* (ใช้สีธีม) */
             color: <?= $header_text_color ?>;
-            /* (ใช้สีธีม) */
             font-weight: 600;
             border: 1px solid <?= $header_bg_color ?>;
             padding: 0.6rem 0.8rem;
@@ -332,7 +317,6 @@ function build_query_string($exclude = [])
 
         .btn-add {
             background-color: <?= $btn_add_color ?>;
-            /* (ใช้สีธีม) */
             border: none;
             border-radius: 10px;
             color: white;
@@ -366,7 +350,6 @@ function build_query_string($exclude = [])
         .form-control:focus,
         .form-select:focus {
             border-color: <?= $theme_color ?>;
-            /* (ใช้สีธีม) */
             box-shadow: 0 0 0 0.2rem rgba(<?= hexdec(substr($theme_color, 1, 2)) ?>, <?= hexdec(substr($theme_color, 3, 2)) ?>, <?= hexdec(substr($theme_color, 5, 2)) ?>, 0.25);
         }
 
@@ -377,7 +360,6 @@ function build_query_string($exclude = [])
 
         .badge-price {
             background-color: <?= $theme_color ?>;
-            /* (ใช้สีธีม) */
             color: white;
             font-size: 0.9rem;
         }
@@ -399,7 +381,7 @@ function build_query_string($exclude = [])
             color: #6c757d;
         }
 
-        /* (13) *** CSS สถานะ (แก้ไข) *** */
+        /*  CSS สถานะ  *** */
         .status-badge {
             padding: 4px 8px;
             border-radius: 15px;
@@ -412,33 +394,26 @@ function build_query_string($exclude = [])
             color: #0f5132;
         }
 
-        /* เขียว */
         .status-sold {
             background-color: #f8d7da;
             color: #721c24;
         }
 
-        /* แดง */
         .status-damage {
             background-color: #fff3cd;
             color: #856404;
         }
 
-        /* เหลือง */
         .status-reserved {
             background-color: #d1edff;
             color: #0c63e4;
         }
 
-        /* ฟ้า */
         .status-repair {
             background-color: #e2d9f3;
             color: #49287f;
         }
 
-        /* ม่วง */
-
-        /* (*** FIXED 2.1: CSS สำหรับเหตุผล) *** */
         .entry-type-badge {
             background-color: #e9ecef;
             color: #495057;
@@ -914,9 +889,8 @@ function build_query_string($exclude = [])
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // (20) *** JS (แก้ไข) ***
 
-        // (Modal ลบหลายรายการ)
+        // Modal ลบหลายรายการ
         function confirmDeleteMultiple() {
             const checkboxes = document.querySelectorAll('.stock-checkbox:checked');
             if (checkboxes.length === 0) {
@@ -927,11 +901,10 @@ function build_query_string($exclude = [])
             document.getElementById('multipleDeleteText').textContent = text;
             const modal = new bootstrap.Modal(document.getElementById('confirmDeleteMultipleModal'));
             modal.show();
-            // (*** FIXED 1.3 ***: ต้อง return false เพื่อให้ <form id="bulkForm"> รอการยืนยัน)
             return false;
         }
 
-        // (Modal ลบรายการเดียว)
+        // Modal ลบรายการเดียว
         function confirmDelete(stockId, productName) {
             document.getElementById('deleteStockId').textContent = stockId;
             document.getElementById('deleteProductName').textContent = productName;
@@ -940,7 +913,7 @@ function build_query_string($exclude = [])
             deleteModal.show();
         }
 
-        // (Toggle Filter)
+        // Toggle Filter
         document.getElementById('toggleFilter').addEventListener('click', function() {
             const filterCard = document.getElementById('filterCard');
             if (filterCard.style.display === 'none' || filterCard.style.display === '') {
@@ -956,7 +929,7 @@ function build_query_string($exclude = [])
             }
         });
 
-        // (แสดง Filter ถ้ามีการกรอง)
+        // แสดง Filter ถ้ามีการกรอง
         document.addEventListener('DOMContentLoaded', function() {
             const hasActiveFilters = <?= json_encode(!empty($filter_brand) || !empty($filter_type) || !empty($filter_status) || $filter_price_min > 0 || $filter_price_max > 0) ?>;
             if (hasActiveFilters) {
@@ -968,7 +941,7 @@ function build_query_string($exclude = [])
             }
         });
 
-        // (Bulk Actions Functions)
+        // Bulk Actions Functions
         function toggleSelectAll() {
             const selectAll = document.getElementById('selectAll');
             const checkboxes = document.querySelectorAll('.stock-checkbox');
@@ -987,10 +960,8 @@ function build_query_string($exclude = [])
             if (checkboxes.length > 0) {
                 bulkActions.classList.add('show');
                 const bulkForm = document.getElementById('bulkForm');
-                // ลบ hidden inputs เดิม
                 const existingInputs = bulkForm.querySelectorAll('input[name="selected_stocks[]"]');
                 existingInputs.forEach(input => input.remove());
-                // เพิ่ม hidden inputs ใหม่
                 checkboxes.forEach(checkbox => {
                     const hiddenInput = document.createElement('input');
                     hiddenInput.type = 'hidden';

@@ -1,25 +1,22 @@
 <?php
-// เริ่ม session และ output buffering
 session_start();
 ob_start();
 
 require '../config/config.php';
 checkPageAccess($conn, 'prodbrand');
-// (1) โหลดตัวแปรธีม
-// *** เราต้องโหลดธีมก่อนเพื่อใช้ตัวแปร $btn_... ใน CSS ***
 require '../config/load_theme.php';
 
-// (2) การจัดการการลบ (แก้คอลัมน์เป็น brand_id)
+// การจัดการการลบ 
 if (isset($_GET['delete_id'])) {
-  $delete_id = $_GET['delete_id']; // ID เป็น string (int(4))
+  $delete_id = $_GET['delete_id'];
   $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ?";
 
   if ($stmt = mysqli_prepare($conn, $delete_sql)) {
-    mysqli_stmt_bind_param($stmt, "s", $delete_id); // "s" for string
+    mysqli_stmt_bind_param($stmt, "s", $delete_id);
     if (mysqli_stmt_execute($stmt)) {
       $_SESSION['success'] = "ลบยี่ห้อสินค้าสำเร็จ";
     } else {
-      // (3) ตรวจจับ Foreign Key Error
+      // ตรวจจับ Foreign Key Error
       if (mysqli_errno($conn) == 1451) {
         $_SESSION['error'] = "ลบไม่สำเร็จ: ยี่ห้อนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
       } else {
@@ -35,7 +32,7 @@ if (isset($_GET['delete_id'])) {
   exit();
 }
 
-// (4) การค้นหา (แก้คอลัมน์)
+// การค้นหา
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'brand_id'; // default sort
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
@@ -45,7 +42,7 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-// (5) สร้าง WHERE clause (แก้คอลัมน์)
+// สร้าง WHERE clause
 $where_clause = '';
 if (!empty($search)) {
   $where_clause = "WHERE brand_name_th LIKE '%$search%' OR brand_name_en LIKE '%$search%'";
@@ -57,11 +54,10 @@ $count_result = mysqli_query($conn, $count_sql);
 $total_brands = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_brands / $items_per_page);
 
-// (6) คำสั่ง SQL สำหรับดึงข้อมูลยี่ห้อ (แก้คอลัมน์)
+// คำสั่ง SQL สำหรับดึงข้อมูลยี่ห้อ 
 $sql = "SELECT brand_id, brand_name_th, brand_name_en FROM prod_brands $where_clause ORDER BY $sort_by $order LIMIT $items_per_page OFFSET $offset";
 $result = mysqli_query($conn, $sql);
 
-// สร้าง query string สำหรับ pagination
 function build_query_string($exclude = [])
 {
   $params = $_GET;
@@ -71,7 +67,6 @@ function build_query_string($exclude = [])
   return !empty($params) ? '&' . http_build_query($params) : '';
 }
 
-// ปิด output buffering สำหรับการแสดงผลปกติ
 ob_end_flush();
 ?>
 
@@ -150,12 +145,9 @@ ob_end_flush();
 
     .table th {
       background-color: <?= $header_bg_color ?>;
-      /* Theme */
       color: <?= $header_text_color ?>;
-      /* Theme */
       font-weight: 600;
       border: 1px solid <?= $header_bg_color ?>;
-      /* Theme */
       padding: 0.4rem 0.6rem;
       text-align: center;
       vertical-align: middle;
@@ -191,7 +183,6 @@ ob_end_flush();
 
     .btn-success {
       background: <?= $btn_add_color ?>;
-      /* Theme */
       border: none;
       color: white !important;
       box-shadow: 0 4px 15px rgba(25, 135, 84, 0.2);
@@ -203,7 +194,6 @@ ob_end_flush();
 
     .btn-warning {
       background-color: <?= $btn_edit_color ?>;
-      /* Theme */
       border: none;
       border-radius: 8px;
       color: #000 !important;
@@ -219,7 +209,6 @@ ob_end_flush();
 
     .btn-danger {
       background-color: <?= $btn_delete_color ?>;
-      /* Theme */
       border: none;
       border-radius: 8px;
       font-weight: 500;
@@ -241,9 +230,7 @@ ob_end_flush();
 
     .form-control:focus {
       border-color: <?= $theme_color ?>;
-      /* Theme */
       box-shadow: 0 0 0 0.15rem <?= $theme_color ?>40;
-      /* Theme (with opacity) */
     }
 
     .alert {
@@ -261,9 +248,7 @@ ob_end_flush();
 
     .pagination .page-link {
       color: <?= $theme_color ?>;
-      /* Theme */
       border-color: <?= $theme_color ?>;
-      /* Theme */
       border-radius: 8px;
       margin: 0 2px;
       font-weight: 500;
@@ -271,17 +256,13 @@ ob_end_flush();
 
     .pagination .page-link:hover {
       background-color: <?= $theme_color ?>;
-      /* Theme */
       border-color: <?= $theme_color ?>;
-      /* Theme */
       color: white;
     }
 
     .pagination .page-item.active .page-link {
       background-color: <?= $theme_color ?>;
-      /* Theme */
       border-color: <?= $theme_color ?>;
-      /* Theme */
       color: white;
     }
 
@@ -454,7 +435,6 @@ ob_end_flush();
                     <tbody>
                       <?php
                       $index = ($page - 1) * $items_per_page + 1;
-                      // (10) แก้ไขการดึงข้อมูล (แก้คอลัมน์)
                       while ($row = mysqli_fetch_assoc($result)):
                       ?>
                         <tr class="small">
@@ -600,7 +580,6 @@ ob_end_flush();
     // ฟังก์ชันยืนยันการลบ
     function confirmDelete(id, name) {
       document.getElementById('brandName').textContent = name;
-      // (14) แก้ไข link ที่ส่งไป (ต้องมี .php)
       document.getElementById('confirmDeleteBtn').href = 'prodbrand.php?delete_id=' + id;
       new bootstrap.Modal(document.getElementById('deleteModal')).show();
     }

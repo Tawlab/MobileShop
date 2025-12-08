@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_prename');
 
-// (1) ตรวจสอบ ID ที่ส่งมา
+// ตรวจสอบ ID ที่ส่งมา
 if (!isset($_GET['id']) || empty($_GET['id'])) {
   echo "<script>alert('ไม่พบรหัสคำนำหน้า'); window.location.href='prename.php';</script>";
   exit();
@@ -22,7 +22,7 @@ if (!$row) {
   exit();
 }
 
-// (2) ตรวจสอบการส่งฟอร์ม (POST)
+// ตรวจสอบการส่งฟอร์ม (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
   $prefix_th = trim($_POST['prefix_th']);
@@ -38,13 +38,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     exit();
   }
 
-  // (5) แก้ไข SQL UPDATE
   $update_sql = "UPDATE prefixs 
                    SET prefix_th = ?, prefix_th_abbr = ?, prefix_en = ?, prefix_en_abbr = ?
                    WHERE prefix_id = ?";
   $update_stmt = $conn->prepare($update_sql);
-
-  // (6) Bind param
   $update_stmt->bind_param("sssss", $prefix_th, $prefix_th_abbr, $prefix_en, $prefix_en_abbr, $original_prefix_id);
 
   if ($update_stmt->execute()) {

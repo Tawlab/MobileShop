@@ -2,10 +2,9 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_prodbrand');
-// (1) โหลดธีมก่อน
 require '../config/load_theme.php';
 
-// (2) ตรวจสอบ ID ที่ส่งมา
+// ตรวจสอบ ID ที่ส่งมา
 if (!isset($_GET['id']) || empty($_GET['id'])) {
   $_SESSION['error'] = "ไม่พบรหัสยี่ห้อสินค้า";
   header('Location: prodbrand.php');
@@ -13,7 +12,6 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 }
 
 $brand_id_to_edit = $_GET['id'];
-// (3) แก้ไข SQL SELECT ให้ตรงกับ DB
 $stmt = $conn->prepare("SELECT * FROM prod_brands WHERE brand_id = ?");
 $stmt->bind_param("s", $brand_id_to_edit);
 $stmt->execute();
@@ -28,7 +26,6 @@ if (!$row) {
 $stmt->close();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-  // (4) รับ ID เดิม (ห้ามเปลี่ยน) และชื่อใหม่
   $original_brand_id = trim($_POST['original_brand_id']);
   $brand_name_th = trim($_POST['brand_name_th']);
   $brand_name_en = trim($_POST['brand_name_en']);
@@ -38,11 +35,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     echo "<script>alert('กรุณากรอกชื่อทั้งภาษาไทยและอังกฤษ'); window.history.back();</script>";
     exit();
   }
-
-  // (5) ลบการตรวจสอบ Regex ของ ID (เพราะเราไม่เปลี่ยน ID)
-  // (6) ลบการตรวจสอบ ID ซ้ำ (เพราะเราไม่เปลี่ยน ID)
-
-  // (7) ตรวจสอบชื่อซ้ำ (ยกเว้นตัวเอง)
+  // ตรวจสอบชื่อซ้ำ
   $check_stmt = $conn->prepare("SELECT brand_id FROM prod_brands WHERE (brand_name_th = ? OR brand_name_en = ?) AND brand_id != ?");
   $check_stmt->bind_param("sss", $brand_name_th, $brand_name_en, $original_brand_id);
   $check_stmt->execute();
@@ -52,8 +45,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     exit();
   }
   $check_stmt->close();
-
-  // (8) อัพเดทข้อมูล (แก้ SQL - ไม่อัปเดต ID)
   $stmt = $conn->prepare("UPDATE prod_brands SET brand_name_th = ?, brand_name_en = ? WHERE brand_id = ?");
   $stmt->bind_param("sss", $brand_name_th, $brand_name_en, $original_brand_id);
 
@@ -81,11 +72,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
   <style>
     body {
       background-color: <?= $background_color ?>;
-      /* Theme */
       color: <?= $text_color ?>;
-      /* Theme */
       font-family: '<?= $font_style ?>', sans-serif;
-      /* Theme */
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -102,7 +90,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     .card-header {
       background: <?= $theme_color ?>;
-      /* Theme */
       color: white;
       padding: 2rem;
       border-bottom: none;
@@ -132,9 +119,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     .form-control:focus {
       border-color: <?= $theme_color ?>;
-      /* Theme */
       box-shadow: 0 0 0 0.2rem <?= $theme_color ?>40;
-      /* Theme (with opacity) */
     }
 
     .form-label {
@@ -156,10 +141,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
       border: none;
     }
 
-    /* (10) ใช้ .btn-success จาก Theme */
     .btn-success {
       background: <?= $btn_add_color ?>;
-      /* Theme */
       color: white !important;
       box-shadow: 0 4px 15px <?= $btn_add_color ?>40;
     }
@@ -193,7 +176,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     .alert-warning {
       background-color: <?= $warning_bg_color ?>;
-      /* Theme */
       border: 1px solid #ffeaa7;
       border-radius: 12px;
       color: #856404;

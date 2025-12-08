@@ -4,14 +4,14 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_prodStock');
 
 // -----------------------------------------------------------------------------
-// 1. INITIALIZE VARIABLES (Manual Mode Only)
+// INITIALIZE VARIABLES
 // -----------------------------------------------------------------------------
 
 $page_title = "เพิ่มสต็อก (กรณีพิเศษ/ของแถม)";
 $page_icon = "fa-gift";
 
 // -----------------------------------------------------------------------------
-// 2. MANUAL MODE: ดึงข้อมูลสินค้าทั้งหมด (สำหรับ Dropdown)
+//  ดึงข้อมูลสินค้าทั้งหมด
 // -----------------------------------------------------------------------------
 $products_result = mysqli_query($conn, "SELECT 
                                     p.prod_id, p.prod_name, p.model_name, p.prod_price,
@@ -23,7 +23,7 @@ $products_result = mysqli_query($conn, "SELECT
                                   ORDER BY p.prod_name");
 
 // -----------------------------------------------------------------------------
-// 3. SHARED FUNCTIONS
+// SHARED FUNCTIONS
 // -----------------------------------------------------------------------------
 
 function getNextStockId($conn)
@@ -49,7 +49,7 @@ function getNextMovementId($conn)
 }
 
 // -----------------------------------------------------------------------------
-// 4. AJAX HANDLER (เช็ค Serial ซ้ำ)
+// เช็ค Serial ซ้ำ
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -66,16 +66,16 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// 5. POST HANDLER (จัดการการบันทึกข้อมูล - Manual Mode Only)
+// จัดการการบันทึกข้อมูล
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
     $date_in = !empty($_POST['date_in']) ? mysqli_real_escape_string($conn, $_POST['date_in']) : date('Y-m-d');
 
-    // (A) --- จัดการรูปภาพ (ใช้ร่วมกัน) ---
+    // จัดการรูปภาพ 
     $first_image_name = NULL;
     if (isset($_FILES['prod_image']) && $_FILES['prod_image']['error'][0] === UPLOAD_ERR_OK) {
-        $upload_dir = '../uploads/products/'; // (ต้องสร้างโฟลเดอร์นี้)
+        $upload_dir = '../uploads/products/'; 
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
@@ -96,14 +96,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
     try {
 
-        // (B) --- บันทึกโหมด MANUAL (กรณีพิเศษ) ---
+        // บันทึกโหมด (กรณีพิเศษ) 
 
         $products_prod_id = mysqli_real_escape_string($conn, $_POST['products_prod_id']);
         $price = floatval($_POST['price']);
         $serial_list = $_POST['serial_no'];
-        $ref_table = mysqli_real_escape_string($conn, $_POST['manual_reason']); // รับเหตุผล
+        $ref_table = mysqli_real_escape_string($conn, $_POST['manual_reason']); 
 
-        // (Validate)
         if (empty($products_prod_id) || empty($serial_list) || $price <= 0 || empty($ref_table)) {
             throw new Exception('กรุณากรอกข้อมูลโหมดพิเศษให้ครบถ้วน (สินค้า, ราคา, Serial, เหตุผล)');
         }
@@ -121,7 +120,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $stock_id = getNextStockId($conn);
             $serial_escaped = mysqli_real_escape_string($conn, trim($serial));
 
-            // (INSERT Stock - แก้ไขแล้ว)
             $sql = "INSERT INTO prod_stocks (
                         stock_id, serial_no, price, stock_status, warranty_start_date, 
                         image_path, create_at, update_at, products_prod_id
@@ -157,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $stock_ids[] = $stock_id;
         }
 
-        // (C) --- Commit และ Redirect ---
+        // Commit และ Redirect 
         mysqli_commit($conn);
         mysqli_autocommit($conn, true);
 
@@ -444,19 +442,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
-        // (เราไม่ต้องการ CURRENT_MODE อีกต่อไป)
         let selectedImages = [];
 
         document.addEventListener('DOMContentLoaded', function() {
             setTodayDate();
 
-            // (เรียกใช้โหมด Manual ทันที)
             updateSerialFieldsManual();
             document.getElementById('quantity').addEventListener('change', updateSerialFieldsManual);
             document.getElementById('products_prod_id').addEventListener('change', updatePriceFromProduct);
         });
 
-        // --- (JS: SHARED) ---
+        // --- SHARED ---
         function setTodayDate() {
             document.getElementById('date_in').value = new Date().toISOString().split('T')[0];
         }
@@ -494,7 +490,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         }
 
         function previewImages(input) {
-            // (เหมือนโค้ดเดิม)
             const files = Array.from(input.files);
             const maxFiles = 6;
             if (files.length > maxFiles) {
@@ -525,7 +520,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         }
 
         function removeImage(index) {
-            // (เหมือนโค้ดเดิม)
             selectedImages.splice(index, 1);
             const dt = new DataTransfer();
             selectedImages.forEach(file => dt.items.add(file));
@@ -533,7 +527,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             previewImages(document.getElementById('prod_image'));
         }
 
-        // --- (JS: MANUAL MODE) ---
+        // --- MANUAL MODE ---
         function updatePriceFromProduct() {
             const productSelect = document.getElementById('products_prod_id');
             const priceInput = document.getElementById('price');
@@ -554,7 +548,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             }
         }
 
-        // --- (JS: SHARED UTILITY) ---
+        // --- SHARED UTILITY ---
         function createSerialField(name, itemNumber) {
             const row = document.createElement('div');
             row.className = 'serial-row';
@@ -568,18 +562,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                     </div>
                 </div>
             `;
-            // เพิ่ม Event Listener ให้ช่องที่เพิ่งสร้าง
+            // Event Listener ให้ช่องที่เพิ่งสร้าง
             row.querySelector('.serial-input').addEventListener('input', function() {
                 checkSerial(this);
             });
             return row;
         }
 
-        // --- (JS: FORM VALIDATION) ---
+        // --- FORM VALIDATION ---
         document.getElementById('addStockForm').addEventListener('submit', function(e) {
             let isValid = true;
 
-            // (Validate Manual Mode)
+            // Validate Manual Mode
             const requiredFields = ['products_prod_id', 'quantity', 'price', 'manual_reason'];
             requiredFields.forEach(fieldName => {
                 const field = document.querySelector(`[name="${fieldName}"]`);
@@ -591,7 +585,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 }
             });
 
-            // (Validate Serials)
+            // Validate Serials
             const serialInputs = document.querySelectorAll('.serial-input');
             const serialValues = [];
 
@@ -600,7 +594,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 if (!value) {
                     input.classList.add('is-invalid');
                     isValid = false;
-                } else if (input.classList.contains('is-invalid')) { // เช็คว่าผ่าน AJAX
+                } else if (input.classList.contains('is-invalid')) { 
                     isValid = false;
                 } else {
                     input.classList.remove('is-invalid');

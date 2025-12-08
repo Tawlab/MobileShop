@@ -3,9 +3,8 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_permission');
 
-// (1) ตรวจสอบการส่งฟอร์ม
+// ตรวจสอบการส่งฟอร์ม
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-  // (2) แก้ไขชื่อตัวแปรที่รับ POST ให้ตรงกับ DB (prefixs)
   $prefix_id = trim($_POST['prefix_id']);
   $prefix_th = trim($_POST['prefix_th']);
   $prefix_th_abbr = trim($_POST['prefix_th_abbr']);
@@ -18,7 +17,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     exit();
   }
 
-  // (3) แก้ไข SQL ตรวจสอบซ้ำ ให้ตรงกับ DB
   $sql = "SELECT COUNT(*) FROM prefixs WHERE prefix_id = ? OR prefix_th = ? OR prefix_en = ?";
   $stmt = $conn->prepare($sql);
   $stmt->bind_param("sss", $prefix_id, $prefix_th, $prefix_en);
@@ -31,12 +29,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   if ($count > 0) {
     echo "<script>alert('มีรหัสคำนำหน้า, ชื่อไทย, หรือชื่ออังกฤษนี้อยู่แล้ว!'); window.history.back();</script>";
   } else {
-    // (4) แก้ไข SQL INSERT ให้ตรงกับ DB (is_active จะเป็น 1 (default) ตาม DB)
     $stmt = $conn->prepare("INSERT INTO prefixs (prefix_id, prefix_th, prefix_th_abbr, prefix_en, prefix_en_abbr) VALUES (?, ?, ?, ?, ?)");
     $stmt->bind_param("sssss", $prefix_id, $prefix_th, $prefix_th_abbr, $prefix_en, $prefix_en_abbr);
 
     if ($stmt->execute()) {
-      // (5) ส่งข้อความสำเร็จกลับไปหน้า prename.php
       echo "<script>window.location.href='prename.php?success=เพิ่มข้อมูลสำเร็จ';</script>";
     } else {
       echo "<script>alert('เกิดข้อผิดพลาด: " . $stmt->error . "'); window.history.back();</script>";
@@ -59,7 +55,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 
   <?php
-  // (6) โหลดธีมจาก System Config
   require '../config/load_theme.php';
   ?>
 
@@ -72,7 +67,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
       vertical-align: top;
     }
 
-    /* .form-control ถูกกำหนดใน load_theme.php แล้ว */
   </style>
 </head>
 
@@ -151,12 +145,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
           // เพิ่มการตรวจสอบ pattern ของรหัส
           const idInput = form.querySelector('[name="prefix_id"]');
           if (idInput.value.length !== 6 || !/^\d{6}$/.test(idInput.value)) {
-            idInput.setCustomValidity('Invalid'); // ตั้งค่าว่าไม่ผ่าน
+            idInput.setCustomValidity('Invalid'); 
           } else {
-            idInput.setCustomValidity(''); // ผ่าน
+            idInput.setCustomValidity('');
           }
 
-          // ตรวจสอบ form validation มาตรฐาน
+          // ตรวจสอบ form validation 
           if (!form.checkValidity()) {
             event.preventDefault();
             event.stopPropagation();

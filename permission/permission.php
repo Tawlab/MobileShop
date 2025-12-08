@@ -1,20 +1,16 @@
 <?php
-// --- permission/permission.php ---
 session_start();
-require '../config/config.php'; // (ตรวจสอบว่า Path 'config.php' ถูกต้อง)
+require '../config/config.php';
 checkPageAccess($conn, 'permission');
 
 // --- (ส่วนรับข้อความแจ้งเตือน) ---
 $message = $_SESSION['message'] ?? null;
 $message_type = $_SESSION['message_type'] ?? null;
 unset($_SESSION['message'], $_SESSION['message_type']);
-
-// --- (1. รับค่าตัวกรองและค้นหา) ---
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
-$filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'all'; // (ค่าเริ่มต้นคือ 'all')
+$filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'all';
 $permissions = [];
 
-// --- (2. สร้าง SQL แบบไดนามิก) ---
 $sql = "SELECT 
             permission_id, 
             permission_name, 
@@ -24,12 +20,10 @@ $sql = "SELECT
         FROM permissions
 ";
 
-// --- (เตรียมตัวแปรสำหรับ Prepared Statement) ---
 $where_clauses = [];
 $bind_types = "";
 $bind_values = [];
 
-// --- (เงื่อนไข A: ถ้ามีการค้นหาด้วย "คำ") ---
 if (!empty($search_term)) {
     $where_clauses[] = "(permission_name LIKE ? OR permission_desc LIKE ?)";
     $search_like = "%" . $search_term . "%";
@@ -37,7 +31,6 @@ if (!empty($search_term)) {
     array_push($bind_values, $search_like, $search_like);
 }
 
-// --- (เงื่อนไข B: ถ้ามีการ "กรองตามประเภท") ---
 if ($filter_type != 'all') {
     if ($filter_type == 'add') {
         $where_clauses[] = "permission_name LIKE 'add_%'";
@@ -48,7 +41,6 @@ if ($filter_type != 'all') {
     } elseif ($filter_type == 'view') {
         $where_clauses[] = "permission_name LIKE 'view_%'";
     } elseif ($filter_type == 'list') {
-        // (เงื่อนไขสำหรับ "หน้าหลัก" คือ ต้องไม่มี prefix 4 คำนั้น)
         $where_clauses[] = "permission_name NOT LIKE 'add_%' AND 
                             permission_name NOT LIKE 'edit_%' AND 
                             permission_name NOT LIKE 'del_%' AND 
@@ -56,39 +48,30 @@ if ($filter_type != 'all') {
     }
 }
 
-// --- (รวมเงื่อนไข WHERE) ---
 if (!empty($where_clauses)) {
     $sql .= " WHERE " . implode(" AND ", $where_clauses);
 }
 
-$sql .= " ORDER BY permission_id ASC"; // เรียงตาม ID
+$sql .= " ORDER BY permission_id ASC"; 
 
-// --- (ใช้ Prepared Statement เพื่อความปลอดภัย) ---
 $stmt = $conn->prepare($sql);
 
 if ($stmt) {
-    // --- (ผูกค่าพารามิเตอร์ (ถ้ามี)) ---
     if (!empty($bind_types)) {
         $stmt->bind_param($bind_types, ...$bind_values);
     }
 
     $stmt->execute();
     $result = $stmt->get_result();
-
-    // --- ดึงข้อมูลทั้งหมดมาเก็บใน array ---
     while ($row = $result->fetch_assoc()) {
         $permissions[] = $row;
     }
     $stmt->close();
 } else {
-    // --- จัดการกรณี Query ผิดพลาด ---
     die("Error preparing statement: " . $conn->error);
 }
 
-// $conn->close();
-
-// --- (3. ใหม่: Helper สำหรับปุ่ม Dropdown กรอง) ---
-// (สร้าง Label ให้ปุ่ม Dropdown)
+// --- สำหรับปุ่ม Dropdown กรอง ---
 $filter_labels = [
     'all' => '<i class="fas fa-list me-1"></i> ทั้งหมด',
     'list' => '<i class="fas fa-chalkboard me-1"></i> หน้าหลัก (List)',
@@ -98,8 +81,6 @@ $filter_labels = [
     'view' => '<i class="fas fa-eye me-1"></i> ดู (View)'
 ];
 $current_filter_label = $filter_labels[$filter_type] ?? $filter_labels['all'];
-
-// (สร้าง query string สำหรับลิงก์ใน Dropdown ให้จำคำค้นหาเดิมไว้)
 $search_query_param = !empty($search_term) ? '&search=' . urlencode($search_term) : '';
 
 ?>
@@ -178,7 +159,6 @@ $search_query_param = !empty($search_term) ? '&search=' . urlencode($search_term
         .dropdown-item.active,
         .dropdown-item:active {
             background-color: #15803d;
-            /* สีเขียว */
         }
 
         .table thead {
@@ -376,7 +356,7 @@ $search_query_param = !empty($search_term) ? '&search=' . urlencode($search_term
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- (Script สำหรับซ่อน Alert) ---
+        // --- สำหรับซ่อน Alert ---
         setTimeout(() => {
             document.querySelectorAll('.custom-alert').forEach(alert => {
                 const bsAlert = bootstrap.Alert.getInstance(alert);
@@ -388,16 +368,16 @@ $search_query_param = !empty($search_term) ? '&search=' . urlencode($search_term
                     setTimeout(() => alert.remove(), 500);
                 }
             });
-        }, 5000); // 5 วินาที
+        }, 5000);
 
-        // --- (5. ใหม่: JavaScript สำหรับ Dropdown กรอง) ---
+        // --- สำหรับ Dropdown กรอง ---
         document.addEventListener('DOMContentLoaded', function() {
             const filterOptions = document.getElementById('filterOptions');
             const filterInput = document.getElementById('filter_type_input');
             const filterButton = document.getElementById('filterDropdownButton');
             const form = filterButton.closest('form');
 
-            // (ดึง Labels จาก PHP มาใช้ใน JS)
+            // ดึง Labels 
             const filterLabelsJS = {
                 'all': '<?= $filter_labels['all'] ?>',
                 'list': '<?= $filter_labels['list'] ?>',
@@ -408,27 +388,17 @@ $search_query_param = !empty($search_term) ? '&search=' . urlencode($search_term
             };
 
             filterOptions.addEventListener('click', function(e) {
-                e.preventDefault(); // --- หยุดลิงก์ไม่ให้ทำงาน ---
-
-                // --- หาลิงก์ที่ถูกคลิก (<a>) ---
+                e.preventDefault(); 
                 const target = e.target.closest('a.dropdown-item');
                 if (!target) return;
-
                 const newFilterValue = target.dataset.filter;
-
-                // --- 1. อัปเดตค่าใน input ที่ซ่อนไว้ ---
                 filterInput.value = newFilterValue;
-
-                // --- 2. อัปเดตข้อความบนปุ่ม Dropdown ---
                 filterButton.innerHTML = filterLabelsJS[newFilterValue];
-
-                // --- 3. (สำคัญ) ส่งฟอร์ม (ค้นหา + กรอง) ---
                 form.submit();
             });
         });
     </script>
     <?php
-    // ✅ ปิดตรงนี้ (ล่างสุด) หรือปล่อยให้ PHP ปิดเองอัตโนมัติก็ได้
     if (isset($conn)) $conn->close();
     ?>
 

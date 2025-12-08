@@ -1,9 +1,8 @@
 <?php
 session_start();
-require '../config/config.php'; // (1) ต้องใช้ $conn สำหรับ Query
+require '../config/config.php';
 checkPageAccess($conn, 'prename');
 
-// (2) แก้ Query ให้ตรงกับฐานข้อมูล (ตาราง prefixs, คอลัมน์ prefix_id)
 $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
 ?>
 
@@ -20,9 +19,6 @@ $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
 
 
     <?php
-    // (3) โหลดธีมจาก System Config
-    // สมมติว่าไฟล์ load_theme.php อยู่ใน ../config/
-    // ไฟล์นี้จะ output <link> และ <style> ที่จำเป็นทั้งหมด
     require '../config/load_theme.php';
     ?>
 
@@ -36,8 +32,7 @@ $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
             vertical-align: middle;
             text-align: center;
         }
-
-        /* .status-icon และ .inactive ถูกกำหนดใน load_theme.php แล้ว */
+        
     </style>
 </head>
 
@@ -80,7 +75,6 @@ $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
                                 </thead>
                                 <tbody>
                                     <?php $index = 1;
-                                    // (8) แก้ไขชื่อคอลัมน์ทั้งหมดให้ตรงกับ DB
                                     while ($row = $result->fetch_assoc()): ?>
                                         <tr>
                                             <td><?= $index++ ?></td>
@@ -120,21 +114,19 @@ $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
         document.querySelectorAll('.toggle-status').forEach(icon => {
             icon.addEventListener('click', () => {
                 const id = icon.dataset.id;
-                const newStatus = icon.dataset.status; // สถานะใหม่ที่ต้องการ
+                const newStatus = icon.dataset.status; 
 
                 fetch('toggle_prename_status.php', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/x-www-form-urlencoded'
                         },
-                        // (11) ส่ง id กลับไปเป็น 'id' ตามที่ไฟล์ toggle_prename_status.php คาดหวัง
                         body: `id=${id}&status=${newStatus}`
                     })
                     .then(res => res.text())
                     .then(text => {
-                        console.log(text); // Debug
+                        console.log(text);
                         if (text.trim() === 'updated') {
-                            // อัปเดต UI ทั้งสองไอคอน
                             const iconsInGroup = document.querySelectorAll(`.toggle-status[data-id="${id}"]`);
                             iconsInGroup.forEach(i => {
                                 if (i.dataset.status === newStatus) {

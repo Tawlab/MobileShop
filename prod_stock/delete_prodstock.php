@@ -3,7 +3,6 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'delete_prodstock');
 
-// (FIXED: 1) รับ ID สต็อกที่ต้องการลบ (ใช้ $_GET ตามไฟล์เดิมของคุณ)
 $stock_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
 if (!$stock_id) {
@@ -12,7 +11,6 @@ if (!$stock_id) {
     exit;
 }
 
-// (FIXED: 2) ดึงข้อมูลสต็อก (ใช้คอลัมน์ใหม่จาก prod_stocks.sql)
 $stock_sql = "SELECT 
                 ps.stock_id,
                 ps.stock_status,
@@ -31,7 +29,7 @@ if (!$stock_data) {
     exit;
 }
 
-// (FIXED: 3) ตรวจสอบเงื่อนไขการลบ (ใช้ 'Sold' ตัวพิมพ์ใหญ่)
+//  ตรวจสอบเงื่อนไขการลบ 
 $can_delete = true;
 $error_message = '';
 
@@ -40,11 +38,9 @@ if ($stock_data['stock_status'] === 'Sold') {
     $error_message = 'ไม่สามารถลบสินค้าที่ขายแล้ว (สถานะ Sold)';
 }
 
-// (FIXED: 4) จัดการการลบ (ส่วนนี้คือส่วนที่โค้ดใน prod_stock.php ใช้)
-// (ไฟล์นี้จะทำงานเมื่อมีการยืนยันจากหน้า UI ที่ส่ง POST มา)
+// จัดการการลบ 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
 
-    // (ดึง ID จาก POST อีกครั้งเพื่อความปลอดภัย)
     $confirmed_stock_id = (int)$_POST['stock_id'];
 
     if ($confirmed_stock_id != $stock_id) {
@@ -59,11 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
         exit;
     }
 
-    // เริ่ม Transaction
     mysqli_autocommit($conn, false);
 
     try {
-        // (FIXED: 5) ลบรูปภาพ (ใช้ image_path และไม่ใช่ JSON)
         if (!empty($stock_data['image_path'])) {
             $image_path = '../uploads/products/' . $stock_data['image_path'];
             if (file_exists($image_path)) {
@@ -71,15 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
             }
         }
 
-        // (*** CRITICAL FIX ***: ลบจาก stock_movements ก่อน)
         $delete_movements_sql = "DELETE FROM stock_movements WHERE prod_stocks_stock_id = $stock_id";
         if (!mysqli_query($conn, $delete_movements_sql)) {
-            // (อนุญาตให้ผ่านได้ แม้จะไม่มี movement)
         }
 
-        // (FIXED: 6) ลบการรับประกัน (ลบส่วนนี้ทิ้ง เพราะไม่มีใน DB ใหม่)
 
-        // (FIXED: 7) ลบสต็อก (ใช้ stock_id)
+        // ลบสต็อก 
         $delete_stock_sql = "DELETE FROM prod_stocks WHERE stock_id = $stock_id";
         if (!mysqli_query($conn, $delete_stock_sql)) {
             throw new Exception('ไม่สามารถลบข้อมูลสต็อกได้ (DB Error)');
@@ -95,15 +86,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_delete'])) {
     }
 
     mysqli_autocommit($conn, true);
-    // (ถ้า Error ให้กลับไปหน้า prod_stock.php)
     header('Location: prod_stock.php');
     exit;
 }
 
-// -----------------------------------------------------------------------------
-// 6. HTML (หน้าสำหรับยืนยันการลบ)
-// (โค้ดนี้จะแสดงหน้า UI ให้กดยืนยันก่อน)
-// -----------------------------------------------------------------------------
 ?>
 <!DOCTYPE html>
 <html lang="th">

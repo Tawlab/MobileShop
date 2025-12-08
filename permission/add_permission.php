@@ -1,27 +1,26 @@
 <?php
-// --- permission/add_permission.php ---
 session_start();
-require '../config/config.php'; // (ตรวจสอบว่า Path 'config.php' ถูกต้อง)
+require '../config/config.php';
 checkPageAccess($conn, 'add_permission');
 
-// --- (ตัวแปรสำหรับเก็บข้อมูล) ---
+// --- ตัวแปรสำหรับเก็บข้อมูล ---
 $form_data = [];
 $errors_to_display = [];
 
-// --- (ประมวลผลเมื่อมีการส่งฟอร์ม POST) ---
+// --- ประมวลผลเมื่อมีการส่งฟอร์ม POST ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // --- (รับค่าจากฟอร์ม) ---
+    // --- รับค่าจากฟอร์ม ---
     $permission_name = trim($_POST['permission_name']);
     $permission_desc = trim($_POST['permission_desc']) ?: NULL; // (ถ้าว่าง ให้เป็น NULL)
 
-    // --- (ตรวจสอบข้อมูล) ---
+    // --- ตรวจสอบข้อมูล ---
     $errors = [];
     if (empty($permission_name)) {
         $errors[] = "กรุณากรอก 'ชื่อสิทธิ์ (Name)'";
     }
 
-    // --- (ตรวจสอบว่าชื่อสิทธิ์ (Name) ซ้ำหรือไม่) ---
+    // --- ตรวจสอบชื่อซ้ำหรือไม่ ---
     if (empty($errors)) {
         $stmt_check = $conn->prepare("SELECT permission_id FROM permissions WHERE permission_name = ?");
         $stmt_check->bind_param("s", $permission_name);
@@ -38,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
 
-            // --- (1. ใหม่: ค้นหา ID สูงสุด) ---
+            // --- ใหม่: ค้นหา ID สูงสุด ---
             $sql_max_id = "SELECT MAX(permission_id) AS max_id FROM permissions";
             $max_result = $conn->query($sql_max_id);
             if (!$max_result) {
@@ -46,11 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $max_row = $max_result->fetch_assoc();
 
-            // --- (2. ใหม่: คำนวณ ID ใหม่) ---
+            // --- คำนวณ ID ใหม่ ---
             $next_permission_id = ($max_row['max_id'] ?? 0) + 1;
-
-
-            // --- (3. แก้ไข: เพิ่ม permission_id ใน SQL) ---
             $sql = "INSERT INTO permissions (permission_id, permission_name, permission_desc, create_at, update_at) 
                     VALUES (?, ?, ?, NOW(), NOW())";
 
@@ -58,34 +54,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$stmt) {
                 throw new Exception("Prepare statement failed: " . $conn->error);
             }
-
-            // --- (4. แก้ไข: เพิ่ม "i" และ $next_permission_id ใน bind_param) ---
             $stmt->bind_param("iss", $next_permission_id, $permission_name, $permission_desc);
-
-            // --- (รันคำสั่ง) ---
             if ($stmt->execute()) {
-                // --- (สำเร็จ) ---
                 $_SESSION['message'] = "เพิ่มสิทธิ์ '$permission_name' (ID: $next_permission_id) สำเร็จ";
                 $_SESSION['message_type'] = "success";
-                header("Location: permission.php"); // --- กลับไปหน้ารายการ ---
+                header("Location: permission.php"); 
                 exit();
             } else {
-                // --- (ล้มเหลว) ---
                 throw new Exception("Execute failed: " . $stmt->error);
             }
         } catch (Exception $e) {
-            // --- (ถ้าเกิด Error ระหว่างบันทึก) ---
             $errors_to_display = ["เกิดข้อผิดพลาดในการบันทึก: " . $e->getMessage()];
-            $form_data = $_POST; // --- เก็บค่าที่กรอกไว้ ---
+            $form_data = $_POST; 
         }
     } else {
-        // --- (ถ้า Error จาก Validation) ---
+        // --- ถ้า Error จาก Validation ---
         $errors_to_display = $errors;
-        $form_data = $_POST; // --- เก็บค่าที่กรอกไว้ ---
+        $form_data = $_POST;
     }
 } else {
-    // --- (ถ้าเป็นการเปิดหน้าครั้งแรก (GET)) ---
-    // (ดึงค่าที่กรอกค้างไว้ ถ้ามี)
+    // --- ถ้าเป็นการเปิดหน้าครั้งแรก (GET) ---
     $form_data = $_SESSION['form_data'] ?? [];
     $errors_to_display = $_SESSION['errors'] ?? [];
     unset($_SESSION['form_data'], $_SESSION['errors']);
@@ -257,11 +245,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- (Client-side Validation (แบบง่าย)) ---
+        // --- Client-side Validation  ---
         document.getElementById('addPermissionForm').addEventListener('submit', function(event) {
             const nameInput = document.getElementById('permission_name');
             if (nameInput.value.trim() === '') {
-                event.preventDefault(); // --- หยุดการส่งฟอร์ม ---
+                event.preventDefault(); 
                 alert('กรุณากรอก "ชื่อสิทธิ์ (Name)"');
                 nameInput.focus();
             }

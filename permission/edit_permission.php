@@ -1,39 +1,38 @@
 <?php
-// --- permission/edit_permission.php ---
 session_start();
-require '../config/config.php'; // (ตรวจสอบว่า Path 'config.php' ถูกต้อง)
+require '../config/config.php'; 
 checkPageAccess($conn, 'edit_permission');
 
-// --- (1. รับ ID ที่จะแก้ไข) ---
+// --- รับ ID ที่จะแก้ไข---
 $permission_id = (int)($_GET['id'] ?? 0);
 if ($permission_id === 0) {
     die("ไม่พบ ID สิทธิ์ที่ต้องการแก้ไข");
 }
 
-// --- (ตัวแปรสำหรับเก็บข้อมูล) ---
+// --- ตัวแปรสำหรับเก็บข้อมูล ---
 $form_data = [];
 $errors_to_display = [];
 
-// --- (2. ประมวลผลเมื่อมีการส่งฟอร์ม POST) ---
+// --- ประมวลผลเมื่อมีการส่งฟอร์ม POST ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // --- (ตรวจสอบ ID ว่าตรงกัน) ---
+    // --- ตรวจสอบ ID ว่าตรงกัน ---
     $post_id = (int)$_POST['permission_id'];
     if ($post_id !== $permission_id) {
         die("ID ที่ส่งมาไม่ตรงกัน!");
     }
 
-    // --- (รับค่าจากฟอร์ม) ---
+    // --- รับค่าจากฟอร์ม ---
     $permission_name = trim($_POST['permission_name']);
-    $permission_desc = trim($_POST['permission_desc']) ?: NULL; // (ถ้าว่าง ให้เป็น NULL)
+    $permission_desc = trim($_POST['permission_desc']) ?: NULL; 
 
-    // --- (ตรวจสอบข้อมูล) ---
+    // --- ตรวจสอบข้อมูล ---
     $errors = [];
     if (empty($permission_name)) {
         $errors[] = "กรุณากรอก 'ชื่อสิทธิ์ (Name)'";
     }
 
-    // --- (ตรวจสอบว่าชื่อสิทธิ์ (Name) ซ้ำกับ *คนอื่น* หรือไม่) ---
+    // --- ตรวจสอบชื่อซ้ำ ---
     if (empty($errors)) {
         $stmt_check = $conn->prepare("SELECT permission_id FROM permissions WHERE permission_name = ? AND permission_id != ?");
         $stmt_check->bind_param("si", $permission_name, $permission_id);
@@ -46,11 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_check->close();
     }
 
-    // --- (ถ้าไม่มี Error ให้บันทึก) ---
     if (empty($errors)) {
         try {
-            // --- (เตรียม SQL UPDATE) ---
-            // (อัปเดตเฉพาะ name, desc และ update_at)
             $sql = "UPDATE permissions SET 
                         permission_name = ?, 
                         permission_desc = ?, 
@@ -64,39 +60,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $stmt->bind_param("ssi", $permission_name, $permission_desc, $permission_id);
 
-            // --- (รันคำสั่ง) ---
             if ($stmt->execute()) {
-                // --- (สำเร็จ) ---
                 $_SESSION['message'] = "แก้ไขสิทธิ์ '$permission_name' (ID: $permission_id) สำเร็จ";
                 $_SESSION['message_type'] = "success";
-                header("Location: permission.php"); // --- กลับไปหน้ารายการ ---
+                header("Location: permission.php"); 
                 exit();
             } else {
-                // --- (ล้มเหลว) ---
                 throw new Exception("Execute failed: " . $stmt->error);
             }
         } catch (Exception $e) {
-            // --- (ถ้าเกิด Error ระหว่างบันทึก) ---
             $errors_to_display = ["เกิดข้อผิดพลาดในการบันทึก: " . $e->getMessage()];
-            $form_data = $_POST; // --- เก็บค่าที่กรอกไว้ ---
-            $form_data['permission_id'] = $permission_id; // (อย่าลืมใส่ ID กลับเข้าไป)
+            $form_data = $_POST; 
+            $form_data['permission_id'] = $permission_id;
         }
     } else {
-        // --- (ถ้า Error จาก Validation) ---
         $errors_to_display = $errors;
-        $form_data = $_POST; // --- เก็บค่าที่กรอกไว้ ---
-        $form_data['permission_id'] = $permission_id; // (อย่าลืมใส่ ID กลับเข้าไป)
+        $form_data = $_POST; 
+        $form_data['permission_id'] = $permission_id; 
     }
 } else {
-    // --- (3. ถ้าเป็นการเปิดหน้าครั้งแรก (GET)) ---
-
-    // (ดึงค่าที่กรอกค้างไว้ ถ้ามี Error ใน Session)
     if (isset($_SESSION['form_data'])) {
         $form_data = $_SESSION['form_data'];
         $errors_to_display = $_SESSION['errors'] ?? [];
         unset($_SESSION['form_data'], $_SESSION['errors']);
     } else {
-        // (ถ้าไม่มี ให้ดึงจากฐานข้อมูล)
         $stmt_get = $conn->prepare("SELECT * FROM permissions WHERE permission_id = ?");
         $stmt_get->bind_param("i", $permission_id);
         $stmt_get->execute();
@@ -325,17 +312,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- (Client-side Validation (แบบง่าย)) ---
+        // --- Client-side Validation ---
         document.getElementById('editPermissionForm').addEventListener('submit', function(event) {
             const nameInput = document.getElementById('permission_name');
             if (nameInput.value.trim() === '') {
-                event.preventDefault(); // --- หยุดการส่งฟอร์ม ---
+                event.preventDefault(); 
                 alert('กรุณากรอก "ชื่อสิทธิ์ (Name)"');
                 nameInput.focus();
             }
         });
 
-        // --- (Script สำหรับซ่อน Alert Error จาก Session) ---
+        // --- สำหรับซ่อน Alert Error จาก Session ---
         setTimeout(() => {
             document.querySelectorAll('.custom-alert').forEach(alert => {
                 const bsAlert = bootstrap.Alert.getInstance(alert);
@@ -347,7 +334,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     setTimeout(() => alert.remove(), 500);
                 }
             });
-        }, 5000); // 5 วินาที
+        }, 5000); 
     </script>
 </body>
 
