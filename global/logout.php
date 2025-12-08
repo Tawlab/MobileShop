@@ -1,10 +1,10 @@
 <?php
 session_start();
 
-// 1. ล้างค่าตัวแปร Session ทั้งหมด
+// ล้างค่าตัวแปร Session ทั้งหมด
 $_SESSION = array();
 
-// 2. ลบ Session Cookie (เพื่อความปลอดภัยสูงสุด)
+// ลบ Session Cookie 
 if (ini_get("session.use_cookies")) {
     $params = session_get_cookie_params();
     setcookie(
@@ -18,9 +18,9 @@ if (ini_get("session.use_cookies")) {
     );
 }
 
-// 3. ทำลาย Session
+// ทำลาย Session
 session_destroy();
 
-// 4. ส่งกลับไปหน้า Login
+// ส่งกลับไปหน้า Login
 header("Location: login.php");
 exit;

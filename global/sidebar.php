@@ -2,13 +2,13 @@
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
-require_once '../config/config.php'; // เรียกใช้ config เพื่อใช้ connection และ function hasPermission
+require_once '../config/config.php';
 
 $sidebar_uid = $_SESSION['user_id'] ?? 0;
 $sidebar_username = $_SESSION['username'] ?? 'User';
 $user_avatar_char = strtoupper(substr($sidebar_username, 0, 1));
 
-// Helper: เช็ค Active Menu
+// เช็ค Active Menu
 function isActive($keywords)
 {
     $current_url = $_SERVER['PHP_SELF'];
@@ -19,13 +19,13 @@ function isActive($keywords)
     return '';
 }
 
-// Helper: เปิดเมนูย่อยค้างไว้
+// เปิดเมนูย่อยค้างไว้
 function isExpanded($keywords)
 {
     return isActive($keywords) ? 'show' : '';
 }
 
-// Helper: ไฮไลท์หัวข้อหลัก (ปรับสีให้เข้ากับพื้นหลังเขียว)
+// ไฮไลท์หัวข้อหลัก
 function isGroupActive($keywords)
 {
     return isActive($keywords) ? 'text-white fw-bold bg-white-10' : 'text-white-80';
@@ -36,13 +36,11 @@ function isGroupActive($keywords)
     :root {
         --sidebar-width: 260px;
         --sidebar-bg-gradient: linear-gradient(180deg, #10b981 0%, #047857 100%);
-        /* พื้นหลังเขียวไล่เฉด */
         --sidebar-text: #ffffff;
         --sidebar-text-muted: rgba(255, 255, 255, 0.7);
         --sidebar-hover-bg: rgba(255, 255, 255, 0.15);
         --sidebar-active-bg: #ffffff;
         --sidebar-active-text: #047857;
-        /* สีเขียวเข้มสำหรับตัวที่เลือกอยู่ */
     }
 
     #wrapper {
@@ -69,7 +67,7 @@ function isGroupActive($keywords)
         scrollbar-width: thin;
     }
 
-    /* Scrollbar สวยๆ */
+    /* Scrollbar */
     #sidebar-wrapper::-webkit-scrollbar {
         width: 6px;
     }
@@ -102,7 +100,6 @@ function isGroupActive($keywords)
         align-items: center;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         background: rgba(0, 0, 0, 0.05);
-        /* พื้นหลังหัวข้อเข้มขึ้นนิดนึง */
     }
 
     /* สไตล์รายการเมนู */
@@ -122,16 +119,14 @@ function isGroupActive($keywords)
         background-color: var(--sidebar-hover-bg);
         color: #fff;
         padding-left: 30px;
-        /* ขยับขวาเล็กน้อยเมื่อชี้ */
     }
 
-    /* เมนูที่กำลังเลือก (Active) */
+    /* เมนูที่กำลังเลือก */
     .list-group-item.active {
         background-color: var(--sidebar-active-bg);
         color: var(--sidebar-active-text);
         font-weight: 700;
         border-radius: 0 25px 25px 0;
-        /* ทำขอบมนด้านขวา */
         margin-right: 15px;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
@@ -150,8 +145,6 @@ function isGroupActive($keywords)
     /* เมนูย่อย */
     .submenu {
         background-color: rgba(0, 0, 0, 0.1);
-        /* พื้นหลังเข้มขึ้นสำหรับเมนูย่อย */
-        /* border-left: 3px solid rgba(255,255,255,0.2); */
     }
 
     .submenu .list-group-item {

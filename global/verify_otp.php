@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($input_otp != $_SESSION['reset_otp']) {
         $error = "รหัส OTP ไม่ถูกต้อง";
     } else {
-        // ผ่าน: สร้างตั๋วอนุญาต
+        // ผ่าน
         $_SESSION['allow_reset'] = true;
 
         // ล้าง OTP ทิ้ง

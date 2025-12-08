@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// 1. Security Check: ต้องผ่านการยืนยัน OTP มาแล้วเท่านั้น
+// Security Check: ต้องผ่านการยืนยัน OTP มาแล้วเท่านั้น
 if (!isset($_SESSION['allow_reset']) || !isset($_SESSION['reset_user_id'])) {
     // ถ้าไม่มีตั๋วผ่านทาง ให้กลับไปหน้า Login
     header("Location: login.php");
@@ -12,7 +12,7 @@ if (!isset($_SESSION['allow_reset']) || !isset($_SESSION['reset_user_id'])) {
 $error = '';
 $user_id = $_SESSION['reset_user_id'];
 
-// 2. Handle Form Submit
+// Handle Form Submit
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_pass = $_POST['new_password'];
     $confirm_pass = $_POST['confirm_password'];
@@ -23,14 +23,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif ($new_pass !== $confirm_pass) {
         $error = "รหัสผ่านทั้งสองช่องไม่ตรงกัน";
     } else {
-        // 3. Update Password
+        // Update Password
         $new_hash = password_hash($new_pass, PASSWORD_DEFAULT);
 
         $stmt = $conn->prepare("UPDATE users SET password = ?, update_at = NOW() WHERE user_id = ?");
         $stmt->bind_param("si", $new_hash, $user_id);
 
         if ($stmt->execute()) {
-            // 4. สำเร็จ -> ล้าง Session ทิ้งทั้งหมด
+            // สำเร็จ -> ล้าง Session ทิ้งทั้งหมด
             unset($_SESSION['allow_reset']);
             unset($_SESSION['reset_user_id']);
             unset($_SESSION['reset_email']);

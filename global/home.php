@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// 1. ตรวจสอบ Session
+// ตรวจสอบ Session
 if (!isset($_SESSION['user_id'])) {
     header("Location: ../login.php");
     exit;

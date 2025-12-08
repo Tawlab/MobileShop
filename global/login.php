@@ -2,9 +2,9 @@
 session_start();
 require '../config/config.php';
 
-// 1. ตรวจสอบ Session: ถ้าล็อกอินอยู่แล้ว ให้ไปที่หน้า Home (Portal)
+// รวจสอบ Session: ถ้าล็อกอินอยู่แล้ว ให้ไปที่หน้า Home 
 if (isset($_SESSION['user_id'])) {
-    header("Location: ../home/home.php"); // [แก้ไข] เปลี่ยนจุดหมายเป็น home.php
+    header("Location: ../home/home.php"); 
     exit;
 }
 
@@ -29,8 +29,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $_SESSION['user_id'] = $user['user_id'];
                     $_SESSION['username'] = $user['username'];
                     
-                    // 2. ล็อกอินสำเร็จ: ส่งไปหน้า Home (Portal)
-                    header("Location: home.php"); // [แก้ไข] เปลี่ยนจุดหมายเป็น home.php
+                    // ล็อกอินสำเร็จ: ส่งไปหน้า Home 
+                    header("Location: home.php");
                     exit;
                 } else {
                     $error = "บัญชีนี้ถูกระงับการใช้งาน";
@@ -130,7 +130,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             max-width: 420px;
             background: rgba(255, 255, 255, 0.85);
             backdrop-filter: blur(12px);
-            /* เอฟเฟกต์กระจก */
             border-radius: 20px;
             border: 1px solid rgba(255, 255, 255, 0.6);
             box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);

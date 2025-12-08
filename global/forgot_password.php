@@ -6,15 +6,12 @@ require '../vendor/autoload.php';
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
-// =============================================================================
-// BACKEND: AJAX HANDLER
-// =============================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json'); // บอก Browser ว่าส่งกลับเป็น JSON
+    header('Content-Type: application/json'); 
     $action = $_POST['action'];
     $response = ['status' => 'error', 'message' => 'เกิดข้อผิดพลาด'];
 
-    // --- 1. ส่ง OTP (Send OTP) ---
+    // --- ส่ง OTP (Send OTP) ---
     if ($action === 'send_otp') {
         $email = trim($_POST['email']);
 
@@ -32,7 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $_SESSION['reset_otp'] = $otp;
             $_SESSION['reset_email'] = $email;
             $_SESSION['reset_user_id'] = $user['user_id'];
-            $_SESSION['reset_expiry'] = time() + 900; // 15 นาที
+            $_SESSION['reset_expiry'] = time() + 900;
 
             // ส่งเมล
             try {
@@ -62,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // --- 2. ยืนยัน OTP (Verify OTP) ---
+    // --- ยืนยัน OTP  ---
     elseif ($action === 'verify_otp') {
         $input_otp = trim($_POST['otp_code']);
 
@@ -73,7 +70,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($input_otp != $_SESSION['reset_otp']) {
             $response = ['status' => 'error', 'message' => 'รหัส OTP ไม่ถูกต้อง'];
         } else {
-            // ผ่าน
             $_SESSION['allow_reset'] = true;
             unset($_SESSION['reset_otp']); // ลบ OTP ทิ้ง
             $response = ['status' => 'success', 'redirect' => 'reset_new_password.php'];
@@ -81,7 +77,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     echo json_encode($response);
-    exit; // จบการทำงาน PHP ตรงนี้ (ไม่แสดง HTML ต่อ)
+    exit; 
 }
 ?>
 
@@ -200,7 +196,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // 1. จัดการฟอร์มส่งอีเมล
         document.getElementById('formEmail').addEventListener('submit', function(e) {
             e.preventDefault();
-            overlay.style.display = 'flex'; // โชว์โหลด
+            overlay.style.display = 'flex'; 
 
             const formData = new FormData(this);
 
@@ -212,7 +208,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 .then(data => {
                     overlay.style.display = 'none';
                     if (data.status === 'success') {
-                        // สลับหน้าจอไป Step 2
                         stepEmail.style.display = 'none';
                         stepOtp.style.display = 'block';
                         Swal.fire('สำเร็จ', 'ส่งรหัส OTP ไปที่อีเมลแล้ว', 'success');
@@ -226,7 +221,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
         });
 
-        // 2. จัดการฟอร์มยืนยัน OTP
+        // จัดการฟอร์มยืนยัน OTP
         document.getElementById('formOTP').addEventListener('submit', function(e) {
             e.preventDefault();
             overlay.style.display = 'flex';
