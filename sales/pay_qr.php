@@ -2,14 +2,14 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'pay_qr');
-// 1. ตรวจสอบ ID บิล
+// ตรวจสอบ ID บิล
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo "ไม่พบรหัสบิล";
     exit;
 }
 $bill_id = (int)$_GET['id'];
 
-// 2. ดึงข้อมูลยอดเงินในบิล
+// ดึงข้อมูลยอดเงินในบิล
 $sql = "SELECT bh.*, 
         (SELECT SUM(price * amount) FROM bill_details WHERE bill_headers_bill_id = bh.bill_id) as subtotal 
         FROM bill_headers bh WHERE bh.bill_id = ?";
@@ -20,15 +20,15 @@ $bill = $stmt->get_result()->fetch_assoc();
 
 if (!$bill) die("ไม่พบข้อมูลบิล");
 
-// 3. คำนวณยอดสุทธิ
+// คำนวณยอดสุทธิ
 $vat_amount = $bill['subtotal'] * ($bill['vat'] / 100);
 $grand_total = $bill['subtotal'] + $vat_amount - $bill['discount'];
 
-// 4. ดึงเบอร์ PromptPay จากร้านค้า
+// ดึงเบอร์ PromptPay จากร้านค้า
 $shop_sql = "SELECT promptpay_number, shop_name FROM shop_info LIMIT 1";
 $shop_res = mysqli_query($conn, $shop_sql);
 $shop_info = mysqli_fetch_assoc($shop_res);
-$promptpay_id = $shop_info['promptpay_number'] ?? ''; // เบอร์พร้อมเพย์
+$promptpay_id = $shop_info['promptpay_number'] ?? ''; 
 
 // =============================================================================
 // PROMPTPAY GENERATOR FUNCTIONS (EMVCo Standard)
@@ -38,11 +38,11 @@ function generatePromptPayPayload($target, $amount)
     $target = sanitizeTarget($target);
     $amount = number_format($amount, 2, '.', '');
 
-    // 1. Payload Format Indicator
+    //  Payload Format Indicator
     $data = ["000201"];
-    // 2. Point of Initiation Method (12 = Dynamic)
+    // Point of Initiation Method 
     $data[] = "010212";
-    // 3. Merchant Account Information
+    // Merchant Account Information
     $merchantInfo = "0016A000000677010111"; // AID
     if (strlen($target) >= 13) {
         $merchantInfo .= "0213" . $target; // Tax ID / ID Card
@@ -50,15 +50,15 @@ function generatePromptPayPayload($target, $amount)
         $merchantInfo .= "011300" . $target; // Mobile (เติม 00 นำหน้า + ตัด 0)
     }
     $data[] = "29" . sprintf("%02d", strlen($merchantInfo)) . $merchantInfo;
-    // 4. Country Code
+    // Country Code
     $data[] = "5802TH";
-    // 5. Currency
+    // Currency
     $data[] = "5303764";
-    // 6. Amount (Optional but we use it)
+    // Amount
     if ($amount > 0) {
         $data[] = "54" . sprintf("%02d", strlen($amount)) . $amount;
     }
-    // 7. Checksum ID
+    // Checksum ID
     $raw = implode('', $data) . "6304";
     $crc = crc16($raw);
     return $raw . $crc;
@@ -67,7 +67,6 @@ function generatePromptPayPayload($target, $amount)
 function sanitizeTarget($number)
 {
     $number = preg_replace('/[^0-9]/', '', $number); // เอาขีดออก
-    // ถ้าเป็นเบอร์มือถือ (เช่น 081...) ให้ตัด 0 ตัวแรก แล้วเติม 66
     if (strlen($number) == 10 && substr($number, 0, 1) == '0') {
         $number = '66' . substr($number, 1);
     }
@@ -90,9 +89,8 @@ $pp_payload = "";
 if (!empty($promptpay_id) && $grand_total > 0) {
     $pp_payload = generatePromptPayPayload($promptpay_id, $grand_total);
 }
-// =============================================================================
 
-// 5. Handle การยืนยันการโอนเงิน
+// การยืนยันการโอนเงิน
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
     $today = date('Y-m-d H:i:s');
 

@@ -10,7 +10,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $bill_id = (int)$_GET['id'];
 
-// ✅ หากมีการกดปุ่ม "จ่ายแล้ว" ให้ทำการอัปเดตสถานะ
+// หากมีการกดปุ่ม "จ่ายแล้ว" ให้ทำการอัปเดตสถานะ
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_paid'])) {
     $today = date('Y-m-d');
     $method = $_POST['method'] ?? 'manual';
@@ -24,7 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_paid'])) {
     exit;
 }
 
-// --- 1. ดึงข้อมูลบิล + ลูกค้า + พนักงาน + ร้านค้า + ส่วนลด ---
+// ดึงข้อมูลบิล + ลูกค้า + พนักงาน + ร้านค้า + ส่วนลด 
 $sql = "
 SELECT bh.*, 
        c.fname_th AS customer_fname, c.lname_th AS customer_lname,
@@ -50,7 +50,7 @@ if ($result->num_rows === 0) {
 }
 $bill = $result->fetch_assoc();
 
-// --- 2. ดึงรายการสินค้าในบิลนั้น ---
+// ดึงรายการสินค้าในบิลนั้น 
 $sql_items = "
 SELECT bd.price, bd.amount,
        ps.imei,

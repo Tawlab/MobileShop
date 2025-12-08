@@ -3,14 +3,14 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_sale');
 
-// 1. ตรวจสอบ ID
+// ตรวจสอบ ID
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo "ไม่พบรหัสบิล";
     exit;
 }
 $bill_id = (int)$_GET['id'];
 
-// 2. ดึงข้อมูลหัวบิล (Header) + ร้านค้า + ลูกค้า + พนักงาน
+// ดึงข้อมูลหัวบิล (Header) + ร้านค้า + ลูกค้า + พนักงาน
 $sql = "
     SELECT bh.*, 
            c.firstname_th AS cus_fname, c.lastname_th AS cus_lname, c.cs_phone_no,
@@ -29,8 +29,6 @@ $sql = "
     WHERE bh.bill_id = ?
 ";
 
-// หมายเหตุ: ถ้าตาราง bill_headers ไม่มี shop_info_shop_id ให้ลบ JOIN shop_info ออก แล้ว Query แยก
-// สมมติว่าดึงแยกเพื่อความชัวร์ (เพราะปกติร้านมีร้านเดียว)
 $shop_sql = "SELECT * FROM shop_info s 
              JOIN addresses a ON s.Addresses_address_id = a.address_id
              JOIN subdistricts sd ON a.subdistricts_subdistrict_id = sd.subdistrict_id
@@ -57,7 +55,7 @@ $bill = $stmt->get_result()->fetch_assoc();
 
 if (!$bill) die("ไม่พบข้อมูลบิล");
 
-// 3. ดึงรายการสินค้า (Items)
+// ดึงรายการสินค้า (Items)
 $sql_items = "
     SELECT bd.*, 
            ps.serial_no, 
@@ -72,7 +70,7 @@ $stmt_items->bind_param("i", $bill_id);
 $stmt_items->execute();
 $items_result = $stmt_items->get_result();
 
-// 4. คำนวณยอดเงิน
+//  คำนวณยอดเงิน
 $subtotal = 0;
 $items = [];
 while ($row = $items_result->fetch_assoc()) {
@@ -82,11 +80,11 @@ while ($row = $items_result->fetch_assoc()) {
 
 $vat_rate = $bill['vat'];
 $discount = $bill['discount'];
-// สูตร: ถ้าราคาสินค้ายังไม่รวม VAT
+// ถ้าราคาสินค้ายังไม่รวม VAT
 $vat_amount = $subtotal * ($vat_rate / 100);
 $grand_total = $subtotal + $vat_amount - $discount;
 
-// Helper: แปลงที่อยู่ร้านเป็น String
+// แปลงที่อยู่ร้านเป็น String
 $shop_address = "{$shop['home_no']} ";
 if ($shop['moo']) $shop_address .= "ม.{$shop['moo']} ";
 if ($shop['soi']) $shop_address .= "ซ.{$shop['soi']} ";

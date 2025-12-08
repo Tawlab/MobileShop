@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'cancel_sale');
-// Helper: Movement ID
+// Movement ID
 function getNextMovementId($conn)
 {
     $sql = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
@@ -10,7 +10,7 @@ function getNextMovementId($conn)
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
-// 1. ตรวจสอบ ID
+// ตรวจสอบ ID
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสบิล";
     header("Location: sale_list.php");
@@ -19,7 +19,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $bill_id = (int)$_GET['id'];
 
-// 2. ตรวจสอบสถานะปัจจุบัน
+// ตรวจสอบสถานะปัจจุบัน
 $chk_sql = "SELECT bill_status FROM bill_headers WHERE bill_id = $bill_id";
 $chk_res = mysqli_query($conn, $chk_sql);
 $bill = mysqli_fetch_assoc($chk_res);
@@ -36,7 +36,7 @@ if ($bill['bill_status'] == 'Canceled') {
     exit;
 }
 
-// 3. ดำเนินการยกเลิก (Transaction)
+// ดำเนินการยกเลิก
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cancel_reason = mysqli_real_escape_string($conn, trim($_POST['comment']));
 
@@ -45,25 +45,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // A. อัปเดตสถานะบิล
+            //  อัปเดตสถานะบิล
             $sql_update = "UPDATE bill_headers SET bill_status = 'Canceled', comment = CONCAT(IFNULL(comment, ''), ' [ยกเลิก: $cancel_reason]'), update_at = NOW() WHERE bill_id = ?";
             $stmt = $conn->prepare($sql_update);
             $stmt->bind_param('i', $bill_id);
             if (!$stmt->execute()) throw new Exception("อัปเดตสถานะบิลไม่สำเร็จ");
             $stmt->close();
 
-            // B. ดึงรายการสินค้าในบิลนี้ เพื่อคืนสต็อก
+            // ดึงรายการสินค้าในบิลนี้ เพื่อคืนสต็อก
             $sql_items = "SELECT prod_stocks_stock_id FROM bill_details WHERE bill_headers_bill_id = $bill_id";
             $res_items = mysqli_query($conn, $sql_items);
 
             while ($row = mysqli_fetch_assoc($res_items)) {
                 $stock_id = $row['prod_stocks_stock_id'];
 
-                // C. คืนสถานะสินค้า -> In Stock
+                // คืนสถานะสินค้า -> In Stock
                 $sql_restock = "UPDATE prod_stocks SET stock_status = 'In Stock', update_at = NOW() WHERE stock_id = $stock_id";
                 if (!mysqli_query($conn, $sql_restock)) throw new Exception("คืนสต็อกสินค้า ID $stock_id ไม่สำเร็จ");
 
-                // D. บันทึก Movement (ADJUST) เป็นหลักฐานการคืน
+                // บันทึก Movement (ADJUST) เป็นหลักฐานการคืน
                 $move_id = getNextMovementId($conn);
                 $sql_move = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) 
                              VALUES ($move_id, 'ADJUST', 'bill_headers (Cancel)', $bill_id, NOW(), $stock_id)";

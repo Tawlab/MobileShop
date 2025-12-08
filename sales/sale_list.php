@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'sale_list');
 // -----------------------------------------------------------------------------
-// 1. SETTINGS & PAGINATION
+//  SETTINGS & PAGINATION
 // -----------------------------------------------------------------------------
 $limit = 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -14,7 +14,7 @@ $sort_col = isset($_GET['sort']) ? $_GET['sort'] : 'bh.bill_date';
 $sort_ord = isset($_GET['order']) ? $_GET['order'] : 'DESC';
 
 // -----------------------------------------------------------------------------
-// 2. FILTERS
+// FILTERS
 // -----------------------------------------------------------------------------
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
 $f_status = isset($_GET['status']) ? mysqli_real_escape_string($conn, $_GET['status']) : '';
@@ -22,7 +22,7 @@ $f_payment = isset($_GET['payment']) ? mysqli_real_escape_string($conn, $_GET['p
 $f_date_start = isset($_GET['date_start']) ? $_GET['date_start'] : '';
 $f_date_end = isset($_GET['date_end']) ? $_GET['date_end'] : '';
 
-// เช็คว่ามีการกรองอยู่หรือไม่ (เพื่อเปิดกล่องค้างไว้)
+// เช็คว่ามีการกรองอยู่หรือไม่ 
 $is_filtering = ($search || $f_status || $f_payment || $f_date_start || $f_date_end);
 
 $where = [];
@@ -46,7 +46,7 @@ if ($f_date_end) {
 $where_sql = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // -----------------------------------------------------------------------------
-// 3. QUERY DATA
+// QUERY DATA
 // -----------------------------------------------------------------------------
 // Count Total
 $sql_count = "SELECT COUNT(*) as total 
@@ -69,7 +69,7 @@ $sql = "SELECT bh.*,
         LIMIT $limit OFFSET $offset";
 $result = mysqli_query($conn, $sql);
 
-// Helper: Query String for Pagination
+// Query String for Pagination
 function getQueryStr($exclude = [])
 {
     $params = $_GET;

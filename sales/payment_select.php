@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-require '../vendor/autoload.php'; // [เพิ่ม] เรียกใช้ PHPMailer
+require '../vendor/autoload.php';
 checkPageAccess($conn, 'payment_select');
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo "ไม่พบรหัสบิล";
@@ -10,7 +10,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $bill_id = (int)$_GET['id'];
 
-// 1. ดึงข้อมูลหัวบิล (VAT, Discount)
+// ดึงข้อมูลหัวบิล (VAT, Discount)
 $stmt = $conn->prepare("SELECT * FROM bill_headers WHERE bill_id = ?");
 $stmt->bind_param("i", $bill_id);
 $stmt->execute();
@@ -21,21 +21,21 @@ if (!$header) {
     exit;
 }
 
-// 2. คำนวณยอดรวมสินค้า (Subtotal)
+// คำนวณยอดรวมสินค้า
 $stmt_sum = $conn->prepare("SELECT SUM(price * amount) as subtotal FROM bill_details WHERE bill_headers_bill_id = ?");
 $stmt_sum->bind_param("i", $bill_id);
 $stmt_sum->execute();
 $sum_row = $stmt_sum->get_result()->fetch_assoc();
 $subtotal = $sum_row['subtotal'] ?? 0;
 
-// 3. คำนวณยอดสุทธิ (Grand Total)
+// คำนวณยอดสุทธิ
 $vat_rate = $header['vat'];
 $discount = $header['discount'];
 $vat_amount = $subtotal * ($vat_rate / 100);
 $grand_total = $subtotal + $vat_amount - $discount;
 if ($grand_total < 0) $grand_total = 0;
 
-// 4. Handle การเลือกวิธีชำระเงิน
+// การเลือกวิธีชำระเงิน
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $method = $_POST['payment_method'] ?? '';
     $valid_methods = ['Cash', 'QR', 'Credit'];
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // เงินสด -> จบงานเลย (Completed)
             $conn->query("UPDATE bill_headers SET bill_status = 'Completed', receipt_date = NOW() WHERE bill_id = $bill_id");
 
-            // [เพิ่ม] ส่งอีเมลใบเสร็จ (เฉพาะกรณีจ่ายเงินสดที่จบงานทันที)
+            // ส่งอีเมลใบเสร็จ 
             @sendReceiptEmail($conn, $bill_id);
 
             header("Location: view_sale.php?id=$bill_id");

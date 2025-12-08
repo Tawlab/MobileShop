@@ -24,11 +24,11 @@ $val_discount = 0.00;
 $val_comment = '';
 $existing_items = [];
 
-// --- ตรวจสอบว่าเป็นการแก้ไขบิลหรือไม่ (รับ ID จาก URL) ---
+// ตรวจสอบว่าเป็นการแก้ไขบิลหรือไม่ 
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     $bill_id = (int)$_GET['id'];
     
-    // ดึงข้อมูลหัวบิล (Header)
+    // ดึงข้อมูลหัวบิล 
     $sql_head = "SELECT * FROM bill_headers WHERE bill_id = $bill_id AND bill_status = 'Pending'";
     $res_head = mysqli_query($conn, $sql_head);
     
@@ -42,7 +42,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
         $val_discount = $head['discount'];
         $val_comment = $head['comment'];
 
-        // ดึงรายการสินค้าเดิม (Details)
+        // ดึงรายการสินค้าเดิม
         $sql_det = "SELECT bd.*, ps.serial_no, ps.price as stock_price, p.prod_name, p.model_name
                     FROM bill_details bd
                     JOIN prod_stocks ps ON bd.prod_stocks_stock_id = ps.stock_id
@@ -106,26 +106,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
     $comment     = mysqli_real_escape_string($conn, $_POST['comment'] ?? '');
     $bill_date   = date('Y-m-d H:i:s');
     
-    // รับ ID บิล (ถ้ามีแสดงว่าแก้ไข)
+    // รับ ID บิล
     $current_bill_id = !empty($_POST['bill_id']) ? (int)$_POST['bill_id'] : 0;
 
     mysqli_autocommit($conn, false);
 
     try {
         if ($current_bill_id > 0) {
-            // --- กรณีแก้ไข (UPDATE) ---
+            // กรณีแก้ไข (UPDATE)
             
-            // 1. คืนสถานะสต็อกเดิมก่อน (Reset Stock)
+            // คืนสถานะสต็อกเดิมก่อน
             $sql_old_items = "SELECT prod_stocks_stock_id FROM bill_details WHERE bill_headers_bill_id = $current_bill_id";
             $res_old = mysqli_query($conn, $sql_old_items);
             while ($old = mysqli_fetch_assoc($res_old)) {
                 $conn->query("UPDATE prod_stocks SET stock_status = 'In Stock' WHERE stock_id = " . $old['prod_stocks_stock_id']);
             }
 
-            // 2. ลบรายละเอียดเดิมทิ้ง
+            // ลบรายละเอียดเดิมทิ้ง
             $conn->query("DELETE FROM bill_details WHERE bill_headers_bill_id = $current_bill_id");
 
-            // 3. อัปเดตหัวบิล
+            // อัปเดตหัวบิล
             $stmt = $conn->prepare("UPDATE bill_headers SET vat=?, comment=?, discount=?, customers_cs_id=?, employees_emp_id=?, update_at=NOW() WHERE bill_id=?");
             $stmt->bind_param("dsdiii", $vat_rate, $comment, $discount, $customer_id, $employee_id, $current_bill_id);
             if (!$stmt->execute()) throw new Exception("อัปเดตบิลไม่สำเร็จ");
@@ -134,7 +134,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             $bill_id = $current_bill_id; // ใช้ ID เดิม
 
         } else {
-            // --- กรณีสร้างใหม่ (INSERT) ---
+            // กรณีสร้างใหม่  
             $sql_header = "INSERT INTO bill_headers 
                 (bill_date, receipt_date, payment_method, bill_status, vat, comment, discount, 
                  customers_cs_id, bill_type, branches_branch_id, employees_emp_id, create_at, update_at)
@@ -148,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             $stmt->close();
         }
 
-        // 4. บันทึกรายการสินค้าใหม่ & ตัดสต็อก (เหมือนกันทั้ง Insert/Update)
+        // บันทึกรายการสินค้าใหม่ & ตัดสต็อก
         $stock_ids = $_POST['stock_ids'] ?? [];
         $prices    = $_POST['prices'] ?? [];
 
@@ -360,7 +360,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
         function updatePrice(select) {
             const price = select.options[select.selectedIndex].getAttribute('data-price');
             const row = select.closest('tr');
-            // ถ้ายังไม่มีราคา หรือผู้ใช้ยังไม่ได้แก้ราคาเอง ให้ใส่ราคามาตรฐาน
             const priceInput = row.querySelector('.price-input');
             if(priceInput.value === '' || priceInput.value == 0) {
                 priceInput.value = price || 0;
@@ -392,7 +391,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
         // โหลดข้อมูลเมื่อเปิดหน้า
         window.onload = function() {
             if (existingItems.length > 0) {
-                // กรณีแก้ไข: วนลูปสร้างแถวตามข้อมูลเดิม
                 existingItems.forEach(item => {
                     addRow(item.stock_id, item.price);
                 });
