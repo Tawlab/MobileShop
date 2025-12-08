@@ -6,26 +6,24 @@ checkPageAccess($conn, 'edit_supplier');
 $error_message = '';
 $supplier_id = $_GET['id'] ?? '';
 
-// (2) ตรวจสอบ ID
+// ตรวจสอบ ID
 if (empty($supplier_id)) {
     header("Location: supplier.php?error=not_found");
     exit();
 }
 
-// (3) ดึงข้อมูล Dropdowns ทั้งหมด
+// ดึงข้อมูล Dropdowns ทั้งหมด
 $prefix_result     = $conn->query("SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1 ORDER BY prefix_th");
 $provinces_result  = $conn->query("SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 
-// (ดึงทั้งหมดมาเก็บในตัวแปรสำหรับ JS)
+// ดึงทั้งหมดมาเก็บในตัวแปร
 $all_districts_result    = $conn->query("SELECT district_id, district_name_th, provinces_province_id FROM districts");
-// [แก้ไข] ดึง zip_code มาด้วย
 $all_subdistricts_result = $conn->query("SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts");
 
 $all_districts = $all_districts_result->fetch_all(MYSQLI_ASSOC);
 $all_subdistricts = $all_subdistricts_result->fetch_all(MYSQLI_ASSOC);
 
-// (4) ดึงข้อมูล Supplier และ Address ที่จะแก้ไข
-// [แก้ไข] ดึง zip_code ของตำบลปัจจุบันมาด้วย
+//  ดึงข้อมูล Supplier และ Address ที่จะแก้ไข
 $sql_data = "SELECT 
                 s.*, 
                 a.address_id, a.home_no, a.moo, a.soi, a.road, a.village,
@@ -51,15 +49,15 @@ if (!$data) {
     exit();
 }
 
-// (5) เก็บ ID ปัจจุบันไว้สำหรับ JS
+//  เก็บ ID ปัจจุบันไว้สำหรับ JS
 $selected_address_id = $data['address_id'];
 $selected_province_id = $data['provinces_province_id'];
 $selected_district_id = $data['districts_district_id'];
 $selected_subdistrict_id = $data['subdistricts_subdistrict_id'];
-$current_zip_code = $data['zip_code']; // เก็บไปใช้แสดงผลตอนโหลดหน้าเว็บ
+$current_zip_code = $data['zip_code'];
 
 
-// (6) เมื่อกดบันทึก (POST)
+// เมื่อกดบันทึก (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // รับค่าจากฟอร์ม
     $co_name = trim($_POST['co_name']);
@@ -77,16 +75,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $village = trim($_POST['village']) ?: NULL;
     $subdistricts_id = trim($_POST['subdistricts_subdistrict_id']) ?: NULL;
 
-    // (7) Server-side Validation
+    //  Server-side Validation
     if (empty($co_name)) {
         $error_message = 'กรุณากรอก "ชื่อบริษัท"';
     } elseif (empty($subdistricts_id)) {
         $error_message = 'กรุณาเลือกที่อยู่ (จังหวัด/อำเภอ/ตำบล) ให้ครบถ้วน';
     } elseif (!empty($tax_id) && !ctype_digit($tax_id)) {
-        // [แก้ไข] ตรวจสอบเลขผู้เสียภาษี ต้องเป็นตัวเลขเท่านั้น
+        // ตรวจสอบเลขผู้เสียภาษี ต้องเป็นตัวเลขเท่านั้น
         $error_message = 'เลขผู้เสียภาษีต้องเป็นตัวเลขเท่านั้น';
     } elseif (!empty($supplier_phone_no)) {
-        // [แก้ไข] ตรวจสอบเบอร์โทร (ขึ้นต้น 02,05,06,08,09 และยาว 9-10 หลัก)
+        //  ตรวจสอบเบอร์โทร 
         if (!preg_match('/^(02|05|06|08|09)[0-9]{7,8}$/', $supplier_phone_no)) {
             $error_message = 'เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 9-10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)';
         }
@@ -94,10 +92,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (empty($error_message)) {
 
-        // (8) --- Transaction ---
         $conn->begin_transaction();
         try {
-            // 8.1) ตรวจสอบชื่อบริษัทซ้ำ
+            //  ตรวจสอบชื่อบริษัทซ้ำ
             $stmt_check = $conn->prepare("SELECT supplier_id FROM suppliers WHERE co_name = ? AND supplier_id != ?");
             $stmt_check->bind_param("ss", $co_name, $supplier_id);
             $stmt_check->execute();
@@ -106,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_check->close();
 
-            // 8.2) อัปเดต Address
+            //  อัปเดต Address
             $stmt_addr = $conn->prepare("UPDATE addresses SET
                 home_no = ?, moo = ?, soi = ?, road = ?, village = ?, 
                 subdistricts_subdistrict_id = ?
@@ -124,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_addr->execute();
             $stmt_addr->close();
 
-            // 8.3) อัปเดต Supplier
+            // อัปเดต Supplier
             $sql_update = "UPDATE suppliers SET
                                 co_name = ?, tax_id = ?, 
                                 contact_firstname = ?, contact_lastname = ?, 
@@ -151,16 +148,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_update->close();
 
-            // (9) ถ้าสำเร็จทั้งหมด
+            // ถ้าสำเร็จทั้งหมด
             $conn->commit();
             header("Location: supplier.php?success=edit");
             exit();
         } catch (Exception $e) {
-            // (10) ถ้ายกเลิก (เกิด Error)
+            // ถ้ายกเลิก (เกิด Error)
             $conn->rollback();
             $error_message = $e->getMessage();
 
-            // (11) หาก Error, ให้โหลดข้อมูลจาก POST กลับเข้าไปในฟอร์ม
+            // หาก Error, ให้โหลดข้อมูลจาก POST กลับเข้าไปในฟอร์ม
             $data = $_POST;
             $data['subdistricts_subdistrict_id'] = $subdistricts_id;
 
@@ -175,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $lookup_data = $sd_lookup->fetch_assoc();
                     $selected_district_id = $lookup_data['districts_district_id'];
                     $selected_province_id = $lookup_data['provinces_province_id'];
-                    $current_zip_code = $lookup_data['zip_code']; // อัปเดต Zip Code ตามที่เลือกค้างไว้
+                    $current_zip_code = $lookup_data['zip_code']; 
                 }
             }
         }
@@ -458,11 +455,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         (function() {
             'use strict';
 
-            // (16.1) ข้อมูล Address ทั้งหมดจาก PHP
+            // ข้อมูล Address ทั้งหมดจาก PHP
             const all_districts = <?php echo json_encode($all_districts); ?>;
             const all_subdistricts = <?php echo json_encode($all_subdistricts); ?>;
 
-            // (16.2) ID ที่ถูกเลือกไว้ (จาก PHP)
+            // ID ที่ถูกเลือกไว้ (จาก PHP)
             let selected_district_id = '<?= $selected_district_id ?>';
             let selected_subdistrict_id = '<?= $selected_subdistrict_id ?>';
 
@@ -471,7 +468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const subdistrictSelect = document.getElementById('subdistrict');
             const zipCodeInput = document.getElementById('zip_code');
 
-            // [แก้ไข] ฟังก์ชันจำกัดให้พิมพ์แค่ตัวเลข
+            // ฟังก์ชันจำกัดให้พิมพ์แค่ตัวเลข
             function restrictToNumbers(inputId) {
                 const input = document.getElementById(inputId);
                 if (input) {
@@ -484,7 +481,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             restrictToNumbers('supplier_phone_no');
 
 
-            // (16.3) ฟังก์ชันเติมอำเภอ
+            //  ฟังก์ชันเติมอำเภอ
             function populateDistricts(provinceId) {
                 districtSelect.innerHTML = '<option value="">-- เลือกอำเภอ --</option>';
                 subdistrictSelect.innerHTML = '<option value="">-- เลือกตำบล --</option>';
@@ -505,7 +502,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // (16.4) ฟังก์ชันเติมตำบล
+            //  ฟังก์ชันเติมตำบล
             function populateSubdistricts(districtId) {
                 subdistrictSelect.innerHTML = '<option value="">-- เลือกตำบล --</option>';
                 zipCodeInput.value = ''; // Reset Zip Code when district changes
@@ -517,12 +514,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         const option = document.createElement('option');
                         option.value = subdistrict.subdistrict_id;
                         option.textContent = subdistrict.subdistrict_name_th;
-                        // [แก้ไข] เก็บ Zip Code ใน dataset
                         option.dataset.zip = subdistrict.zip_code;
 
                         if (subdistrict.subdistrict_id == selected_subdistrict_id) {
                             option.selected = true;
-                            // [แก้ไข] ถ้าตรงกับที่เลือกไว้เดิม ให้เติม zip code กลับเข้าไป (กรณี Javascript render ใหม่)
                             if (!zipCodeInput.value) {
                                 zipCodeInput.value = subdistrict.zip_code;
                             }
@@ -532,20 +527,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // (16.5) เมื่อเลือกจังหวัด -> โหลดอำเภอ
+            // เมื่อเลือกจังหวัด -> โหลดอำเภอ
             provinceSelect.addEventListener('change', function() {
                 selected_district_id = '';
                 selected_subdistrict_id = '';
                 populateDistricts(this.value);
             });
 
-            // (16.6) เมื่อเลือกอำเภอ -> โหลดตำบล
+            // เมื่อเลือกอำเภอ -> โหลดตำบล
             districtSelect.addEventListener('change', function() {
                 selected_subdistrict_id = '';
                 populateSubdistricts(this.value);
             });
 
-            // [แก้ไข] เมื่อเลือกตำบล -> แสดงรหัสไปรษณีย์
+            // เมื่อเลือกตำบล -> แสดงรหัสไปรษณีย์
             subdistrictSelect.addEventListener('change', function() {
                 const selectedOption = this.options[this.selectedIndex];
                 if (selectedOption && selectedOption.dataset.zip) {
@@ -555,8 +550,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
-
-            // (16.7) เรียกใช้งานครั้งแรกเมื่อโหลดหน้า
+            //  เรียกใช้งานครั้งแรกเมื่อโหลดหน้า
             if (provinceSelect.value) {
                 populateDistricts(provinceSelect.value);
             }
@@ -564,12 +558,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 populateSubdistricts(districtSelect.value);
             }
 
-            // (16.8) Bootstrap Validation & Phone Validation
+            // Bootstrap Validation & Phone Validation
             const form = document.getElementById('supplierForm');
             form.addEventListener('submit', function(event) {
                 let isValid = true;
 
-                // [แก้ไข] ตรวจสอบเบอร์โทร (Regex Check)
+                //  ตรวจสอบเบอร์โทร
                 const phoneInput = document.getElementById('supplier_phone_no');
                 const phoneError = document.getElementById('phone_error');
                 if (phoneInput.value) {

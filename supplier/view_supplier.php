@@ -11,7 +11,7 @@ if (empty($supplier_id)) {
     exit();
 }
 
-// (2) ดึงข้อมูล (JOIN หลายตารางเพื่อเอาชื่อเต็ม)
+// ดึงข้อมูล 
 $sql = "SELECT 
             s.*, 
             p.prefix_th,
@@ -39,7 +39,7 @@ if (!$data) {
     exit();
 }
 
-// (3) จัดการข้อมูลสำหรับแสดงผล
+//  จัดการข้อมูลสำหรับแสดงผล
 $contact_name = htmlspecialchars($data['prefix_th'] ?? '');
 $contact_name .= htmlspecialchars($data['contact_firstname'] ?? '');
 $contact_name .= ' ' . htmlspecialchars($data['contact_lastname'] ?? '');
@@ -47,7 +47,7 @@ if (trim($contact_name) === '') {
     $contact_name = '-';
 }
 
-// (ฟังก์ชันสำหรับแสดง '-' ถ้าค่าว่าง)
+// ฟังก์ชันสำหรับแสดง '-' ถ้าค่าว่าง
 function displayValue($value)
 {
     return htmlspecialchars($value ?? '-');
@@ -64,10 +64,9 @@ function displayValue($value)
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <?php include '../config/load_theme.php'; // (4) โหลดธีม 
+    <?php include '../config/load_theme.php';
     ?>
     <style>
-        /* (ใช้สไตล์จากไฟล์ตัวอย่าง) */
         h5 {
             margin-top: 20px;
             padding-bottom: 10px;
@@ -94,7 +93,6 @@ function displayValue($value)
             width: 150px;
             font-weight: 500;
             vertical-align: middle;
-            /* (ปรับเป็น middle) */
             padding-top: 5px;
             color: #555;
         }
@@ -103,20 +101,16 @@ function displayValue($value)
             padding-top: 5px;
         }
 
-        /* (5) CSS สำหรับช่องแสดงผลที่เพิ่มเข้ามา */
         .view-field {
             display: block;
             width: 100%;
             padding: 0.375rem 0.75rem;
             font-size: 0.95rem;
-            /* (ลดขนาดฟอนต์เล็กน้อย) */
             font-weight: 400;
             line-height: 1.5;
             color: #212529;
             background-color: #e9ecef;
-            /* (สีเทา Disabled) */
             border: 1px solid;
-            /* (กรอบ) */
             border-radius: 0.375rem;
             min-height: calc(1.5em + 0.75rem + 2px);
         }

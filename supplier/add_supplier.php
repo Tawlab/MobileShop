@@ -5,23 +5,22 @@ checkPageAccess($conn, 'add_supplier');
 
 $error_message = '';
 
-// (1) รับ return_url
+// รับ return_url
 $return_url = $_GET['return_url'] ?? 'supplier.php';
 
-// (2) ดึงข้อมูลสำหรับ Dropdowns
+// ดึงข้อมูลสำหรับ Dropdowns
 $prefix_result     = $conn->query("SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1 ORDER BY prefix_th");
 $provinces_result  = $conn->query("SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 $districts_result  = $conn->query("SELECT district_id, district_name_th, provinces_province_id FROM districts");
-// [แก้ไข] ดึง zip_code มาด้วย
 $subdistricts_result = $conn->query("SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts");
 
-// (3) เก็บข้อมูล dropdown ไว้สำหรับ JS
+// เก็บข้อมูล dropdown 
 $all_districts = $districts_result->fetch_all(MYSQLI_ASSOC);
 $all_subdistricts = $subdistricts_result->fetch_all(MYSQLI_ASSOC);
 
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // (4) รับค่าจากฟอร์ม
+    //รับค่าจากฟอร์ม
     $co_name = trim($_POST['co_name']);
     $tax_id = trim($_POST['tax_id']) ?: NULL;
     $prefixs_prefix_id = trim($_POST['prefixs_prefix_id']) ?: NULL;
@@ -37,32 +36,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $village = trim($_POST['village']) ?: NULL;
     $subdistricts_id = trim($_POST['subdistricts_subdistrict_id']) ?: NULL;
 
-    // (5) Server-side Validation
+    // Server-side Validation
     if (empty($co_name)) {
         $error_message = 'กรุณากรอก "ชื่อบริษัท"';
     } elseif (empty($subdistricts_id)) {
         $error_message = 'กรุณาเลือกที่อยู่ (จังหวัด/อำเภอ/ตำบล) ให้ครบถ้วน';
     } elseif (!empty($tax_id) && !ctype_digit($tax_id)) {
-        // [แก้ไข] ตรวจสอบเลขผู้เสียภาษี ต้องเป็นตัวเลขเท่านั้น
+        // ตรวจสอบเลขผู้เสียภาษี ต้องเป็นตัวเลขเท่านั้น
         $error_message = 'เลขผู้เสียภาษีต้องเป็นตัวเลขเท่านั้น';
     } elseif (!empty($supplier_phone_no)) {
-        // [แก้ไข] ตรวจสอบเบอร์โทร (ขึ้นต้น 02,05,06,08,09 และยาว 9-10 หลัก)
+        // ตรวจสอบเบอร์โทร
         if (!preg_match('/^(02|05|06|08|09)[0-9]{7,8}$/', $supplier_phone_no)) {
             $error_message = 'เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 9-10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)';
         }
     }
 
     if (empty($error_message)) {
-        // (6) --- Transaction ---
         $conn->begin_transaction();
         try {
-            // 1. หาค่าสูงสุดเดิม และสร้าง ID ใหม่
+            //หาค่าสูงสุดเดิม และสร้าง ID ใหม่
             $sql_max_id = "SELECT IFNULL(MAX(supplier_id), 100000) as max_id FROM suppliers";
             $max_result = $conn->query($sql_max_id);
             $max_row = $max_result->fetch_assoc();
             $new_supplier_id = $max_row['max_id'] + 1;
 
-            // 6.2) ตรวจสอบชื่อบริษัทซ้ำ
+            // ตรวจสอบชื่อบริษัทซ้ำ
             $stmt_check = $conn->prepare("SELECT supplier_id FROM suppliers WHERE co_name = ?");
             $stmt_check->bind_param("s", $co_name);
             $stmt_check->execute();
@@ -71,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_check->close();
 
-            // 6.3) สร้าง Address
+            //  สร้าง Address
             $sql_max_addr = "SELECT IFNULL(MAX(address_id), 0) as max_addr_id FROM addresses";
             $res_addr = $conn->query($sql_max_addr);
             $new_address_id = $res_addr->fetch_assoc()['max_addr_id'] + 1;
@@ -92,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_addr->execute();
             $stmt_addr->close();
 
-            // 6.4) บันทึกข้อมูล Supplier
+            // บันทึกข้อมูล Supplier
             $sql_insert = "INSERT INTO suppliers (
                                 supplier_id, co_name, tax_id, 
                                 contact_firstname, contact_lastname, 
@@ -120,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $stmt_insert->close();
 
-            // (7) ถ้าสำเร็จทั้งหมด
+            // ถ้าสำเร็จทั้งหมด
             $conn->commit();
 
             $_SESSION['success'] = "เพิ่ม Supplier '" . htmlspecialchars($co_name) . "' (รหัส: $new_supplier_id) เรียบร้อยแล้ว";
@@ -129,7 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header("Location: " . $redirect_url_on_save);
             exit();
         } catch (Exception $e) {
-            // (8) ถ้ายกเลิก (เกิด Error)
+            //  ถ้ายกเลิก
             $conn->rollback();
             $error_message = $e->getMessage();
         }
@@ -490,7 +488,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // [แก้ไข] เมื่อเลือกตำบล -> แสดงรหัสไปรษณีย์
+            // เมื่อเลือกตำบล -> แสดงรหัสไปรษณีย์
             if (subdistrictSelect) {
                 subdistrictSelect.addEventListener('change', function() {
                     const selectedOption = this.options[this.selectedIndex];
@@ -508,11 +506,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 form.addEventListener('submit', function(event) {
                     let isValid = true;
 
-                    // 1. ตรวจสอบเบอร์โทร (Validation JS)
+                    // ตรวจสอบเบอร์โทร (Validation JS)
                     const phoneInput = document.getElementById('supplier_phone_no');
                     const phoneError = document.getElementById('phone_error');
                     if (phoneInput.value) {
-                        // Regex: ขึ้นต้นด้วย 02,05,06,08,09 และมีความยาวรวม 9-10 หลัก
+                        // ขึ้นต้นด้วย 02,05,06,08,09 และมีความยาวรวม 9-10 หลัก
                         const phonePattern = /^(02|05|06|08|09)[0-9]{7,8}$/;
                         if (!phonePattern.test(phoneInput.value)) {
                             phoneInput.classList.add('is-invalid');
@@ -524,7 +522,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
 
-                    // 2. ตรวจสอบฟอร์มทั่วไป (required fields)
+                    //  ตรวจสอบฟอร์มทั่วไป (required fields)
                     if (!form.checkValidity() || !isValid) {
                         event.preventDefault();
                         event.stopPropagation();

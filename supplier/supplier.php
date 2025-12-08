@@ -2,9 +2,8 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'supplier');
-// (1) ไม่ต้อง require 'load_theme.php' ที่นี่
 
-// --- (2) การจัดการค้นหาและจัดเรียง ---
+// การจัดการค้นหาและจัดเรียง
 $search_term = $_GET['search'] ?? '';
 $sort_column = $_GET['sort'] ?? 'supplier_id';
 $sort_order = $_GET['order'] ?? 'ASC';
@@ -12,7 +11,7 @@ $page = (int)($_GET['page'] ?? 1);
 $limit = 10; // จำนวนรายการต่อหน้า
 $offset = ($page - 1) * $limit;
 
-// (3) ป้องกัน SQL Injection สำหรับ Sort
+//  ป้องกัน SQL Injection สำหรับ Sort
 $valid_columns = ['supplier_id', 'co_name', 'contact_firstname', 'supplier_phone_no', 'supplier_email'];
 if (!in_array($sort_column, $valid_columns)) {
   $sort_column = 'supplier_id';
@@ -21,7 +20,7 @@ if (!in_array(strtoupper($sort_order), ['ASC', 'DESC'])) {
   $sort_order = 'ASC';
 }
 
-// --- (4) สร้าง SQL Query ---
+// สร้าง SQL Query 
 $sql_where = "";
 $params = [];
 $types = "";
@@ -35,12 +34,11 @@ if (!empty($search_term)) {
                        OR s.supplier_phone_no LIKE ? 
                        OR s.supplier_email LIKE ?)";
   $search_like = "%{$search_term}%";
-  // เพิ่ม 6 params
   array_push($params, $search_like, $search_like, $search_like, $search_like, $search_like, $search_like);
   $types .= "ssssss";
 }
 
-// Query หลักสำหรับดึงข้อมูล (JOIN กับ prefixs เพื่อเอาคำนำหน้า)
+// Query หลักสำหรับดึงข้อมูล
 $sql_data = "SELECT s.*, p.prefix_th 
              FROM suppliers s
              LEFT JOIN prefixs p ON s.prefixs_prefix_id = p.prefix_id
@@ -60,10 +58,8 @@ if (!empty($search_term)) {
   $stmt_count->bind_param($types, ...$params);
 }
 
-// Execute และดึงข้อมูล
 $stmt_data->execute();
 $result = $stmt_data->get_result();
-
 $stmt_count->execute();
 $total_rows = $stmt_count->get_result()->fetch_assoc()['total'];
 $total_pages = ceil($total_rows / $limit);
@@ -113,7 +109,6 @@ $total_pages = ceil($total_rows / $limit);
                 <i class="bi bi-exclamation-triangle-fill me-2"></i>
                 <?php
                 if ($_GET['error'] == 'delete_failed') echo 'ลบข้อมูลล้มเหลว';
-                // (เตรียมไว้สำหรับ delete.php)
                 if ($_GET['error'] == 'has_po') echo 'ไม่สามารถลบได้ เนื่องจากซัพพลายเออร์นี้มีการสั่งซื้อ (PO) อยู่';
                 ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
@@ -162,7 +157,6 @@ $total_pages = ceil($total_rows / $limit);
                     <?php $index = $offset + 1;
                     while ($row = $result->fetch_assoc()): ?>
                       <?php
-                      // รวมชื่อผู้ติดต่อ
                       $contact_name = htmlspecialchars($row['prefix_th'] ?? '');
                       $contact_name .= htmlspecialchars($row['contact_firstname'] ?? '');
                       $contact_name .= ' ' . htmlspecialchars($row['contact_lastname'] ?? '');
@@ -294,7 +288,7 @@ $total_pages = ceil($total_rows / $limit);
         alerts.forEach(alert => {
           new bootstrap.Alert(alert).close();
         });
-      }, 4000); // 4 วินาที
+      }, 4000);
     });
   </script>
 </body>
