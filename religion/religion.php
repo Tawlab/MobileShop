@@ -2,8 +2,6 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'religion');
-
-// (1) แก้ไข SQL ให้ตรงกับ DB
 $sql = "SELECT * FROM religions ORDER BY religion_id ASC";
 $result = mysqli_query($conn, $sql);
 ?>
@@ -18,12 +16,10 @@ $result = mysqli_query($conn, $sql);
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
   <?php
-  // (2) โหลดธีม (ไฟล์นี้จะกำหนด CSS <style> ทั้งหมด)
   require '../config/load_theme.php';
   ?>
 
   <style>
-    /* .status-icon, .inactive ถูกกำหนดใน load_theme.php แล้ว */
     .container {
       max-width: 900px;
     }
@@ -82,7 +78,6 @@ $result = mysqli_query($conn, $sql);
                 <tbody>
                   <?php $i = 1;
                   while ($row = mysqli_fetch_assoc($result)):
-                    // (7) แก้ไขชื่อคอลัมน์ทั้งหมดให้ตรงกับ DB
                   ?>
                     <tr>
                       <td><?= $i++ ?></td>
@@ -148,7 +143,6 @@ $result = mysqli_query($conn, $sql);
           const id = button.getAttribute('data-id');
           const name = button.getAttribute('data-name');
           deleteMessage.textContent = `คุณแน่ใจหรือไม่ว่าจะลบศาสนา "${name}" (รหัส ${id}) ?`;
-          // (12) สร้าง link ไปยัง delete_religion.php (ไฟล์นี้คุณต้องมี)
           confirmBtn.href = `delete_religion.php?id=${encodeURIComponent(id)}`;
           modal.show();
         });
@@ -161,8 +155,6 @@ $result = mysqli_query($conn, $sql);
       icon.addEventListener('click', () => {
         const id = icon.dataset.id;
         const newStatus = icon.dataset.status;
-
-        // (14) ชี้ไปที่ toggle_religion_status.php
         fetch('toggle_religion_status.php', {
             method: 'POST',
             headers: {

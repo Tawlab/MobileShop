@@ -3,13 +3,8 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_religion');
 
-// (1) ลบ SQL ที่ดึง systemconfig ที่ไม่จำเป็นออก
-// $employees_id = 111123; // <-- ไม่จำเป็น
-// $sql = "SELECT * FROM systemconfig WHERE employees_id = $employees_id"; // <-- ไม่จำเป็น
-
-// (2) ตรวจสอบการส่งฟอร์ม
+// ตรวจสอบการส่งฟอร์ม
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // (3) แก้ไขชื่อตัวแปรที่รับ POST ให้ตรงกับ DB
     $religion_id = trim($_POST['religion_id']);
     $religion_name_th = trim($_POST['religion_name_th']);
     $religion_name_en = trim($_POST['religion_name_en']);
@@ -20,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
 
-    // (4) แก้ไข SQL ตรวจสอบซ้ำ ให้ตรงกับ DB
+    // ตรวจสอบซ้ำ
     $sql = "SELECT COUNT(*) FROM religions WHERE religion_id = ? OR religion_name_th = ? OR religion_name_en = ?";
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("sss", $religion_id, $religion_name_th, $religion_name_en);
@@ -35,7 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
 
-    // (5) แก้ไข SQL INSERT ให้ตรงกับ DB (คอลัมน์ is_active มี default = 1)
     $stmt = $conn->prepare("INSERT INTO religions (religion_id, religion_name_th, religion_name_en) VALUES (?, ?, ?)");
     $stmt->bind_param("sss", $religion_id, $religion_name_th, $religion_name_en);
 
@@ -66,7 +60,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     </style>
     <?php
-    // (6) โหลดธีม
     require '../config/load_theme.php';
     ?>
 </head>

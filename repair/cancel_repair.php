@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'repair_list');
 
-// 1. ตรวจสอบ ID
+// ตรวจสอบ ID
 if (!isset($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสงานซ่อม";
     header('Location: repair_list.php');
@@ -13,7 +13,7 @@ if (!isset($_GET['id'])) {
 $repair_id = (int)$_GET['id'];
 $emp_id = $_SESSION['emp_id'] ?? 1;
 
-// 2. ดึงข้อมูล
+//  ดึงข้อมูล
 $sql = "SELECT r.repair_id, r.repair_status, r.bill_headers_bill_id, r.prod_stocks_stock_id,
         c.firstname_th, c.lastname_th, p.prod_name
         FROM repairs r 
@@ -36,9 +36,6 @@ if ($repair['repair_status'] == 'ส่งมอบ') {
     exit;
 }
 
-// ---------------------------------------------------------------------------
-// ส่วนทำงานเมื่อกดปุ่ม "ยืนยันการยกเลิก" (POST)
-// ---------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cancel_reason = mysqli_real_escape_string($conn, trim($_POST['cancel_reason']));
 
@@ -47,17 +44,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         mysqli_autocommit($conn, false);
         try {
-            // 3.1 อัปเดตสถานะงานซ่อม -> 'ยกเลิก'
+            // อัปเดตสถานะงานซ่อม -> 'ยกเลิก'
             $conn->query("UPDATE repairs SET repair_status = 'ยกเลิก', update_at = NOW() WHERE repair_id = $repair_id");
 
-            // 3.2 บันทึก Log
+            // บันทึก Log
             $old_status = $repair['repair_status'];
             $log_comment = "ยกเลิกงานซ่อม: " . $cancel_reason;
             $sql_log = "INSERT INTO repair_status_log (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
                         VALUES ($repair_id, '$old_status', 'ยกเลิก', $emp_id, '$log_comment', NOW())";
             $conn->query($sql_log);
 
-            // 3.3 จัดการบิล (ถ้ามี) -> เปลี่ยนเป็น Canceled และคืนอะไหล่
+            // จัดการบิล (ถ้ามี) -> เปลี่ยนเป็น Canceled และคืนอะไหล่
             if (!empty($repair['bill_headers_bill_id'])) {
                 $bill_id = $repair['bill_headers_bill_id'];
                 
@@ -79,9 +76,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   VALUES ($move_id, 'ADJUST', 'cancel_repair_bill', $bill_id, NOW(), $stock_id)");
                 }
             }
-
-            // [แก้ไข] ลบส่วนตัดสต็อกเครื่องลูกค้าออก 
-            // เพราะลูกค้ายังไม่ได้มารับของ ของยังอยู่ที่ร้านในสถานะ 'ยกเลิก'
 
             mysqli_commit($conn);
             $_SESSION['success'] = "ยกเลิกงานซ่อม #$repair_id เรียบร้อยแล้ว (สินค้ารอการส่งมอบคืน)";

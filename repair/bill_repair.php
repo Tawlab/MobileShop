@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'bill_repair');
 
-// 1. ตรวจสอบ ID งานซ่อม
+//  ตรวจสอบ ID งานซ่อม
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสงานซ่อม";
     header('Location: repair_list.php');
@@ -12,7 +12,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $repair_id = (int)$_GET['id'];
 
-// 2. ดึงข้อมูลงานซ่อม + บิล
+// ดึงข้อมูลงานซ่อม + บิล
 $sql = "SELECT r.*, bh.bill_id, bh.bill_status, 
         c.firstname_th, c.lastname_th, 
         p.prod_name, ps.serial_no
@@ -33,7 +33,7 @@ if (!$repair) {
 
 $bill_id = $repair['bill_id'];
 
-// 3. ดึงรายการสินค้าในบิลปัจจุบัน
+// ดึงรายการสินค้าในบิลปัจจุบัน
 $sql_details = "SELECT bd.*, p.prod_name, p.model_name, ps.serial_no 
                 FROM bill_details bd
                 LEFT JOIN prod_stocks ps ON bd.prod_stocks_stock_id = ps.stock_id
@@ -41,8 +41,7 @@ $sql_details = "SELECT bd.*, p.prod_name, p.model_name, ps.serial_no
                 WHERE bd.bill_headers_bill_id = $bill_id";
 $res_details = mysqli_query($conn, $sql_details);
 
-// 4. เตรียมข้อมูลสำหรับ Dropdown เลือกสินค้า
-// 4.1 ดึงอะไหล่ (Parts) -> Type ID = 3
+// เตรียมข้อมูลสำหรับ Dropdown เลือกสินค้า
 $sql_stock = "SELECT ps.stock_id, p.prod_name, p.model_name, ps.price, ps.serial_no 
               FROM prod_stocks ps
               JOIN products p ON ps.products_prod_id = p.prod_id
@@ -51,7 +50,7 @@ $sql_stock = "SELECT ps.stock_id, p.prod_name, p.model_name, ps.price, ps.serial
               ORDER BY p.prod_name";
 $res_stock = mysqli_query($conn, $sql_stock);
 
-// 4.2 ดึงค่าบริการ (Services) -> Type ID = 4
+// ดึงค่าบริการ (Services) -> Type ID = 4
 $sql_service = "SELECT prod_id, prod_name, 0.00 AS price 
                 FROM products 
                 WHERE prod_types_type_id = 4
@@ -59,7 +58,7 @@ $sql_service = "SELECT prod_id, prod_name, 0.00 AS price
 $res_service = mysqli_query($conn, $sql_service);
 
 // -----------------------------------------------------------------------------
-// HANDLE ADD ITEM (เพิ่มรายการ)
+// เพิ่มรายการ
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
     $item_value = $_POST['item_select'];
@@ -85,8 +84,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
             $stock_id = $id;
             $chk = $conn->query("SELECT products_prod_id FROM prod_stocks WHERE stock_id=$stock_id")->fetch_assoc();
             $prod_id = $chk['products_prod_id'];
-
-            // Bind Param: d(price), i(bill), i(prod), i(stock), i(warranty_m), s(warranty_n)
             $stmt->bind_param("diiiis", $price, $bill_id, $prod_id, $stock_id, $warranty_months, $warranty_note);
             
             if ($stmt->execute()) {
@@ -103,8 +100,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
             // --- กรณีค่าบริการ (ไม่มีสต็อก) ---
             $prod_id = $id; 
             $stock_id = NULL; // ค่าบริการไม่มี stock_id
-
-            // Bind Param: d(price), i(bill), i(prod), i(stock=NULL), i(warranty_m), s(warranty_n)
             $stmt->bind_param("diiiis", $price, $bill_id, $prod_id, $stock_id, $warranty_months, $warranty_note);
             $stmt->execute();
         }
@@ -117,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
 }
 
 // -----------------------------------------------------------------------------
-// HANDLE REMOVE ITEM (ลบรายการ)
+// ลบรายการ
 // -----------------------------------------------------------------------------
 if (isset($_GET['remove_detail'])) {
     $detail_id = (int)$_GET['remove_detail'];
@@ -133,7 +128,7 @@ if (isset($_GET['remove_detail'])) {
         // คืนสถานะสต็อก
         $conn->query("UPDATE prod_stocks SET stock_status='In Stock' WHERE stock_id=$stock_id");
         
-        // บันทึก Movement (ADJUST)
+        // บันทึก Movement 
         $sql_max = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
         $move_id = mysqli_fetch_assoc(mysqli_query($conn, $sql_max))['next_id'];
         $conn->query("INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) VALUES ($move_id, 'ADJUST', 'bill_repair_remove', $bill_id, NOW(), $stock_id)");
@@ -144,12 +139,12 @@ if (isset($_GET['remove_detail'])) {
 }
 
 // -----------------------------------------------------------------------------
-// HANDLE SKIP PAYMENT (ไม่มีค่าใช้จ่าย)
+// ไม่มีค่าใช้จ่าย
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['skip_payment'])) {
     $skip_reason = mysqli_real_escape_string($conn, trim($_POST['skip_reason']));
     
-    // 1. ลบรายการสินค้าทั้งหมดในบิลนี้ออก (คืนสต็อกอะไหล่ก่อน)
+    // ลบรายการสินค้าทั้งหมดในบิลนี้ออก (คืนสต็อกอะไหล่ก่อน)
     $sql_details_chk = "SELECT detail_id, prod_stocks_stock_id FROM bill_details WHERE bill_headers_bill_id = $bill_id";
     $res_details_chk = mysqli_query($conn, $sql_details_chk);
     
@@ -166,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['skip_payment'])) {
         $conn->query("DELETE FROM bill_details WHERE detail_id={$row['detail_id']}");
     }
 
-    // 2. ปิดบิลเป็น Completed ยอด 0
+    // ปิดบิลเป็น Completed ยอด 0
     $comment = "ไม่มีค่าใช้จ่าย/ข้ามขั้นตอน: " . $skip_reason;
     $sql_up = "UPDATE bill_headers SET bill_status = 'Completed', payment_method = 'Waived', receipt_date = NOW(), comment = ? WHERE bill_id = ?";
     $stmt = $conn->prepare($sql_up);

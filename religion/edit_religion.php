@@ -3,14 +3,13 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_religion');
 
-// (1) ตรวจสอบ ID ที่ส่งมา
+//  ตรวจสอบ ID ที่ส่งมา
 if (!isset($_GET['id'])) {
     $_SESSION['error'] = "ไม่ได้ระบุรหัสศาสนา";
     header("Location: religion.php");
     exit();
 }
 
-// (2) แก้ไข SQL SELECT ให้ตรงกับ DB
 $religion_id_to_edit = $_GET['id'];
 $stmt = $conn->prepare("SELECT * FROM religions WHERE religion_id = ?");
 $stmt->bind_param("s", $religion_id_to_edit);
@@ -25,12 +24,9 @@ if ($result->num_rows > 0) {
 }
 $stmt->close();
 
-// (3) ตรวจสอบการส่งฟอร์ม POST
+// ตรวจสอบการส่งฟอร์ม POST
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-
-    // (4) รับค่า ID เดิมจาก hidden input (ห้ามเปลี่ยน PK)
     $original_religion_id = trim($_POST['original_religion_id']);
-    // (5) รับค่าที่แก้ไข (แก้ชื่อคอลัมน์ให้ตรง DB)
     $religion_name_th = trim($_POST['religion_name_th']);
     $religion_name_en = trim($_POST['religion_name_en']);
 
@@ -39,10 +35,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         header("Location: edit_religion.php?id=$original_religion_id");
         exit();
     }
-
-    // (6) ลบการตรวจสอบ ID ซ้ำออก (เพราะเราไม่เปลี่ยน ID แล้ว)
-
-    // (7) แก้ไข SQL UPDATE ให้ตรงกับ DB (ไม่เปลี่ยน ID)
     $stmt = $conn->prepare("UPDATE religions SET religion_name_th = ?, religion_name_en = ? WHERE religion_id = ?");
     $stmt->bind_param("sss", $religion_name_th, $religion_name_en, $original_religion_id);
 

@@ -1,7 +1,7 @@
 <?php
 session_start();
 require '../config/config.php';
-require '../vendor/autoload.php'; // เรียกใช้ PHPMailer
+require '../vendor/autoload.php'; 
 checkPageAccess($conn, 'update_repair_status');
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -86,7 +86,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 $repair_id = (int)$_GET['id'];
 $current_emp_id = $_SESSION['emp_id'] ?? 1;
 
-// 2. ดึงข้อมูลงานซ่อม + สถานะบิล
+// ดึงข้อมูลงานซ่อม + สถานะบิล
 $sql = "SELECT r.*, 
         c.firstname_th AS cus_name, c.lastname_th AS cus_lastname, c.cs_email,
         p.prod_name, p.model_name, b.brand_name_th, s.serial_no,
@@ -107,7 +107,7 @@ if (!$repair) {
     exit;
 }
 
-// 3. ดึงรายชื่อช่าง
+// ดึงรายชื่อช่าง
 $emp_sql = "SELECT emp_id, firstname_th, lastname_th, emp_code FROM employees WHERE emp_status = 'Active'";
 $emp_result = mysqli_query($conn, $emp_sql);
 
@@ -121,9 +121,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $comment = mysqli_real_escape_string($conn, trim($_POST['comment']));
     $old_status = $repair['repair_status'];
 
-    // [Logic ตรวจสอบก่อนส่งมอบ]
+    // ตรวจสอบก่อนส่งมอบ
     if ($new_status === 'ส่งมอบ') {
-        // ถ้าสถานะเดิมคือ 'ยกเลิก' อนุญาตให้ส่งมอบคืนได้เลย (ไม่ต้องเช็คบิล)
+        // ถ้าสถานะเดิมคือ 'ยกเลิก' อนุญาตให้ส่งมอบคืนได้เลย
         $is_cancelled = ($old_status === 'ยกเลิก');
 
         // ถ้างานปกติ (ไม่ยกเลิก) ต้องเช็คว่าจ่ายเงินหรือยัง
@@ -138,7 +138,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     mysqli_autocommit($conn, false);
     try {
-        // A. อัปเดตสถานะงานซ่อม
+        //  อัปเดตสถานะงานซ่อม
         $sql_update = "UPDATE repairs SET 
                        repair_status = ?, 
                        assigned_employee_id = ?, 
@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$stmt->execute()) throw new Exception("อัปเดตสถานะไม่สำเร็จ");
         $stmt->close();
 
-        // B. บันทึก Log
+        //บันทึก Log
         if ($new_status !== $old_status || !empty($comment)) {
             $log_sql = "INSERT INTO repair_status_log 
                         (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
@@ -161,14 +161,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_log->close();
         }
 
-        // C. [ตัดสต็อก] เมื่อส่งมอบสำเร็จ (ไม่ว่าจะงานปกติ หรือ งานยกเลิก)
+        // ตัดสต็อก เมื่อส่งมอบสำเร็จ 
         if ($new_status === 'ส่งมอบ') {
             $stock_id = $repair['prod_stocks_stock_id'];
 
-            // 1. เปลี่ยนสถานะสต็อกเป็น 'Sold' (ของออกจากร้านแล้ว)
+            // เปลี่ยนสถานะสต็อกเป็น 'Sold' 
             $conn->query("UPDATE prod_stocks SET stock_status = 'Sold', update_at = NOW() WHERE stock_id = $stock_id");
 
-            // 2. บันทึก Movement (OUT)
+            //  บันทึก Movement (OUT)
             $sql_move_id = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
             $move_id = mysqli_fetch_assoc(mysqli_query($conn, $sql_move_id))['next_id'];
 
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         mysqli_commit($conn);
 
-        // D. ส่งอีเมล (ถ้ามี)
+        //  ส่งอีเมล 
         if ($new_status !== $old_status && !empty($repair['cs_email'])) {
             $shop_res = mysqli_query($conn, "SELECT shop_name, shop_email, shop_app_password FROM shop_info LIMIT 1");
             $shop_data = mysqli_fetch_assoc($shop_res);
@@ -286,12 +286,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                                 <label class="form-label fw-bold">สถานะใหม่ <span class="text-danger">*</span></label>
                                                 <select name="status" id="statusSelect" class="form-select form-select-lg" required>
                                                     <?php
-                                                    // ถ้าสถานะปัจจุบันคือ 'ยกเลิก' -> แสดงแค่ 'ส่งมอบ' (คืนของ)
                                                     if ($repair['repair_status'] == 'ยกเลิก') {
                                                         echo "<option value='ยกเลิก' selected>ยกเลิก (ปัจจุบัน)</option>";
                                                         echo "<option value='ส่งมอบ'>ส่งมอบ (คืนเครื่องลูกค้า)</option>";
                                                     } else {
-                                                        // สถานะปกติ
                                                         $statuses = ['รับเครื่อง', 'ประเมิน', 'รออะไหล่', 'กำลังซ่อม', 'ซ่อมเสร็จ', 'ส่งมอบ', 'ยกเลิก'];
                                                         foreach ($statuses as $st) {
                                                             $selected = ($st == $repair['repair_status']) ? 'selected' : '';
@@ -357,7 +355,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const status = document.getElementById('statusSelect').value;
 
             if (status === 'ส่งมอบ') {
-                // ถ้างานซ่อมปกติ (ไม่ยกเลิก) แต่ยังไม่จ่ายเงิน -> ห้ามส่งมอบ
+                // ถ้างานซ่อมปกติ แต่ยังไม่จ่ายเงิน -> ห้ามส่งมอบ
                 if (!isCancelled && !isPaid) {
                     alert('⚠️ ไม่สามารถส่งมอบเครื่องได้!\n\nลูกค้ายังไม่ได้ชำระเงิน\n(กรุณาไปทำรายการชำระเงินก่อนส่งมอบ)');
                     e.preventDefault();

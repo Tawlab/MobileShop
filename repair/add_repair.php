@@ -11,7 +11,7 @@ use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
 // -----------------------------------------------------------------------------
-// 1. SHARED FUNCTIONS
+//  SHARED FUNCTIONS
 // -----------------------------------------------------------------------------
 
 function getNextRepairId($conn)
@@ -44,7 +44,7 @@ function getStockIdBySerial($conn, $serial)
     return $stmt->get_result()->fetch_assoc();
 }
 
-// --- [ฟังก์ชันส่งอีเมล] ---
+// --- ฟังก์ชันส่งอีเมล ---
 function sendJobOrderEmail($to_email, $customer_name, $repair_id, $device_name, $serial_no, $symptoms_txt, $shop_name, $sender_email, $sender_password)
 {
     $mail = new PHPMailer(true);
@@ -119,12 +119,12 @@ function sendJobOrderEmail($to_email, $customer_name, $repair_id, $device_name, 
 }
 
 // -----------------------------------------------------------------------------
-// 2. GET DATA
+// GET DATA
 // -----------------------------------------------------------------------------
 $employees_result = mysqli_query($conn, "SELECT emp_id, firstname_th, lastname_th, emp_code FROM employees WHERE emp_status = 'Active' ORDER BY firstname_th");
 $symptoms_result = mysqli_query($conn, "SELECT symptom_id, symptom_name FROM symptoms ORDER BY symptom_name");
 
-// [แก้ไข] กรองสินค้าที่ไม่ใช่ อะไหล่(3) และ บริการ(4)
+// กรองสินค้าที่ไม่ใช่ อะไหล่ และ บริการ
 $products_result = mysqli_query($conn, "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th 
                                         FROM products p 
                                         LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
@@ -133,7 +133,7 @@ $products_result = mysqli_query($conn, "SELECT p.prod_id, p.prod_name, p.model_n
 mysqli_data_seek($products_result, 0);
 
 // -----------------------------------------------------------------------------
-// 3. AJAX HANDLER
+//  AJAX HANDLER
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -177,7 +177,7 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// 4. POST HANDLER (บันทึก)
+// บันทึก
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $customer_id = (int)$_POST['customer_id'];
@@ -201,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mysqli_autocommit($conn, false);
 
     try {
-        // (A) Prod_Stocks
+        // Prod_Stocks
         $stock_info = getStockIdBySerial($conn, $serial_no);
         $stock_id = 0;
         $device_name_for_mail = "";
@@ -222,8 +222,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $device_name_for_mail = $res_prod->fetch_assoc()['prod_name'];
         }
 
-        // (B) สร้างบิลซ่อม (Open Bill) - สถานะ Pending, Type Repair
-        $branch_id = 1; 
+        // สร้างบิลซ่อม 
+        $branch_id = 1;
         $bill_date = date('Y-m-d H:i:s');
         $bill_status = 'Pending';
         $bill_type = 'Repair';
@@ -240,10 +240,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_bill->bind_param("sssisii", $bill_date, $bill_date, $bill_status, $customer_id, $bill_type, $branch_id, $employee_id);
 
         if (!$stmt_bill->execute()) throw new Exception('สร้างบิลซ่อมไม่สำเร็จ: ' . $stmt_bill->error);
-        $bill_id = $conn->insert_id; 
+        $bill_id = $conn->insert_id;
         $stmt_bill->close();
 
-        // (C) Job Order (Repairs)
+        // Job Order
         $repair_id = getNextRepairId($conn);
         $sql_repair = "INSERT INTO repairs (
             repair_id, customers_cs_id, employees_emp_id, assigned_employee_id, 
@@ -257,7 +257,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$stmt_repair->execute()) throw new Exception('บันทึกงานซ่อมไม่สำเร็จ: ' . $stmt_repair->error);
         $stmt_repair->close();
 
-        // (D) Stock Movement (IN)
+        // Stock Movement 
         $movement_id = getNextMovementId($conn);
         $sql_move = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) VALUES (?, 'IN', 'repairs', ?, NOW(), ?)";
         $stmt_move = $conn->prepare($sql_move);
@@ -265,7 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$stmt_move->execute()) throw new Exception('บันทึกการเคลื่อนไหวสต็อก (IN) ไม่สำเร็จ');
         $stmt_move->close();
 
-        // (E) Symptoms
+        // Symptoms
         $sql_symptoms = "INSERT INTO repair_symptoms (repairs_repair_id, symptoms_symptom_id) VALUES ";
         $values = [];
         $params = [];
@@ -287,14 +287,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_sym->bind_param($types, ...$params);
         $stmt_sym->execute();
         $stmt_sym->close();
-
-        // (F) Log Status
         $conn->query("INSERT INTO repair_status_log (repairs_repair_id, new_status, update_by_employee_id) VALUES ($repair_id, 'รับเครื่อง', $employee_id)");
-
-        // (G) Commit
         mysqli_commit($conn);
 
-        // (H) Email Sending
+        // Email Sending
         try {
             $res_cust = $conn->query("SELECT firstname_th, lastname_th, cs_email FROM customers WHERE cs_id = $customer_id");
             $cust_data = $res_cust->fetch_assoc();
@@ -313,7 +309,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 @sendJobOrderEmail($cust_email, $cust_name, $repair_id, $device_name_for_mail, $serial_no, $symptoms_txt_mail, $current_shop_name, $current_shop_email, $current_shop_password);
             }
-        } catch (Exception $mail_err) {}
+        } catch (Exception $mail_err) {
+        }
 
         $_SESSION['success'] = "✅ รับเครื่องซ่อมสำเร็จ: Job #$repair_id";
         header("Location: view_repair.php?id=$repair_id");
@@ -697,14 +694,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- Global State for Employee Selection ---
         let isAssignedMode = false;
 
         function setAssignedMode(state) {
             isAssignedMode = state;
         }
 
-        // --- Customer Search Logic (MODAL) ---
+        // --- Customer Search Logic  ---
         const customerSearchModal = new bootstrap.Modal(document.getElementById('customerSearchModal'));
         const customerIdInput = document.getElementById('customer_id');
         const customerDisplayInput = document.getElementById('customer_display');
@@ -841,7 +837,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // --- Employee Selection in Form ---
         function selectEmployeeInForm(emp_id, fname, lname, emp_code) {
-            // (*** FIXED ***: ใช้ Global State isAssignedMode)
             const targetIdInput = isAssignedMode ? assignedEmployeeIdInput : employeeIdInput;
             const targetDisplayInput = isAssignedMode ? assignedEmployeeDisplayInput : employeeDisplayInput;
 
@@ -918,7 +913,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             // เครื่องใหม่ ไม่เคยมีในระบบ
                             statusDiv.classList.add('new');
                             statusDiv.innerHTML = `<i class="fas fa-exclamation-circle me-1"></i> Serial นี้เป็นของ <strong>ใหม่</strong>. กรุณาเลือกรุ่นสินค้าด้านล่าง.`;
-                            // ต้องเลือกสินค้าใหม่
                             newDeviceSelect.style.display = 'block';
                             isNewDeviceInput.value = 1;
                             document.getElementById('serial_no').classList.remove('is-invalid');
@@ -954,10 +948,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             };
 
-            // 1. ตรวจสอบข้อมูลหลัก
+            //  ตรวจสอบข้อมูลหลัก
             checkField(customerId);
-            checkField(employeeId); // ผู้รับเรื่อง
-            checkField(assignedEmployeeId); // ผู้รับผิดชอบ
+            checkField(employeeId);
+            checkField(assignedEmployeeId);
             checkField(serialNo);
 
             if (estimatedCost.value.trim() === '' || parseFloat(estimatedCost.value) < 0) {
@@ -974,12 +968,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 document.querySelector('.symptom-grid').style.border = 'none';
             }
 
-            // 2. ตรวจสอบเครื่องใหม่ (ถ้าเป็นของใหม่ ต้องเลือกรุ่นสินค้า)
+            // ตรวจสอบเครื่องใหม่
             if (isNewDevice) {
                 checkField(newProductId);
             }
 
-            // 3. ป้องกันการ Submit ถ้าไม่ผ่าน
+            //  ป้องกันการ Submit ถ้าไม่ผ่าน
             if (!isValid) {
                 e.preventDefault();
                 document.getElementById('submitBtn').disabled = false;
@@ -987,7 +981,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return;
             }
 
-            // 4. แสดง Confirm Modal
+            // แสดง Confirm Modal
             const customerNameText = document.getElementById('customer_info_box').innerText.split('\n')[0].replace('ลูกค้า:', '').trim();
 
             const confirmRepair = confirm(
@@ -1005,7 +999,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return;
             }
 
-            // 5. ปิดปุ่ม
+            // ปิดปุ่ม
             document.getElementById('submitBtn').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>กำลังบันทึก...';
             document.getElementById('submitBtn').disabled = true;
         });

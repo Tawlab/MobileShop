@@ -1,25 +1,24 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'view_repair'); // ใช้สิทธิ์เดียวกับการดูงานซ่อม
+checkPageAccess($conn, 'view_repair');
 
-// 1. ตรวจสอบค่า ID บิล
+// ตรวจสอบค่า ID บิล
 if (!isset($_GET['id'])) {
     die("ไม่พบรหัสบิล");
 }
 
 $bill_id = (int)$_GET['id'];
 
-// 2. ดึงข้อมูลร้านค้า (Shop Info)
+// ดึงข้อมูลร้านค้า (Shop Info)
 $shop_sql = "SELECT * FROM shop_info LIMIT 1";
 $shop_result = mysqli_query($conn, $shop_sql);
 $shop = mysqli_fetch_assoc($shop_result);
 
-// 3. ดึงข้อมูลหัวบิล (Bill Header) + ลูกค้า + งานซ่อม + รายละเอียดเครื่องลูกค้า
-// [แก้ไข] JOIN ตาราง addresses, subdistricts, districts, provinces เพื่อดึงที่อยู่ลูกค้า
+//  ดึงข้อมูลหัวบิล (Bill Header) + ลูกค้า + งานซ่อม + รายละเอียดเครื่องลูกค้า
 $sql = "SELECT bh.*, 
         c.firstname_th, c.lastname_th, c.cs_phone_no, c.cs_national_id, 
-        -- ดึงที่อยู่ลูกค้า (รวมสตริง)
+        -- ดึงที่อยู่ลูกค้า
         CONCAT(IFNULL(addr.home_no,''), ' ม.', IFNULL(addr.moo,''), ' ', IFNULL(addr.soi,''), ' ', IFNULL(addr.road,''), ' ', IFNULL(sd.subdistrict_name_th,''), ' ', IFNULL(dt.district_name_th,''), ' ', IFNULL(pv.province_name_th,''), ' ', IFNULL(sd.zip_code,'')) AS cs_address_full,
         
         r.repair_id, r.create_at as repair_date,
@@ -27,12 +26,12 @@ $sql = "SELECT bh.*,
         e.firstname_th as emp_fname, e.lastname_th as emp_lname
         FROM bill_headers bh
         LEFT JOIN customers c ON bh.customers_cs_id = c.cs_id
-        -- JOIN ที่อยู่ลูกค้า
+        -- ที่อยู่ลูกค้า
         LEFT JOIN addresses addr ON c.Addresses_address_id = addr.address_id
         LEFT JOIN subdistricts sd ON addr.subdistricts_subdistrict_id = sd.subdistrict_id
         LEFT JOIN districts dt ON sd.districts_district_id = dt.district_id
         LEFT JOIN provinces pv ON dt.provinces_province_id = pv.province_id
-        -- JOIN งานซ่อม
+        -- งานซ่อม
         LEFT JOIN repairs r ON bh.bill_id = r.bill_headers_bill_id
         LEFT JOIN prod_stocks ps ON r.prod_stocks_stock_id = ps.stock_id
         LEFT JOIN products p ON ps.products_prod_id = p.prod_id
@@ -46,14 +45,14 @@ if (!$header) {
     die("ไม่พบข้อมูลเอกสาร หรือ เอกสารนี้ไม่มีอยู่จริง");
 }
 
-// 4. ดึงรายการในบิล (Bill Details) + ข้อมูลสินค้า + ข้อมูลการรับประกัน
+// ดึงรายการในบิล (Bill Details) + ข้อมูลสินค้า + ข้อมูลการรับประกัน
 $sql_detail = "SELECT bd.*, p.prod_name, p.model_name 
                FROM bill_details bd
                JOIN products p ON bd.products_prod_id = p.prod_id
                WHERE bd.bill_headers_bill_id = $bill_id";
 $details = mysqli_query($conn, $sql_detail);
 
-// ตัวแปรสำหรับคำนวณยอดรวม (Subtotal)
+// ตัวแปรสำหรับคำนวณยอดรวม
 $subtotal = 0;
 ?>
 
@@ -278,14 +277,12 @@ $subtotal = 0;
 
                             <td class="text-center">
                                 <?php
-                                // แสดงเดือน
                                 if (!empty($row['warranty_duration_months'])) {
                                     echo htmlspecialchars($row['warranty_duration_months']) . " เดือน";
                                 } else {
                                     echo "-";
                                 }
 
-                                // แสดงหมายเหตุประกัน (ถ้ามี)
                                 if (!empty($row['warranty_note'])) {
                                     echo "<br><small class='text-muted'>(" . htmlspecialchars($row['warranty_note']) . ")</small>";
                                 }
@@ -299,7 +296,6 @@ $subtotal = 0;
                     endwhile;
                 endif;
 
-                // ถ้าไม่มีรายการ (เช่น ซ่อมฟรี หรือยังไม่ลงข้อมูล)
                 if (!$has_items):
                     ?>
                     <tr>

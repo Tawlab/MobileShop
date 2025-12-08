@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'view_repair');
 
-// 1. ตรวจสอบ ID
+//  ตรวจสอบ ID
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสงานซ่อม";
     header('Location: repair_list.php');
@@ -14,12 +14,12 @@ $repair_id = mysqli_real_escape_string($conn, $_GET['id']);
 $current_user_id = $_SESSION['user_id'] ?? 0;
 $can_edit_completed = hasPermission($conn, $current_user_id, 'edit_completed_repair');
 
-// 2. ดึงข้อมูลร้านค้า
+// ดึงข้อมูลร้านค้า
 $shop_sql = "SELECT * FROM shop_info LIMIT 1";
 $shop_result = mysqli_query($conn, $shop_sql);
 $shop = mysqli_fetch_assoc($shop_result);
 
-// 3. ดึงข้อมูลงานซ่อม + สถานะบิล
+//  ดึงข้อมูลงานซ่อม + สถานะบิล
 $sql = "SELECT 
             r.*,
             c.firstname_th AS cus_fname, c.lastname_th AS cus_lname, c.cs_phone_no, c.cs_email,
@@ -29,7 +29,7 @@ $sql = "SELECT
             p.prod_name, p.model_name,
             b.brand_name_th,
             t.type_name_th,
-            bh.bill_status, bh.bill_id -- [เพิ่ม] ดึงสถานะบิล
+            bh.bill_status, bh.bill_id 
         FROM repairs r
         LEFT JOIN customers c ON r.customers_cs_id = c.cs_id
         LEFT JOIN employees emp_recv ON r.employees_emp_id = emp_recv.emp_id
@@ -38,7 +38,7 @@ $sql = "SELECT
         LEFT JOIN products p ON s.products_prod_id = p.prod_id
         LEFT JOIN prod_brands b ON p.prod_brands_brand_id = b.brand_id
         LEFT JOIN prod_types t ON p.prod_types_type_id = t.type_id
-        LEFT JOIN bill_headers bh ON r.bill_headers_bill_id = bh.bill_id -- [เพิ่ม] Join บิล
+        LEFT JOIN bill_headers bh ON r.bill_headers_bill_id = bh.bill_id 
         WHERE r.repair_id = '$repair_id'";
 
 $result = mysqli_query($conn, $sql);
@@ -50,9 +50,8 @@ if (!$data) {
     exit;
 }
 
-// 4. ตรวจสอบสถานะการล็อค (Lock Logic)
+//  ตรวจสอบสถานะการล็อค
 $is_locked = false;
-// ล็อคเมื่อสถานะเป็น 'ส่งมอบ' หรือ 'ยกเลิก'
 if (in_array($data['repair_status'], ['ส่งมอบ', 'ยกเลิก']) && !$can_edit_completed) {
     $is_locked = true;
 }
@@ -65,7 +64,7 @@ while ($row = mysqli_fetch_assoc($result_sym)) {
     $symptoms_arr[] = $row['symptom_name'];
 }
 
-// 6. ดึง Log
+//  ดึง Log
 $sql_log = "SELECT l.*, e.firstname_th FROM repair_status_log l LEFT JOIN employees e ON l.update_by_employee_id = e.emp_id WHERE l.repairs_repair_id = '$repair_id' ORDER BY l.update_at DESC";
 $result_log = mysqli_query($conn, $sql_log);
 
@@ -86,7 +85,7 @@ function getStatusColor($status)
         case 'ส่งมอบ':
             return 'dark';
         case 'ยกเลิก':
-            return 'secondary'; // สีเทาเข้มสำหรับยกเลิก
+            return 'secondary'; 
         default:
             return 'light text-dark border';
     }

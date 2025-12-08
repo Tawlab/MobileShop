@@ -1,15 +1,14 @@
 <?php
 session_start();
-// (Path จาก /repair/ ไปหา /config/)
 require '../config/config.php';
 checkPageAccess($conn, 'repair_list');
 
-// 1. SETTINGS (Pagination, Sort)
+// SETTINGS
 $limit = 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
 
-// 1.1. Sorting Logic
+// Sorting Logic
 $allowed_sorts = [
     'r.repair_id',
     'r.create_at',
@@ -22,7 +21,7 @@ $default_sort = 'r.create_at';
 $sort_by = isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sorts) ? $_GET['sort'] : $default_sort;
 $order = isset($_GET['order']) && strtolower($_GET['order']) == 'asc' ? 'ASC' : 'DESC';
 
-// 2. รับค่าตัวกรองและค้นหา (Filters)
+//  รับค่าตัวกรองและค้นหา 
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
 $filter_repair_id = isset($_GET['filter_repair_id']) ? mysqli_real_escape_string($conn, $_GET['filter_repair_id']) : '';
 $filter_status = isset($_GET['filter_status']) ? mysqli_real_escape_string($conn, $_GET['filter_status']) : '';
@@ -32,35 +31,35 @@ $filter_date_max = isset($_GET['filter_date_max']) ? mysqli_real_escape_string($
 $filter_customer_id = isset($_GET['filter_customer_id']) ? mysqli_real_escape_string($conn, $_GET['filter_customer_id']) : '';
 $filter_customer_name = isset($_GET['filter_customer_name']) ? htmlspecialchars($_GET['filter_customer_name']) : ''; // ใช้แสดงผลเท่านั้น
 
-// 3. BUILD WHERE CLAUSE (ตรรกะตัวกรอง)
+// BUILD WHERE CLAUSE 
 $where_conditions = [];
-$is_filtered = false; // สำหรับเปิด filter card ค้างไว้
+$is_filtered = false; 
 
-// 3.1. รหัสงาน
+//  รหัสงาน
 if (!empty($filter_repair_id)) {
     $where_conditions[] = "r.repair_id = '$filter_repair_id'";
     $is_filtered = true;
 }
 
-// 3.2. สถานะ
+// สถานะ
 if (!empty($filter_status)) {
     $where_conditions[] = "r.repair_status = '$filter_status'";
     $is_filtered = true;
 }
 
-// 3.3. พนักงาน
+// พนักงาน
 if (!empty($filter_employee)) {
     $where_conditions[] = "r.employees_emp_id = '$filter_employee'";
     $is_filtered = true;
 }
 
-// 3.4. ลูกค้า
+// ลูกค้า
 if (!empty($filter_customer_id)) {
     $where_conditions[] = "r.customers_cs_id = '$filter_customer_id'";
     $is_filtered = true;
 }
 
-// 3.5. วันที่รับ (Range)
+// วันที่รับ
 if (!empty($filter_date_min)) {
     $where_conditions[] = "r.create_at >= '$filter_date_min 00:00:00'";
     $is_filtered = true;
@@ -70,7 +69,7 @@ if (!empty($filter_date_max)) {
     $is_filtered = true;
 }
 
-// 3.6. Search Text (รวมกับเงื่อนไขอื่นๆ)
+// Search Text
 if (!empty($search)) {
     $where_conditions[] = "(
         r.repair_id LIKE '%$search%' OR 
@@ -85,7 +84,7 @@ if (!empty($search)) {
 
 $where_clause = empty($where_conditions) ? '' : 'WHERE ' . implode(' AND ', $where_conditions);
 
-// 4. SQL QUERY (หลัก - ดึงข้อมูลตามคอลัมน์ที่ตกลงกัน)
+// ดึงข้อมูลตามคอลัมน์
 $main_sql = "SELECT 
                 r.repair_id, 
                 r.repair_status,
@@ -105,14 +104,13 @@ $main_sql = "SELECT
             $where_clause
             ORDER BY $sort_by $order";
 
-// 5. FETCH Dropdown & Count
-// 5.1. พนักงาน
+// พนักงาน
 $employees_filter_result = mysqli_query($conn, "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE emp_status = 'Active' ORDER BY firstname_th");
 
-// 5.2. สถานะ
+// สถานะ
 $status_options = ['รับเครื่อง', 'ประเมิน', 'รออะไหล่', 'กำลังซ่อม', 'ซ่อมเสร็จ', 'ส่งมอบ', 'ยกเลิก'];
 
-// 5.3. COUNT TOTAL & FETCH DATA
+// COUNT TOTAL & FETCH DATA
 $count_result = mysqli_query($conn, "SELECT COUNT(*) as total FROM ($main_sql) as count_table");
 $total_records = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_records / $limit);
@@ -120,7 +118,7 @@ $total_pages = ceil($total_records / $limit);
 $data_sql = $main_sql . " LIMIT $limit OFFSET $offset";
 $result = mysqli_query($conn, $data_sql);
 
-// 6. HELPER FUNCTION
+// HELPER FUNCTION
 function build_query_string($exclude = [])
 {
     $params = $_GET;
@@ -130,7 +128,7 @@ function build_query_string($exclude = [])
     return !empty($params) ? '&' . http_build_query($params) : '';
 }
 
-// 7. Sorting Helper
+// Sorting Helper
 function get_sort_link($column, $current_sort, $current_order)
 {
     $new_order = ($current_sort == $column && $current_order == 'ASC') ? 'DESC' : 'ASC';
@@ -529,7 +527,7 @@ function get_sort_link($column, $current_sort, $current_order)
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- Customer Filter Logic (AJAX) ---
+        // --- Customer Filter Logic  ---
         document.getElementById('customer_filter_display').addEventListener('input', function() {
             const query = this.value.trim();
             const resultsDiv = document.getElementById('customer_filter_results');
@@ -540,7 +538,7 @@ function get_sort_link($column, $current_sort, $current_order)
                 return;
             }
 
-            // (ใช้ AJAX handler ของ add_repair.php สำหรับค้นหาลูกค้า)
+            // สำหรับค้นหาลูกค้า
             fetch('add_repair.php', {
                     method: 'POST',
                     headers: {
@@ -562,10 +560,9 @@ function get_sort_link($column, $current_sort, $current_order)
                         `;
                             item.onclick = (e) => {
                                 e.preventDefault();
-                                // (เลือก ID และชื่อไปใส่ในช่อง Hidden และ Display)
                                 document.getElementById('customer_filter_id').value = customer.cs_id;
                                 document.getElementById('customer_filter_display').value = `${customer.firstname_th} ${customer.lastname_th} (${customer.cs_phone_no})`;
-                                resultsDiv.innerHTML = ''; // ปิดผลลัพธ์
+                                resultsDiv.innerHTML = ''; 
                             };
                             resultsDiv.appendChild(item);
                         });
@@ -576,14 +573,12 @@ function get_sort_link($column, $current_sort, $current_order)
                 });
         });
 
-        // (ล้างค่าเมื่อผู้ใช้ล้างช่อง)
+        // ล้างค่าเมื่อผู้ใช้ล้างช่อง
         document.getElementById('customer_filter_display').addEventListener('focusout', function() {
-            // (ซ่อนผลลัพธ์หลังจาก Focus Out เล็กน้อย)
             setTimeout(() => {
                 document.getElementById('customer_filter_results').innerHTML = '';
             }, 300);
 
-            // ถ้าลบข้อความทิ้ง แต่ไม่มี ID เก่าติดอยู่ ให้ล้าง ID
             if (this.value.trim() === '') {
                 document.getElementById('customer_filter_id').value = '';
             }
@@ -601,7 +596,7 @@ function get_sort_link($column, $current_sort, $current_order)
             }
         });
 
-        // (ถ้ามี filter ค้างอยู่ ให้เปลี่ยนปุ่มเป็นสีที่โดดเด่น)
+        // ถ้ามี filter ค้างอยู่ ให้เปลี่ยนปุ่มเป็นสีที่โดดเด่น
         document.addEventListener('DOMContentLoaded', function() {
             const isFilterActive = <?= $is_filtered ? 'true' : 'false' ?>;
             const toggleBtn = document.getElementById('toggleFilter');

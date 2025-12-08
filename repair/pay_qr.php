@@ -3,15 +3,14 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'pay_qr');
 
-// 1. ตรวจสอบ ID บิล
+// ตรวจสอบ ID บิล
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo "ไม่พบรหัสบิล";
     exit;
 }
 $bill_id = (int)$_GET['id'];
 
-// 2. ดึงข้อมูลบิลและยอดเงินรวม
-// (ดึง bill_type เพื่อเช็คว่าเป็นงานซ่อมหรือไม่)
+// ดึงข้อมูลบิลและยอดเงินรวม
 $sql = "SELECT bh.*, 
         (SELECT SUM(price * amount) FROM bill_details WHERE bill_headers_bill_id = bh.bill_id) as subtotal 
         FROM bill_headers bh WHERE bh.bill_id = ?";
@@ -22,7 +21,7 @@ $bill = $stmt->get_result()->fetch_assoc();
 
 if (!$bill) die("ไม่พบข้อมูลบิล");
 
-// 3. คำนวณยอดสุทธิ (Grand Total)
+// คำนวณยอดสุทธิ 
 $subtotal = $bill['subtotal'] ?? 0;
 $vat_amount = $subtotal * ($bill['vat'] / 100);
 $grand_total = $subtotal + $vat_amount - $bill['discount'];
@@ -32,23 +31,28 @@ if ($grand_total < 0) $grand_total = 0;
 $shop_sql = "SELECT promptpay_number, shop_name FROM shop_info LIMIT 1";
 $shop_res = mysqli_query($conn, $shop_sql);
 $shop_info = mysqli_fetch_assoc($shop_res);
-$promptpay_id = $shop_info['promptpay_number'] ?? ''; 
+$promptpay_id = $shop_info['promptpay_number'] ?? '';
 
 // =============================================================================
-// PROMPTPAY GENERATOR FUNCTIONS (EMVCo Standard)
+// PROMPTPAY GENERATOR FUNCTIONS
 // =============================================================================
 function generatePromptPayPayload($target, $amount)
 {
     $target = sanitizeTarget($target);
     $amount = number_format($amount, 2, '.', '');
     $data = ["000201", "010212"];
-    $merchantInfo = "0016A000000677010111"; 
-    if (strlen($target) >= 13) { $merchantInfo .= "0213" . $target; } 
-    else { $merchantInfo .= "011300" . $target; }
+    $merchantInfo = "0016A000000677010111";
+    if (strlen($target) >= 13) {
+        $merchantInfo .= "0213" . $target;
+    } else {
+        $merchantInfo .= "011300" . $target;
+    }
     $data[] = "29" . sprintf("%02d", strlen($merchantInfo)) . $merchantInfo;
     $data[] = "5802TH";
     $data[] = "5303764";
-    if ($amount > 0) { $data[] = "54" . sprintf("%02d", strlen($amount)) . $amount; }
+    if ($amount > 0) {
+        $data[] = "54" . sprintf("%02d", strlen($amount)) . $amount;
+    }
     $raw = implode('', $data) . "6304";
     $crc = crc16($raw);
     return $raw . $crc;
@@ -56,7 +60,7 @@ function generatePromptPayPayload($target, $amount)
 
 function sanitizeTarget($number)
 {
-    $number = preg_replace('/[^0-9]/', '', $number); 
+    $number = preg_replace('/[^0-9]/', '', $number);
     if (strlen($number) == 10 && substr($number, 0, 1) == '0') {
         $number = '66' . substr($number, 1);
     }
@@ -81,11 +85,11 @@ if (!empty($promptpay_id) && $grand_total > 0) {
 }
 // =============================================================================
 
-// 5. Handle การยืนยันการโอนเงิน (POST)
+//  Handle การยืนยันการโอนเงิน (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
     $today = date('Y-m-d H:i:s');
 
-    // 5.1 อัปเดตสถานะบิล -> Completed
+    //  อัปเดตสถานะบิล -> Completed
     $update_sql = "UPDATE bill_headers 
                    SET bill_status = 'Completed', 
                        receipt_date = ?, 
@@ -96,24 +100,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
     $stmt->bind_param('si', $today, $bill_id);
     $stmt->execute();
 
-    // 5.2 ตรวจสอบประเภทบิลเพื่อจัดการสต็อกและสถานะงานซ่อม
+    //  ตรวจสอบประเภทบิลเพื่อจัดการสต็อกและสถานะงานซ่อม
     if ($bill['bill_type'] === 'Repair') {
         // หาข้อมูลงานซ่อมที่ผูกกับบิลนี้
         $r_res = mysqli_query($conn, "SELECT repair_id, prod_stocks_stock_id FROM repairs WHERE bill_headers_bill_id = $bill_id LIMIT 1");
-        
+
         if ($r_row = mysqli_fetch_assoc($r_res)) {
             $repair_id = $r_row['repair_id'];
             $stock_id = $r_row['prod_stocks_stock_id'];
 
-            // A. เปลี่ยนสถานะงานซ่อมเป็น 'ส่งมอบ'
+            // เปลี่ยนสถานะงานซ่อมเป็น 'ส่งมอบ'
             $conn->query("UPDATE repairs SET repair_status = 'ส่งมอบ', update_at = NOW() WHERE repair_id = $repair_id");
 
-            // B. บันทึก Log การเปลี่ยนสถานะ
+            // บันทึก Log การเปลี่ยนสถานะ
             $emp_id = $_SESSION['emp_id'] ?? 1;
             $conn->query("INSERT INTO repair_status_log (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
                           VALUES ($repair_id, 'ซ่อมเสร็จ', 'ส่งมอบ', $emp_id, 'ชำระเงินผ่าน QR และส่งมอบอัตโนมัติ', NOW())");
 
-            // C. ตัดสต็อกเครื่องซ่อมออก (Movement: OUT)
+            // ตัดสต็อกเครื่องซ่อมออก (Movement: OUT)
             if ($stock_id > 0) {
                 // เปลี่ยนสถานะสต็อกเป็น Sold
                 $conn->query("UPDATE prod_stocks SET stock_status = 'Sold', update_at = NOW() WHERE stock_id = $stock_id");
@@ -122,7 +126,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
                 $sql_move_id = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
                 $move_res = mysqli_query($conn, $sql_move_id);
                 $move_id = mysqli_fetch_assoc($move_res)['next_id'];
-                
+
                 // บันทึก Movement
                 $move_sql = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) 
                              VALUES ($move_id, 'OUT', 'repairs_return', $repair_id, NOW(), $stock_id)";
@@ -155,11 +159,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body { background: #f0f2f5; }
-        .qr-container { max-width: 500px; margin: 50px auto; background: white; padding: 40px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); text-align: center; }
-        .amount-text { font-size: 2.5rem; color: #198754; font-weight: bold; margin: 15px 0; }
-        .qr-image { max-width: 300px; border: 1px solid #eee; border-radius: 10px; margin-bottom: 20px; }
-        .pp-id { font-size: 1.1rem; color: #555; background: #f8f9fa; padding: 10px; border-radius: 8px; display: inline-block; }
+        body {
+            background: #f0f2f5;
+        }
+
+        .qr-container {
+            max-width: 500px;
+            margin: 50px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .amount-text {
+            font-size: 2.5rem;
+            color: #198754;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .qr-image {
+            max-width: 300px;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .pp-id {
+            font-size: 1.1rem;
+            color: #555;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
+        }
     </style>
 </head>
 
@@ -208,4 +243,5 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
     </div>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
+
 </html>
