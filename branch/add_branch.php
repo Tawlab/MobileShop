@@ -107,12 +107,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>เพิ่มข้อมูลสาขา</title>
+<<<<<<< HEAD
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php include '../config/load_theme.php'; ?>
     <style>
+<<<<<<< HEAD
         /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
         *, *::before, *::after {
             box-sizing: border-box; 
@@ -125,6 +129,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding: 15px; 
         }
 
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         h5 {
             margin-top: 20px;
             padding-bottom: 10px;
@@ -144,11 +150,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         table {
             width: 100%;
             border-collapse: separate;
+<<<<<<< HEAD
             border-spacing: 0 10px; /* สำหรับ Desktop */
         }
 
         .label-col {
             width: 150px; /* สำหรับ Desktop */
+=======
+            border-spacing: 0 10px;
+        }
+
+        .label-col {
+            width: 150px;
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
             font-weight: 500;
             vertical-align: top;
             padding-top: 10px;
@@ -180,6 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             content: " *";
             color: red;
         }
+<<<<<<< HEAD
         
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
@@ -232,6 +247,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 
 
+=======
+    </style>
+</head>
+
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>

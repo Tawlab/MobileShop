@@ -12,16 +12,23 @@ $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
 <head>
     <meta charset="UTF-8">
     <title>จัดการคำนำหน้า</title>
+<<<<<<< HEAD
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+=======
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
 
     <?php
+<<<<<<< HEAD
     // (3) โหลดธีมจาก System Config
     // สมมติว่าไฟล์ load_theme.php อยู่ใน ../config/
     // ไฟล์นี้จะ output <link> และ <style> ที่จำเป็นทั้งหมด
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     require '../config/load_theme.php';
     ?>
 
@@ -35,6 +42,7 @@ $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
             vertical-align: middle;
             text-align: center;
         }
+<<<<<<< HEAD
 
         /* .status-icon และ .inactive ถูกกำหนดใน load_theme.php แล้ว */
 
@@ -65,6 +73,9 @@ $result = $conn->query("SELECT * FROM prefixs ORDER BY prefix_id ASC");
                 align-items: center;
             }
         }
+=======
+        
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     </style>
 </head>
 

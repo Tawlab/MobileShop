@@ -223,8 +223,13 @@ mysqli_data_seek($products_result, 0);
 
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <title>แก้ไขใบสั่งซื้อ (PO #<?= $po_id ?>)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+=======
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>แก้ไขใบสั่งซื้อ (PO #<?= $po_id ?>)</title>
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
@@ -295,6 +300,7 @@ mysqli_data_seek($products_result, 0);
         .table td {
             vertical-align: middle;
         }
+<<<<<<< HEAD
         
         /* **[เพิ่ม]** จัดการปุ่ม Action ในตาราง */
         .table td:last-child {
@@ -304,6 +310,8 @@ mysqli_data_seek($products_result, 0);
             align-items: center;
             flex-wrap: nowrap;
         }
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 
         .item-row.locked {
             background-color: #f8f9fa;
@@ -315,6 +323,7 @@ mysqli_data_seek($products_result, 0);
         .item-row.locked .btn-remove-item {
             pointer-events: none;
         }
+<<<<<<< HEAD
 
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
@@ -372,6 +381,8 @@ mysqli_data_seek($products_result, 0);
                 margin-bottom: 10px;
             }
         }
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     </style>
 </head>
 

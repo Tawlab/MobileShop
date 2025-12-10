@@ -80,8 +80,13 @@ function build_query_string($exclude = [])
 
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <title>รายการใบสั่งซื้อ/รับเข้า</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+=======
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายการใบสั่งซื้อ/รับเข้า</title>
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
@@ -123,6 +128,7 @@ function build_query_string($exclude = [])
             font-size: 0.9rem;
         }
 
+<<<<<<< HEAD
         /* **[เพิ่ม]** จัดการคอลัมน์ Action ในตาราง */
         .table td:last-child {
             display: flex;
@@ -133,6 +139,8 @@ function build_query_string($exclude = [])
         }
 
         /* ... โค้ดปุ่มและ Form Control เดิม ... */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .btn-add {
             background-color: <?= $btn_add_color ?>;
             border-color: <?= $btn_add_color ?>;
@@ -226,6 +234,7 @@ function build_query_string($exclude = [])
             color: #721c24;
             text-decoration: line-through;
         }
+<<<<<<< HEAD
 
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
@@ -272,6 +281,8 @@ function build_query_string($exclude = [])
                 padding: 3px 6px;
             }
         }
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     </style>
 </head>
 

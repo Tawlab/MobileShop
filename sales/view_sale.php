@@ -98,7 +98,10 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
 
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <title>ใบเสร็จรับเงิน #<?= $bill_id ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
@@ -114,7 +117,11 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
             color: #333;
         }
 
+<<<<<<< HEAD
         /* Screen View (Desktop/Tablet) */
+=======
+        /* Screen View */
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .card-bill {
             max-width: 850px;
             margin: 40px auto;
@@ -133,6 +140,7 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
         .table th {
             background-color: #f8f9fa !important;
         }
+<<<<<<< HEAD
         
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
@@ -164,6 +172,10 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
 
 
         /* Print View (A4) - ไม่มีการแก้ไขเพื่อคง Layout การพิมพ์ไว้ */
+=======
+
+        /* Print View (A4) */
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         @media print {
             @page {
                 size: A4;
@@ -227,6 +239,10 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
         }
     </style>
 </head>
+<<<<<<< HEAD
+=======
+
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>

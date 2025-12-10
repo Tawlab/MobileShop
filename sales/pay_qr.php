@@ -114,12 +114,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
 
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <title>เลือกช่องทางชำระเงิน</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+=======
+    <title>ชำระเงินผ่าน QR Code</title>
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <?php require '../config/load_theme.php'; ?>
     <style>
+<<<<<<< HEAD
         /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
         *, *::before, *::after {
             box-sizing: border-box; 
@@ -234,6 +239,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
         }
     </style>
 </head>
+=======
+        body {
+            background: #f0f2f5;
+        }
+
+        .qr-container {
+            max-width: 500px;
+            margin: 50px auto;
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .amount-text {
+            font-size: 2.5rem;
+            color: #198754;
+            font-weight: bold;
+            margin: 15px 0;
+        }
+
+        .qr-image {
+            max-width: 300px;
+            border: 1px solid #eee;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .pp-id {
+            font-size: 1.1rem;
+            color: #555;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+    </style>
+</head>
+
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>

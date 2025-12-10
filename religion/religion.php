@@ -10,6 +10,7 @@ $result = mysqli_query($conn, $sql);
 <html lang="th">
 
 <head>
+<<<<<<< HEAD
     <meta charset="UTF-8">
     <title>จัดการศาสนา</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -61,6 +62,28 @@ $result = mysqli_query($conn, $sql);
             }
         }
     </style>
+=======
+  <meta charset="UTF-8">
+  <title>จัดการศาสนา</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <?php
+  require '../config/load_theme.php';
+  ?>
+
+  <style>
+    .container {
+      max-width: 900px;
+    }
+
+    th,
+    td {
+      vertical-align: middle;
+      text-align: center;
+    }
+  </style>
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 </head>
 
 <body>

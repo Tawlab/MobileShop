@@ -240,8 +240,13 @@ function build_query_string($exclude = [])
 
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <title>รายการสินค้าในสต็อก - ระบบจัดการร้านค้ามือถือ</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+=======
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายการสินค้าในสต็อก - ระบบจัดการร้านค้ามือถือ</title>
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
@@ -252,10 +257,16 @@ function build_query_string($exclude = [])
             font-family: '<?= $font_style ?>', sans-serif;
             min-height: 100vh;
         }
+<<<<<<< HEAD
         /* ... โค้ด .main-header และ .filter-card เดิม ... */
         .main-header {
             background-color: <?= $theme_color ?>;
             /* (ใช้สีธีม) */
+=======
+
+        .main-header {
+            background-color: <?= $theme_color ?>;
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
             color: white;
             padding: 2rem 0;
             margin-bottom: 2rem;
@@ -299,9 +310,13 @@ function build_query_string($exclude = [])
 
         .table th {
             background-color: <?= $header_bg_color ?>;
+<<<<<<< HEAD
             /* (ใช้สีธีม) */
             color: <?= $header_text_color ?>;
             /* (ใช้สีธีม) */
+=======
+            color: <?= $header_text_color ?>;
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
             font-weight: 600;
             border: 1px solid <?= $header_bg_color ?>;
             padding: 0.6rem 0.8rem;
@@ -317,6 +332,7 @@ function build_query_string($exclude = [])
             background-color: white;
             font-size: 0.85rem;
         }
+<<<<<<< HEAD
         
         /* **[เพิ่ม]** จัดการปุ่ม Action ในตาราง */
         .table td:last-child {
@@ -329,6 +345,11 @@ function build_query_string($exclude = [])
         .btn-add {
             background-color: <?= $btn_add_color ?>;
             /* (ใช้สีธีม) */
+=======
+
+        .btn-add {
+            background-color: <?= $btn_add_color ?>;
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
             border: none;
             border-radius: 10px;
             color: white;
@@ -362,11 +383,17 @@ function build_query_string($exclude = [])
         .form-control:focus,
         .form-select:focus {
             border-color: <?= $theme_color ?>;
+<<<<<<< HEAD
             /* (ใช้สีธีม) */
             box-shadow: 0 0 0 0.2rem rgba(<?= hexdec(substr($theme_color, 1, 2)) ?>, <?= hexdec(substr($theme_color, 3, 2)) ?>, <?= hexdec(substr($theme_color, 5, 2)) ?>, 0.25);
         }
 
         /* ... โค้ดสถานะและอื่นๆ เดิม ... */
+=======
+            box-shadow: 0 0 0 0.2rem rgba(<?= hexdec(substr($theme_color, 1, 2)) ?>, <?= hexdec(substr($theme_color, 3, 2)) ?>, <?= hexdec(substr($theme_color, 5, 2)) ?>, 0.25);
+        }
+
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .alert {
             border-radius: 10px;
             border: none;
@@ -374,7 +401,10 @@ function build_query_string($exclude = [])
 
         .badge-price {
             background-color: <?= $theme_color ?>;
+<<<<<<< HEAD
             /* (ใช้สีธีม) */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
             color: white;
             font-size: 0.9rem;
         }
@@ -396,7 +426,11 @@ function build_query_string($exclude = [])
             color: #6c757d;
         }
 
+<<<<<<< HEAD
         /* (13) *** CSS สถานะ (แก้ไข) *** */
+=======
+        /*  CSS สถานะ  *** */
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .status-badge {
             padding: 4px 8px;
             border-radius: 15px;
@@ -409,33 +443,48 @@ function build_query_string($exclude = [])
             color: #0f5132;
         }
 
+<<<<<<< HEAD
         /* เขียว */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .status-sold {
             background-color: #f8d7da;
             color: #721c24;
         }
 
+<<<<<<< HEAD
         /* แดง */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .status-damage {
             background-color: #fff3cd;
             color: #856404;
         }
 
+<<<<<<< HEAD
         /* เหลือง */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .status-reserved {
             background-color: #d1edff;
             color: #0c63e4;
         }
 
+<<<<<<< HEAD
         /* ฟ้า */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .status-repair {
             background-color: #e2d9f3;
             color: #49287f;
         }
 
+<<<<<<< HEAD
         /* ม่วง */
 
         /* (*** FIXED 2.1: CSS สำหรับเหตุผล) *** */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .entry-type-badge {
             background-color: #e9ecef;
             color: #495057;
@@ -506,6 +555,7 @@ function build_query_string($exclude = [])
             background-color: <?= $theme_color ?>;
             border-color: <?= $theme_color ?>;
         }
+<<<<<<< HEAD
 
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
@@ -544,6 +594,11 @@ function build_query_string($exclude = [])
         }
     </style>
 </head>
+=======
+    </style>
+</head>
+
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>

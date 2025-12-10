@@ -145,8 +145,13 @@ function get_sort_link($column, $current_sort, $current_order)
 
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <title>รายการงานซ่อม (Repair Dashboard)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+=======
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รายการงานซ่อม (Repair Dashboard)</title>
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
@@ -180,6 +185,7 @@ function get_sort_link($column, $current_sort, $current_order)
             font-size: 0.85rem;
         }
 
+<<<<<<< HEAD
         /* **[เพิ่ม]** จัดการคอลัมน์ Action ในตาราง */
         .table td:last-child {
             display: flex;
@@ -189,6 +195,8 @@ function get_sort_link($column, $current_sort, $current_order)
             flex-wrap: nowrap;
         }
 
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .btn-add {
             background-color: <?= $btn_add_color ?>;
             color: white;
@@ -212,7 +220,10 @@ function get_sort_link($column, $current_sort, $current_order)
             font-weight: 600;
         }
 
+<<<<<<< HEAD
         /* ... โค้ดสถานะเดิม ... */
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .status-รับเครื่อง {
             background-color: #d1edff;
             color: #0c63e4;
@@ -290,6 +301,7 @@ function get_sort_link($column, $current_sort, $current_order)
             right: 0;
             padding: 0.6rem 0.8rem;
         }
+<<<<<<< HEAD
         
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
@@ -335,6 +347,11 @@ function get_sort_link($column, $current_sort, $current_order)
 </head>
 
 
+=======
+    </style>
+</head>
+
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>

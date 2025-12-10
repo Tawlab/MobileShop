@@ -127,8 +127,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <head>
     <meta charset="UTF-8">
+<<<<<<< HEAD
     <title>สร้างใบรับเข้าสินค้า (PO)</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+=======
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>สร้างใบรับเข้าสินค้า (PO)</title>
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
@@ -174,6 +179,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 0.9rem;
         }
 
+<<<<<<< HEAD
         /* **[เพิ่ม]** จัดการปุ่ม Action ในตาราง */
         .table td:last-child {
             display: flex;
@@ -183,6 +189,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             flex-wrap: nowrap;
         }
 
+=======
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .btn-success {
             background-color: <?= $btn_add_color ?>;
             border-color: <?= $btn_add_color ?>;
@@ -217,7 +225,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: red;
         }
 
+<<<<<<< HEAD
         /* (CSS สำหรับแถวสินค้าที่ถูกลบ) */
+=======
+        /* สำหรับแถวสินค้าที่ถูกลบ */
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         .product-row-removed {
             opacity: 0.5;
             background-color: #f8d7da;
@@ -227,6 +239,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .product-row-removed .form-select {
             background-color: #f1f1f1;
         }
+<<<<<<< HEAD
 
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
@@ -273,6 +286,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 
 
+=======
+    </style>
+</head>
+
+>>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
