@@ -192,22 +192,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
     <?php include '../config/load_theme.php'; ?>
-<<<<<<< HEAD
 <style>
-=======
-    <style>
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         h5 {
             margin-top: 20px;
             padding-bottom: 10px;
             border-bottom: 2px solid <?= $theme_color ?>;
             font-weight: 600;
             color: <?= $theme_color ?>;
-<<<<<<< HEAD
             /* **[แก้ไข]** เพิ่ม Margin ด้านล่างเล็กน้อยสำหรับ Mobile */
             margin-bottom: 15px; 
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         }
 
         .form-section {
@@ -225,11 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .label-col {
-<<<<<<< HEAD
             width: 150px; /* สำหรับ Desktop */
-=======
-            width: 150px;
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
             font-weight: 500;
             vertical-align: top;
             padding-top: 10px;
@@ -261,7 +250,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             content: " *";
             color: red;
         }
-<<<<<<< HEAD
 
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
@@ -302,8 +290,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 margin-bottom: 5px; /* จัดให้ error ใกล้กับ Input */
             }
         }
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     </style>
 </head>
 

@@ -177,34 +177,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
 <head>
     <meta charset="UTF-8">
-<<<<<<< HEAD
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-=======
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <title><?= $page_title ?> - ระบบจัดการร้านค้ามือถือ</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
 
     <?php require '../config/load_theme.php'; ?>
     <style>
-<<<<<<< HEAD
         /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
         *, *::before, *::after {
             box-sizing: border-box; 
         }
         
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         body {
             background-color: <?= $background_color ?>;
             font-family: '<?= $font_style ?>', sans-serif;
             color: <?= $text_color ?>;
-<<<<<<< HEAD
             margin: 0; 
             overflow-x: hidden; 
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         }
 
         .container {
@@ -234,11 +224,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             font-size: 14px;
             padding: 8px 12px;
             border-radius: 6px;
-<<<<<<< HEAD
             /* **[แก้ไข]** กำหนดความกว้างสูงสุด 100% ของพื้นที่ Parent */
             max-width: 100%;
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         }
 
         .form-control[readonly] {
@@ -314,7 +301,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             padding-top: 8px;
             color: #444;
         }
-<<<<<<< HEAD
         
         /* -------------------------------------------------------------------- */
         /* --- Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
@@ -394,8 +380,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 margin-bottom: 10px;
             }
         }
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     </style>
 </head>
 

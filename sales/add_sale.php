@@ -202,17 +202,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-<<<<<<< HEAD
     <title>เปิดบิลขายสินค้า</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-=======
-    <title><?= $edit_mode ? 'แก้ไขบิลขาย' : 'เปิดบิลขายสินค้า' ?></title>
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-<<<<<<< HEAD
         body {
             background: <?= $background_color ?>;
             font-family: '<?= $font_style ?>', sans-serif;
@@ -281,13 +276,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
     </style>
 </head>
 
-=======
-        body { background: <?= $background_color ?>; font-family: '<?= $font_style ?>', sans-serif; color: <?= $text_color ?>; }
-        .container-box { background: #fff; padding: 30px; border-radius: 15px; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08); margin-top: 30px; }
-        .header-text { color: <?= $theme_color ?>; font-weight: bold; }
-    </style>
-</head>
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>

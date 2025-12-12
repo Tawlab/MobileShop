@@ -34,7 +34,6 @@ if (isset($_GET['success']) && $_GET['success'] == '1') {
 <html lang="th">
 
 <head>
-<<<<<<< HEAD
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>จัดการจังหวัด</title>
@@ -114,49 +113,6 @@ if (isset($_GET['success']) && $_GET['success'] == '1') {
             }
         }
     </style>
-=======
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>จัดการจังหวัด</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-  <?php require '../config/load_theme.php'; ?>
-  <style>
-    body {
-      background-color: #f4f7f6;
-    }
-
-    .card {
-      border: none;
-      border-radius: 12px;
-    }
-
-    .table thead th {
-      background-color: #e6f7ee;
-      color: #004d40;
-      border-bottom-width: 0;
-    }
-
-    .table-hover tbody tr:hover {
-      background-color: #f0fff4;
-    }
-
-    .btn-success {
-      background-color: #28a745;
-      border-color: #28a745;
-    }
-
-    .btn-success:hover {
-      background-color: #218838;
-      border-color: #1e7e34;
-    }
-
-    .modal-header .text-danger {
-      color: #dc3545 !important;
-    }
-  </style>
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 </head>
 
 <body>

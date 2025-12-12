@@ -98,10 +98,7 @@ function getStatusColor($status)
 <head>
     <meta charset="UTF-8">
     <title>Job Order #<?= $repair_id ?></title>
-<<<<<<< HEAD
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
@@ -111,23 +108,17 @@ function getStatusColor($status)
             --theme-color: <?= $theme_color ?>;
             --bg-color: <?= $background_color ?>;
         }
-<<<<<<< HEAD
         
         /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
         *, *::before, *::after {
             box-sizing: border-box; 
         }
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 
         body {
             background-color: var(--bg-color);
             color: #333;
-<<<<<<< HEAD
             margin: 0; 
             overflow-x: hidden; 
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         }
 
         .card-custom {
@@ -182,7 +173,6 @@ function getStatusColor($status)
             box-shadow: 0 0 0 2px #e9ecef;
         }
 
-<<<<<<< HEAD
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
         /* -------------------------------------------------------------------- */
@@ -253,10 +243,6 @@ function getStatusColor($status)
         /* --- PRINT CSS (A4 Standard) --- */
         @media print {
             /* ... โค้ด Print เดิม ... */
-=======
-        /* --- PRINT CSS (A4 Standard) --- */
-        @media print {
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
             @page {
                 size: A4;
                 margin: 10mm;
@@ -396,10 +382,7 @@ function getStatusColor($status)
     </style>
 </head>
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>

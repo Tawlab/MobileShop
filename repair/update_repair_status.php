@@ -219,7 +219,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <head>
     <meta charset="UTF-8">
-<<<<<<< HEAD
     <title>Job Order #<?= $repair_id ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -501,31 +500,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .print-only {
                 display: block;
             }
-=======
-    <title>อัปเดตสถานะ - Job #<?= $repair_id ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <?php require '../config/load_theme.php'; ?>
-    <style>
-        body {
-            background-color: <?= $background_color ?>;
-            font-family: '<?= $font_style ?>';
-        }
-
-        .card-custom {
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
-            border: none;
-            background: #fff;
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
         }
     </style>
 </head>
 
-<<<<<<< HEAD
 
-=======
->>>>>>> 87d2bdcaa5a9158c74359bf647e536fa344f68ca
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
