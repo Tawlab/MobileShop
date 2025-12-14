@@ -6,6 +6,9 @@ require '../config/config.php';
 checkPageAccess($conn, 'product');
 require '../config/load_theme.php';
 
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 // การค้นหาและกรองข้อมูล
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $brand_filter = isset($_GET['brand']) ? mysqli_real_escape_string($conn, $_GET['brand']) : '';
@@ -20,8 +23,12 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-//  สร้าง WHERE clause
+// สร้าง WHERE clause
 $where_conditions = [];
+
+// [แก้ไข 2] บังคับกรองเฉพาะสินค้าของร้านตัวเองเสมอ
+$where_conditions[] = "p.shop_info_shop_id = '$shop_id'";
+
 if (!empty($search)) {
     $where_conditions[] = "(p.prod_id LIKE '%$search%' OR p.prod_name LIKE '%$search%' OR p.model_name LIKE '%$search%' OR p.model_no LIKE '%$search%')";
 }
@@ -46,7 +53,7 @@ $count_result = mysqli_query($conn, $count_sql);
 $total_products = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_products / $items_per_page);
 
-//  สำหรับดึงข้อมูลสินค้า
+// สำหรับดึงข้อมูลสินค้า
 $sql = "SELECT p.prod_id, p.prod_name, p.prod_desc, p.model_name, p.model_no, p.prod_price, 
                pb.brand_name_th as brand_name, pt.type_name_th as type_name 
         FROM products p 
@@ -58,11 +65,11 @@ $sql = "SELECT p.prod_id, p.prod_name, p.prod_desc, p.model_name, p.model_no, p.
 
 $result = mysqli_query($conn, $sql);
 
-// ดึงข้อมูลสำหรับ dropdown filter
-$brands_sql = "SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th";
+// [แก้ไข 3] ดึงข้อมูลสำหรับ dropdown filter (เฉพาะของร้านนี้)
+$brands_sql = "SELECT brand_id, brand_name_th FROM prod_brands WHERE shop_info_shop_id = '$shop_id' ORDER BY brand_name_th";
 $brands_result = mysqli_query($conn, $brands_sql);
 
-$types_sql = "SELECT type_id, type_name_th FROM prod_types ORDER BY type_name_th";
+$types_sql = "SELECT type_id, type_name_th FROM prod_types WHERE shop_info_shop_id = '$shop_id' ORDER BY type_name_th";
 $types_result = mysqli_query($conn, $types_sql);
 
 function build_query_string($exclude = [])

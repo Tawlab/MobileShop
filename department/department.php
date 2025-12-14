@@ -3,6 +3,9 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'department');
 
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 // ค่าเริ่มต้น
 $search_term = '';
 $sort_column = 'dept_id';
@@ -27,9 +30,18 @@ if (isset($_GET['page'])) {
 }
 $offset = ($page - 1) * $limit;
 
-$sql_where = "";
+// [แก้ไข 2] ตั้งค่า WHERE หลักให้กรอง Shop ID เสมอ
+$sql_where = " WHERE shop_info_shop_id = ?";
+$types = "i"; // i = integer
+$params = [$shop_id];
+
 if (!empty($search_term)) {
-  $sql_where = " WHERE (dept_id LIKE ? OR dept_name LIKE ?)";
+  // เพิ่มเงื่อนไขค้นหาต่อท้าย
+  $sql_where .= " AND (dept_id LIKE ? OR dept_name LIKE ?)";
+  $search_like = "%{$search_term}%";
+  $types .= "ss"; // เพิ่ม string 2 ตัว
+  $params[] = $search_like;
+  $params[] = $search_like;
 }
 
 $sql_order = " ORDER BY $sort_column $sort_order";
@@ -45,11 +57,9 @@ $sql_count = "SELECT COUNT(*) as total FROM departments $sql_where";
 $stmt_data = $conn->prepare($sql_data);
 $stmt_count = $conn->prepare($sql_count);
 
-if (!empty($search_term)) {
-  $search_like = "%{$search_term}%";
-  $stmt_data->bind_param("ss", $search_like, $search_like);
-  $stmt_count->bind_param("ss", $search_like, $search_like);
-}
+// Bind params แบบ Dynamic
+$stmt_data->bind_param($types, ...$params);
+$stmt_count->bind_param($types, ...$params);
 
 // Execute และดึงข้อมูล
 $stmt_data->execute();
@@ -58,8 +68,8 @@ $result = $stmt_data->get_result();
 $stmt_count->execute();
 $total_rows = $stmt_count->get_result()->fetch_assoc()['total'];
 $total_pages = ceil($total_rows / $limit);
-
 ?>
+
 <!DOCTYPE html>
 <html lang="th">
 

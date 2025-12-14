@@ -6,17 +6,58 @@ require '../config/config.php';
 checkPageAccess($conn, 'prodtype');
 require '../config/load_theme.php';
 
-// การจัดการการลบประเภท 
+// [1] รับค่า Shop ID และ User ID
+$shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
+
+// [2] ตรวจสอบสิทธิ์ "centralinf"
+$has_centralinf_permission = false;
+$check_perm_sql = "SELECT p.permission_id 
+                   FROM permissions p
+                   JOIN role_permissions rp ON p.permission_id = rp.permissions_permission_id
+                   JOIN user_roles ur ON rp.roles_role_id = ur.roles_role_id
+                   WHERE ur.users_user_id = ? 
+                   AND p.permission_name = 'centralinf' 
+                   LIMIT 1";
+
+if ($stmt_perm = mysqli_prepare($conn, $check_perm_sql)) {
+  mysqli_stmt_bind_param($stmt_perm, "i", $current_user_id);
+  mysqli_stmt_execute($stmt_perm);
+  mysqli_stmt_store_result($stmt_perm);
+  if (mysqli_stmt_num_rows($stmt_perm) > 0) {
+    $has_centralinf_permission = true;
+  }
+  mysqli_stmt_close($stmt_perm);
+}
+
+// [3] การจัดการการลบประเภท 
 if (isset($_GET['delete_id'])) {
-  $delete_id = $_GET['delete_id']; 
-  $delete_sql = "DELETE FROM prod_types WHERE type_id = ?";
+  $delete_id = $_GET['delete_id'];
+
+  // เตรียม SQL ตามสิทธิ์
+  if ($has_centralinf_permission) {
+    // มีสิทธิ์ centralinf -> ลบได้ทุกอย่าง
+    $delete_sql = "DELETE FROM prod_types WHERE type_id = ?";
+  } else {
+    // ไม่มีสิทธิ์ -> ลบได้เฉพาะของร้านตัวเอง
+    $delete_sql = "DELETE FROM prod_types WHERE type_id = ? AND shop_info_shop_id = ?";
+  }
 
   if ($stmt = mysqli_prepare($conn, $delete_sql)) {
-    mysqli_stmt_bind_param($stmt, "s", $delete_id);
-    if (mysqli_stmt_execute($stmt)) {
-      $_SESSION['success'] = "ลบประเภทสินค้าสำเร็จ";
+    if ($has_centralinf_permission) {
+      mysqli_stmt_bind_param($stmt, "s", $delete_id);
     } else {
-      // ตรวจจับ Foreign Key Error (ถ้าประเภทนี้ถูกใช้โดยสินค้า)
+      mysqli_stmt_bind_param($stmt, "si", $delete_id, $shop_id);
+    }
+
+    if (mysqli_stmt_execute($stmt)) {
+      if (mysqli_stmt_affected_rows($stmt) > 0) {
+        $_SESSION['success'] = "ลบประเภทสินค้าสำเร็จ";
+      } else {
+        $_SESSION['error'] = "คุณไม่สามารถลบประเภทสินค้านี้ได้ (อาจเป็นประเภทส่วนกลางหรือไม่มีสิทธิ์)";
+      }
+    } else {
+      // ตรวจจับ Foreign Key Error
       if (mysqli_errno($conn) == 1451) {
         $_SESSION['error'] = "ลบไม่สำเร็จ: ประเภทนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
       } else {
@@ -32,7 +73,7 @@ if (isset($_GET['delete_id'])) {
   exit();
 }
 
-//  การค้นหา 
+// การค้นหา 
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'type_id'; // default sort
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
@@ -42,21 +83,31 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-// สร้าง WHERE clause
-$where_clause = '';
+// สร้าง WHERE clause แบบ Hybrid
+$where_conditions = [];
+$where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
+
 if (!empty($search)) {
-  $where_clause = "WHERE type_name_th LIKE '%$search%' OR type_name_en LIKE '%$search%'";
+  $where_conditions[] = "(type_name_th LIKE '%$search%' OR type_name_en LIKE '%$search%')";
 }
 
-// นับจำนวนยี่ห้อทั้งหมด
+$where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+
+// นับจำนวน
 $count_sql = "SELECT COUNT(*) as total FROM prod_types $where_clause";
 $count_result = mysqli_query($conn, $count_sql);
 $total_types = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_types / $items_per_page);
-$sql = "SELECT type_id, type_name_th, type_name_en FROM prod_types $where_clause ORDER BY $sort_by $order LIMIT $items_per_page OFFSET $offset";
+
+// ดึงข้อมูล (เพิ่ม shop_info_shop_id มาเช็คที่หน้า HTML)
+$sql = "SELECT type_id, type_name_th, type_name_en, shop_info_shop_id 
+        FROM prod_types 
+        $where_clause 
+        ORDER BY $sort_by $order 
+        LIMIT $items_per_page OFFSET $offset";
 $result = mysqli_query($conn, $sql);
 
-// ฟังก์ชันช่วยสร้าง query string สำหรับ pagination links
+// ฟังก์ชันช่วยสร้าง query string
 function build_query_string($exclude = [])
 {
   $params = $_GET;
@@ -357,17 +408,28 @@ ob_end_flush();
                             <?php echo htmlspecialchars($row['type_name_en']); ?>
                           </td>
                           <td class="text-center">
-                            <div class="d-flex justify-content-center gap-1">
-                              <a href="edit_prodtype.php?id=<?php echo $row['type_id']; ?>"
-                                class="btn btn-warning btn-sm text-dark" title="แก้ไข">
-                                <i class="bi bi-pencil-square"></i>
-                              </a>
-                              <button type="button" class="btn btn-danger btn-sm"
-                                onclick="confirmDelete('<?php echo $row['type_id']; ?>', '<?php echo addslashes($row['type_name_th']); ?>')"
-                                title="ลบ">
-                                <i class="bi bi-trash3-fill"></i>
-                              </button>
-                            </div>
+
+                            <?php
+                            // [เช็คเงื่อนไขแสดงปุ่ม] เป็นของร้านเรา หรือ มีสิทธิ์ "centralinf"
+                            if ($row['shop_info_shop_id'] != 0 || $has_centralinf_permission):
+                            ?>
+                              <div class="d-flex justify-content-center gap-1">
+                                <a href="edit_prodtype.php?id=<?php echo $row['type_id']; ?>"
+                                  class="btn btn-warning btn-sm text-dark" title="แก้ไข">
+                                  <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <button type="button" class="btn btn-danger btn-sm"
+                                  onclick="confirmDelete('<?php echo $row['type_id']; ?>', '<?php echo addslashes($row['type_name_th']); ?>')"
+                                  title="ลบ">
+                                  <i class="bi bi-trash3-fill"></i>
+                                </button>
+                              </div>
+                            <?php else: ?>
+                              <span class="badge bg-secondary bg-opacity-75 text-white" style="cursor: default;" title="ข้อมูลส่วนกลาง">
+                                <i class="bi bi-globe2 me-1"></i>ส่วนกลาง
+                              </span>
+                            <?php endif; ?>
+
                           </td>
                         </tr>
                       <?php endwhile; ?>
@@ -472,6 +534,7 @@ ob_end_flush();
       </div>
     </div>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // ฟังก์ชันยืนยันการลบ

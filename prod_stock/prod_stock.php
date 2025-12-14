@@ -3,6 +3,10 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'prod_stock');
 
+// [แก้ไข 1] รับค่า Branch ID และ Shop ID จาก Session
+$branch_id = $_SESSION['branch_id'];
+$shop_id = $_SESSION['shop_id'];
+
 $limit = 10; // จำนวนสินค้าต่อหน้า
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $offset = ($page - 1) * $limit;
@@ -20,13 +24,16 @@ $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
 // WHERE clause 
 $where_conditions = ["1=1"];
 
+// [แก้ไข 2] บังคับกรองสต็อกเฉพาะสาขานี้เท่านั้น
+$where_conditions[] = "ps.branches_branch_id = '$branch_id'";
+
 if (!empty($search)) {
     // ค้นหาจาก serial_no แทน imei/barcode
     $where_conditions[] = "(p.prod_name LIKE '%$search%' OR 
-                          p.model_name LIKE '%$search%' OR 
-                          ps.serial_no LIKE '%$search%' OR 
-                          pb.brand_name_th LIKE '%$search%' OR
-                          ps.stock_id LIKE '%$search%')";
+                           p.model_name LIKE '%$search%' OR 
+                           ps.serial_no LIKE '%$search%' OR 
+                           pb.brand_name_th LIKE '%$search%' OR
+                           ps.stock_id LIKE '%$search%')";
 }
 
 if (!empty($filter_brand)) {
@@ -51,10 +58,12 @@ if ($filter_price_max > 0) {
 
 $where_clause = implode(' AND ', $where_conditions);
 
-// ดึงข้อมูลสำหรับ dropdown filters
-$brands_result = mysqli_query($conn, "SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th");
-$types_result = mysqli_query($conn, "SELECT type_id, type_name_th FROM prod_types ORDER BY type_name_th");
+// [แก้ไข 3] ดึงข้อมูลสำหรับ dropdown filters (เฉพาะของร้านนี้)
+$brands_result = mysqli_query($conn, "SELECT brand_id, brand_name_th FROM prod_brands WHERE shop_info_shop_id = '$shop_id' ORDER BY brand_name_th");
+$types_result = mysqli_query($conn, "SELECT type_id, type_name_th FROM prod_types WHERE shop_info_shop_id = '$shop_id' ORDER BY type_name_th");
+
 $status_options = ['In Stock', 'Sold', 'Damage', 'Reserved', 'Repair'];
+
 $main_sql = "SELECT 
     ps.stock_id,
     ps.serial_no,
@@ -97,9 +106,16 @@ $result = mysqli_query($conn, $data_sql);
 if (isset($_POST['delete_stock']) && isset($_POST['stock_id'])) {
     $stock_id = mysqli_real_escape_string($conn, $_POST['stock_id']);
 
-    // ตรวจสอบว่าสินค้าถูกขายไปแล้วหรือไม่ 
-    $check_sql = "SELECT stock_status, image_path FROM prod_stocks WHERE stock_id = '$stock_id'";
+    // ตรวจสอบว่าสินค้าถูกขายไปแล้วหรือไม่ (และต้องเป็นของสาขานี้ด้วยเพื่อความปลอดภัย)
+    $check_sql = "SELECT stock_status, image_path FROM prod_stocks WHERE stock_id = '$stock_id' AND branches_branch_id = '$branch_id'";
     $check_result = mysqli_query($conn, $check_sql);
+    
+    if (mysqli_num_rows($check_result) == 0) {
+         $_SESSION['error'] = 'ไม่พบสินค้าหรือคุณไม่มีสิทธิ์ลบสินค้านี้';
+         header('Location: prod_stock.php');
+         exit;
+    }
+
     $stock_info = mysqli_fetch_assoc($check_result);
 
     if ($stock_info && $stock_info['stock_status'] == 'Sold') {
@@ -136,9 +152,7 @@ if (isset($_POST['delete_stock']) && isset($_POST['stock_id'])) {
         }
     } catch (Exception $e) {
         mysqli_rollback($conn);
-        $_SESSION['error'] = 'เกิดข้อผิดพลาดในการลบ: '
-            . $e->getMessage()
-        ;
+        $_SESSION['error'] = 'เกิดข้อผิดพลาดในการลบ: ' . $e->getMessage();
     }
 
     mysqli_autocommit($conn, true);
@@ -160,8 +174,8 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
     $stock_ids = array_map('intval', $selected_stocks);
     $stock_ids_str = implode(',', $stock_ids);
 
-    // ตรวจสอบสินค้าที่ขายแล้ว 
-    $check_sold_sql = "SELECT stock_id, stock_status FROM prod_stocks WHERE stock_id IN ($stock_ids_str) AND stock_status = 'Sold'";
+    // ตรวจสอบสินค้าที่ขายแล้ว (และเช็คสาขา)
+    $check_sold_sql = "SELECT stock_id, stock_status FROM prod_stocks WHERE stock_id IN ($stock_ids_str) AND stock_status = 'Sold' AND branches_branch_id = '$branch_id'";
     $check_sold_result = mysqli_query($conn, $check_sold_sql);
 
     if (mysqli_num_rows($check_sold_result) > 0) {
@@ -174,14 +188,24 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
         exit;
     }
 
-    // ดึงข้อมูลรูปภาพก่อนลบ
-    $data_sql = "SELECT stock_id, image_path FROM prod_stocks WHERE stock_id IN ($stock_ids_str)";
+    // ดึงข้อมูลรูปภาพก่อนลบ (เช็คสาขา)
+    $data_sql = "SELECT stock_id, image_path FROM prod_stocks WHERE stock_id IN ($stock_ids_str) AND branches_branch_id = '$branch_id'";
     $data_result = mysqli_query($conn, $data_sql);
 
     $delete_data = [];
+    $valid_stock_ids = []; // เก็บเฉพาะ ID ที่เป็นของสาขานี้จริงๆ เพื่อใช้ลบ
     while ($row = mysqli_fetch_assoc($data_result)) {
         $delete_data[] = $row;
+        $valid_stock_ids[] = $row['stock_id'];
     }
+    
+    if (empty($valid_stock_ids)) {
+         $_SESSION['error'] = 'ไม่พบสินค้าที่เลือกในสาขานี้';
+         header('Location: prod_stock.php');
+         exit;
+    }
+    
+    $valid_stock_ids_str = implode(',', $valid_stock_ids);
 
     mysqli_autocommit($conn, false);
     try {
@@ -199,12 +223,12 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
         }
 
         // ต้องลบจาก stock_movements ก่อน
-        $delete_movements_sql = "DELETE FROM stock_movements WHERE prod_stocks_stock_id IN ($stock_ids_str)";
+        $delete_movements_sql = "DELETE FROM stock_movements WHERE prod_stocks_stock_id IN ($valid_stock_ids_str)";
         if (!mysqli_query($conn, $delete_movements_sql)) {
         }
 
         // ลบสต็อกทั้งหมด
-        $delete_stocks_sql = "DELETE FROM prod_stocks WHERE stock_id IN ($stock_ids_str)";
+        $delete_stocks_sql = "DELETE FROM prod_stocks WHERE stock_id IN ($valid_stock_ids_str)";
 
         if (mysqli_query($conn, $delete_stocks_sql)) {
             mysqli_commit($conn);
@@ -214,9 +238,7 @@ if (isset($_POST['delete_multiple']) && isset($_POST['selected_stocks'])) {
         }
     } catch (Exception $e) {
         mysqli_rollback($conn);
-        $_SESSION['error'] = 'เกิดข้อผิดพลาดในการลบ: '
-            . $e->getMessage()
-        ;
+        $_SESSION['error'] = 'เกิดข้อผิดพลาดในการลบ: ' . $e->getMessage();
     }
 
     mysqli_autocommit($conn, true);

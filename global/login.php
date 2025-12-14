@@ -4,7 +4,7 @@ require '../config/config.php';
 
 // รวจสอบ Session: ถ้าล็อกอินอยู่แล้ว ให้ไปที่หน้า Home 
 if (isset($_SESSION['user_id'])) {
-    header("Location: ../home/home.php"); 
+    header("Location: ../global/home.php"); 
     exit;
 }
 
@@ -17,7 +17,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = "กรุณากรอกข้อมูลให้ครบถ้วน";
     } else {
-        $stmt = $conn->prepare("SELECT user_id, username, password, user_status FROM users WHERE username = ?");
+        // [แก้ไข] JOIN ตาราง employees, departments เพื่อดึง shop_id และ branch_id
+        $sql = "SELECT u.user_id, u.username, u.password, u.user_status, 
+                       e.emp_id, d.shop_info_shop_id, e.branches_branch_id 
+                FROM users u
+                LEFT JOIN employees e ON u.user_id = e.users_user_id
+                LEFT JOIN departments d ON e.departments_dept_id = d.dept_id
+                WHERE u.username = ? LIMIT 1";
+
+        $stmt = $conn->prepare($sql);
         $stmt->bind_param("s", $username);
         $stmt->execute();
         $result = $stmt->get_result();
@@ -26,11 +34,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $result->fetch_assoc();
             if (password_verify($password, $user['password'])) {
                 if ($user['user_status'] === 'Active') {
+                    // [แก้ไข] เก็บค่า ID ร้านและสาขาลง Session
                     $_SESSION['user_id'] = $user['user_id'];
                     $_SESSION['username'] = $user['username'];
+                    $_SESSION['emp_id'] = $user['emp_id'];        // ไอดีพนักงาน
+                    $_SESSION['shop_id'] = $user['shop_info_shop_id']; // ไอดีร้านค้า
+                    $_SESSION['branch_id'] = $user['branches_branch_id']; // ไอดีสาขา
                     
                     // ล็อกอินสำเร็จ: ส่งไปหน้า Home 
-                    header("Location: home.php");
+                    header("Location: ../global/home.php");
                     exit;
                 } else {
                     $error = "บัญชีนี้ถูกระงับการใช้งาน";

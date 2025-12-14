@@ -3,6 +3,10 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_prodStock');
 
+// [แก้ไข 1] รับค่า Branch ID และ Shop ID
+$branch_id = $_SESSION['branch_id'];
+$shop_id = $_SESSION['shop_id'];
+
 // -----------------------------------------------------------------------------
 // INITIALIZE VARIABLES
 // -----------------------------------------------------------------------------
@@ -11,16 +15,18 @@ $page_title = "เพิ่มสต็อก (กรณีพิเศษ/ข�
 $page_icon = "fa-gift";
 
 // -----------------------------------------------------------------------------
-//  ดึงข้อมูลสินค้าทั้งหมด
+//  ดึงข้อมูลสินค้าทั้งหมด (เฉพาะของร้านนี้)
 // -----------------------------------------------------------------------------
+// [แก้ไข 2] กรองสินค้าเฉพาะร้านนี้
 $products_result = mysqli_query($conn, "SELECT 
-                                    p.prod_id, p.prod_name, p.model_name, p.prod_price,
-                                    pb.brand_name_th as brand_name, 
-                                    pt.type_name_th as type_name 
-                                  FROM products p 
-                                  LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
-                                  LEFT JOIN prod_types pt ON p.prod_types_type_id = pt.type_id 
-                                  ORDER BY p.prod_name");
+                                      p.prod_id, p.prod_name, p.model_name, p.prod_price,
+                                      pb.brand_name_th as brand_name, 
+                                      pt.type_name_th as type_name 
+                                    FROM products p 
+                                    LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
+                                    LEFT JOIN prod_types pt ON p.prod_types_type_id = pt.type_id 
+                                    WHERE p.shop_info_shop_id = '$shop_id'
+                                    ORDER BY p.prod_name");
 
 // -----------------------------------------------------------------------------
 // SHARED FUNCTIONS
@@ -97,7 +103,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     try {
 
         // บันทึกโหมด (กรณีพิเศษ) 
-
         $products_prod_id = mysqli_real_escape_string($conn, $_POST['products_prod_id']);
         $price = floatval($_POST['price']);
         $serial_list = $_POST['serial_no'];
@@ -120,22 +125,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $stock_id = getNextStockId($conn);
             $serial_escaped = mysqli_real_escape_string($conn, trim($serial));
 
+            // [แก้ไข 3] เพิ่ม branches_branch_id
             $sql = "INSERT INTO prod_stocks (
                         stock_id, serial_no, price, stock_status, warranty_start_date, 
-                        image_path, create_at, update_at, products_prod_id
+                        image_path, create_at, update_at, products_prod_id, branches_branch_id
                     ) VALUES (
                         ?, ?, ?, 'In Stock', NULL, 
-                        ?, NOW(), NOW(), ?
+                        ?, NOW(), NOW(), ?, ?
                     )";
 
             $stmt = $conn->prepare($sql);
+            // เพิ่ม type 'i' และตัวแปร $branch_id
             $stmt->bind_param(
-                "isdsi",
+                "isdsii",
                 $stock_id,
                 $serial_escaped,
                 $price,
                 $first_image_name,
-                $products_prod_id
+                $products_prod_id,
+                $branch_id 
             );
             if (!$stmt->execute()) throw new Exception('ไม่สามารถเพิ่มสต็อกได้: ' . $stmt->error);
             $stmt->close();

@@ -6,6 +6,10 @@ require '../config/config.php';
 require '../vendor/autoload.php';
 checkPageAccess($conn, 'add_repair');
 
+// [แก้ไข 1] รับค่า Branch ID และ Shop ID จาก Session
+$branch_id = $_SESSION['branch_id'];
+$shop_id = $_SESSION['shop_id'];
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
@@ -121,14 +125,20 @@ function sendJobOrderEmail($to_email, $customer_name, $repair_id, $device_name, 
 // -----------------------------------------------------------------------------
 // GET DATA
 // -----------------------------------------------------------------------------
-$employees_result = mysqli_query($conn, "SELECT emp_id, firstname_th, lastname_th, emp_code FROM employees WHERE emp_status = 'Active' ORDER BY firstname_th");
+// [แก้ไข 3] กรองพนักงานเฉพาะร้านนี้ (ผ่านสาขาที่สังกัด shop เดียวกัน)
+$employees_result = mysqli_query($conn, "SELECT e.emp_id, e.firstname_th, e.lastname_th, e.emp_code 
+                                         FROM employees e
+                                         LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
+                                         WHERE e.emp_status = 'Active' AND b.shop_info_shop_id = '$shop_id'
+                                         ORDER BY e.firstname_th");
+
 $symptoms_result = mysqli_query($conn, "SELECT symptom_id, symptom_name FROM symptoms ORDER BY symptom_name");
 
-// กรองสินค้าที่ไม่ใช่ อะไหล่ และ บริการ
+// [แก้ไข 2] กรองสินค้าเฉพาะร้านนี้
 $products_result = mysqli_query($conn, "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th 
                                         FROM products p 
                                         LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
-                                        WHERE p.prod_types_type_id NOT IN (3, 4) 
+                                        WHERE p.prod_types_type_id NOT IN (3, 4) AND p.shop_info_shop_id = '$shop_id'
                                         ORDER BY p.prod_name");
 mysqli_data_seek($products_result, 0);
 
@@ -141,7 +151,12 @@ if (isset($_POST['action'])) {
     switch ($_POST['action']) {
         case 'search_customer':
             $search = mysqli_real_escape_string($conn, $_POST['query']);
-            $sql = "SELECT cs_id, firstname_th, lastname_th, cs_phone_no, cs_email FROM customers WHERE cs_phone_no LIKE '%$search%' OR firstname_th LIKE '%$search%' OR lastname_th LIKE '%$search%' LIMIT 10";
+            // [แก้ไข 4] ค้นหาลูกค้าเฉพาะร้านนี้
+            $sql = "SELECT cs_id, firstname_th, lastname_th, cs_phone_no, cs_email 
+                    FROM customers 
+                    WHERE (cs_phone_no LIKE '%$search%' OR firstname_th LIKE '%$search%' OR lastname_th LIKE '%$search%') 
+                    AND shop_info_shop_id = '$shop_id'
+                    LIMIT 10";
             $result = mysqli_query($conn, $sql);
             $customers = [];
             while ($row = mysqli_fetch_assoc($result)) {
@@ -151,7 +166,14 @@ if (isset($_POST['action'])) {
             break;
         case 'search_employee':
             $search = mysqli_real_escape_string($conn, $_POST['query']);
-            $sql = "SELECT emp_id, firstname_th, lastname_th, emp_code FROM employees WHERE emp_status = 'Active' AND (firstname_th LIKE '%$search%' OR lastname_th LIKE '%$search%' OR emp_code LIKE '%$search%') LIMIT 10";
+            // [แก้ไข 3] ค้นหาพนักงานเฉพาะร้านนี้
+            $sql = "SELECT e.emp_id, e.firstname_th, e.lastname_th, e.emp_code 
+                    FROM employees e
+                    LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
+                    WHERE e.emp_status = 'Active' 
+                    AND b.shop_info_shop_id = '$shop_id'
+                    AND (e.firstname_th LIKE '%$search%' OR e.lastname_th LIKE '%$search%' OR e.emp_code LIKE '%$search%') 
+                    LIMIT 10";
             $result = mysqli_query($conn, $sql);
             $employees = [];
             while ($row = mysqli_fetch_assoc($result)) {
@@ -214,8 +236,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             if ($is_new_device != 1 || $new_product_id <= 0) throw new Exception('กรุณาเลือกรุ่นสินค้าสำหรับเครื่องใหม่');
             $stock_id = getNextStockId($conn);
-            $stmt = $conn->prepare("INSERT INTO prod_stocks (stock_id, serial_no, price, stock_status, create_at, update_at, products_prod_id) VALUES (?, ?, 0.00, 'Repair', NOW(), NOW(), ?)");
-            $stmt->bind_param("isi", $stock_id, $serial_no, $new_product_id);
+            // [แก้ไข 5] เพิ่ม branches_branch_id
+            $stmt = $conn->prepare("INSERT INTO prod_stocks (stock_id, serial_no, price, stock_status, create_at, update_at, products_prod_id, branches_branch_id) VALUES (?, ?, 0.00, 'Repair', NOW(), NOW(), ?, ?)");
+            $stmt->bind_param("isii", $stock_id, $serial_no, $new_product_id, $branch_id);
             $stmt->execute();
             $stmt->close();
             $res_prod = $conn->query("SELECT prod_name FROM products WHERE prod_id = $new_product_id");
@@ -223,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // สร้างบิลซ่อม 
-        $branch_id = 1;
+        // [แก้ไข 6] ใช้ $branch_id จาก Session
         $bill_date = date('Y-m-d H:i:s');
         $bill_status = 'Pending';
         $bill_type = 'Repair';
@@ -245,14 +268,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Job Order
         $repair_id = getNextRepairId($conn);
+        // [แก้ไข 7] เพิ่ม branches_branch_id
         $sql_repair = "INSERT INTO repairs (
             repair_id, customers_cs_id, employees_emp_id, assigned_employee_id, 
             prod_stocks_stock_id, repair_desc, device_description, estimated_cost, 
-            accessories_list, repair_status, bill_headers_bill_id, create_at, update_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'รับเครื่อง', ?, NOW(), NOW())";
+            accessories_list, repair_status, bill_headers_bill_id, branches_branch_id, create_at, update_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'รับเครื่อง', ?, ?, NOW(), NOW())";
 
         $stmt_repair = $conn->prepare($sql_repair);
-        $stmt_repair->bind_param("iiiiissdsi", $repair_id, $customer_id, $employee_id, $assigned_employee_id, $stock_id, $repair_desc, $device_description, $estimated_cost, $accessories_list, $bill_id);
+        // เพิ่ม 'i' ท้ายสุด และ $branch_id
+        $stmt_repair->bind_param("iiiiissdsii", $repair_id, $customer_id, $employee_id, $assigned_employee_id, $stock_id, $repair_desc, $device_description, $estimated_cost, $accessories_list, $bill_id, $branch_id);
 
         if (!$stmt_repair->execute()) throw new Exception('บันทึกงานซ่อมไม่สำเร็จ: ' . $stmt_repair->error);
         $stmt_repair->close();
@@ -292,12 +317,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Email Sending
         try {
+            // [แก้ไข 8] ดึง Email ร้านค้า ต้องระวังถ้ามีหลายร้าน (ควรดึงจาก shop_info ของร้านนี้)
             $res_cust = $conn->query("SELECT firstname_th, lastname_th, cs_email FROM customers WHERE cs_id = $customer_id");
             $cust_data = $res_cust->fetch_assoc();
             $cust_email = $cust_data['cs_email'];
             $cust_name = $cust_data['firstname_th'] . " " . $cust_data['lastname_th'];
 
-            $res_shop = $conn->query("SELECT shop_name, shop_email, shop_app_password FROM shop_info LIMIT 1");
+            $res_shop = $conn->query("SELECT shop_name, shop_email, shop_app_password FROM shop_info WHERE shop_id = '$shop_id' LIMIT 1");
             $shop_data = $res_shop->fetch_assoc();
             $current_shop_name = $shop_data['shop_name'] ?? 'Mobile Shop';
             $current_shop_email = $shop_data['shop_email'];

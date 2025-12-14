@@ -2,6 +2,10 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'customer_list');
+
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 $return_to = isset($_GET['return_to']) ? urldecode($_GET['return_to']) : '';
 $btn_back_link = !empty($return_to) ? $return_to : '../dashboard.php';
 $next_return = !empty($return_to) ? $return_to : 'customer_list.php';
@@ -49,7 +53,9 @@ function get_sort_link($column, $label, $current_sort, $current_order)
 // SEARCH & FILTER
 // -----------------------------------------------------------------------------
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
-$where = [];
+
+// [แก้ไข 2] บังคับกรองลูกค้าเฉพาะร้านนี้
+$where = ["c.shop_info_shop_id = '$shop_id'"];
 
 if (!empty($search)) {
     $where[] = "(

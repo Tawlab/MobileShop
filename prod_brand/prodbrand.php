@@ -6,65 +6,116 @@ require '../config/config.php';
 checkPageAccess($conn, 'prodbrand');
 require '../config/load_theme.php';
 
-// การจัดการการลบ 
-if (isset($_GET['delete_id'])) {
-  $delete_id = $_GET['delete_id'];
-  $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ?";
+// [1] รับค่า Shop ID และ User ID
+$shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
 
-  if ($stmt = mysqli_prepare($conn, $delete_sql)) {
-    mysqli_stmt_bind_param($stmt, "s", $delete_id);
-    if (mysqli_stmt_execute($stmt)) {
-      $_SESSION['success'] = "ลบยี่ห้อสินค้าสำเร็จ";
-    } else {
-      // ตรวจจับ Foreign Key Error
-      if (mysqli_errno($conn) == 1451) {
-        $_SESSION['error'] = "ลบไม่สำเร็จ: ยี่ห้อนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
-      } else {
-        $_SESSION['error'] = "เกิดข้อผิดพลาดในการลบ: " . mysqli_error($conn);
-      }
+// [2] ตรวจสอบสิทธิ์พิเศษ "AAA" (จัดการข้อมูลส่วนกลาง)
+$has_centralinf_permission = false;
+$check_perm_sql = "SELECT p.permission_id 
+                   FROM permissions p
+                   JOIN role_permissions rp ON p.permission_id = rp.permissions_permission_id
+                   JOIN user_roles ur ON rp.roles_role_id = ur.roles_role_id
+                   WHERE ur.users_user_id = ? 
+                   AND p.permission_name = 'centralinf' 
+                   LIMIT 1";
+
+if ($stmt_perm = mysqli_prepare($conn, $check_perm_sql)) {
+    mysqli_stmt_bind_param($stmt_perm, "i", $current_user_id);
+    mysqli_stmt_execute($stmt_perm);
+    mysqli_stmt_store_result($stmt_perm);
+    if (mysqli_stmt_num_rows($stmt_perm) > 0) {
+        $has_centralinf_permission = true;
     }
-    mysqli_stmt_close($stmt);
-  }
-
-  // ล้าง output buffer และ redirect
-  ob_end_clean();
-  header('Location: prodbrand.php');
-  exit();
+    mysqli_stmt_close($stmt_perm);
 }
 
-// การค้นหา
+// [3] การจัดการการลบ
+if (isset($_GET['delete_id'])) {
+    $delete_id = $_GET['delete_id'];
+    $delete_success = false;
+    $delete_error = "";
+
+    // เตรียม SQL ตามสิทธิ์
+    if ($has_centralinf_permission) {
+        // ถ้ามีสิทธิ์ AAA ลบได้ทุกอย่าง (รวมถึงของส่วนกลาง)
+        $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ?";
+    } else {
+        // ถ้าไม่มีสิทธิ์ ลบได้เฉพาะของร้านตัวเอง
+        $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ? AND shop_info_shop_id = ?";
+    }
+
+    if ($stmt = mysqli_prepare($conn, $delete_sql)) {
+        if ($has_centralinf_permission) {
+            mysqli_stmt_bind_param($stmt, "s", $delete_id);
+        } else {
+            mysqli_stmt_bind_param($stmt, "si", $delete_id, $shop_id);
+        }
+
+        if (mysqli_stmt_execute($stmt)) {
+            if (mysqli_stmt_affected_rows($stmt) > 0) {
+                $_SESSION['success'] = "ลบยี่ห้อสินค้าสำเร็จ";
+                $delete_success = true;
+            } else {
+                $_SESSION['error'] = "คุณไม่สามารถลบยี่ห้อสินค้านี้ได้ (อาจเป็นยี่ห้อส่วนกลางหรือไม่มีสิทธิ์)";
+            }
+        } else {
+            // ตรวจจับ Foreign Key Error
+            if (mysqli_errno($conn) == 1451) {
+                $_SESSION['error'] = "ลบไม่สำเร็จ: ยี่ห้อนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
+            } else {
+                $_SESSION['error'] = "เกิดข้อผิดพลาดในการลบ: " . mysqli_error($conn);
+            }
+        }
+        mysqli_stmt_close($stmt);
+    }
+
+    // ล้าง output buffer และ redirect
+    ob_end_clean();
+    header('Location: prodbrand.php');
+    exit();
+}
+
+// [4] การค้นหาและ Pagination
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
-$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'brand_id'; // default sort
+$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'brand_id';
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
 
-// Pagination
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-// สร้าง WHERE clause
-$where_clause = '';
+// สร้าง WHERE clause แบบ Hybrid (ส่วนกลาง + ส่วนตัว)
+$where_conditions = [];
+$where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
+
 if (!empty($search)) {
-  $where_clause = "WHERE brand_name_th LIKE '%$search%' OR brand_name_en LIKE '%$search%'";
+    $where_conditions[] = "(brand_name_th LIKE '%$search%' OR brand_name_en LIKE '%$search%')";
 }
 
-// นับจำนวนยี่ห้อทั้งหมด
+$where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+
+// นับจำนวน
 $count_sql = "SELECT COUNT(*) as total FROM prod_brands $where_clause";
 $count_result = mysqli_query($conn, $count_sql);
 $total_brands = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_brands / $items_per_page);
 
-// คำสั่ง SQL สำหรับดึงข้อมูลยี่ห้อ 
-$sql = "SELECT brand_id, brand_name_th, brand_name_en FROM prod_brands $where_clause ORDER BY $sort_by $order LIMIT $items_per_page OFFSET $offset";
+// ดึงข้อมูล
+$sql = "SELECT brand_id, brand_name_th, brand_name_en, shop_info_shop_id 
+        FROM prod_brands 
+        $where_clause 
+        ORDER BY $sort_by $order 
+        LIMIT $items_per_page OFFSET $offset";
 $result = mysqli_query($conn, $sql);
 
 function build_query_string($exclude = [])
 {
-  $params = $_GET;
-  foreach ($exclude as $key) {
-    unset($params[$key]);
-  }
-  return !empty($params) ? '&' . http_build_query($params) : '';
+    $params = $_GET;
+    foreach ($exclude as $key) {
+        unset($params[$key]);
+    }
+    return !empty($params) ? '&' . http_build_query($params) : '';
 }
 
 ob_end_flush();
@@ -451,17 +502,29 @@ ob_end_flush();
                             <?php echo htmlspecialchars($row['brand_name_en']); ?>
                           </td>
                           <td class="text-center">
-                            <div class="d-flex justify-content-center gap-1">
-                              <a href="edit_prodbrand.php?id=<?php echo $row['brand_id']; ?>"
-                                class="btn btn-warning btn-sm text-dark" title="แก้ไข">
-                                <i class="bi bi-pencil-square"></i>
-                              </a>
-                              <button type="button" class="btn btn-danger btn-sm"
-                                onclick="confirmDelete('<?php echo $row['brand_id']; ?>', '<?php echo addslashes($row['brand_name_th']); ?>')"
-                                title="ลบ">
-                                <i class="bi bi-trash3-fill"></i>
-                              </button>
-                            </div>
+
+                            <?php
+                            // เงื่อนไข: เป็นของร้านเรา หรือ มีสิทธิ์ "AAA"
+                            if ($row['shop_info_shop_id'] != 0 || $has_centralinf_permission):
+                            ?>
+                              <div class="d-flex justify-content-center gap-1">
+                                <a href="edit_prodbrand.php?id=<?php echo $row['brand_id']; ?>"
+                                  class="btn btn-warning btn-sm text-dark" title="แก้ไข">
+                                  <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <button type="button" class="btn btn-danger btn-sm"
+                                  onclick="confirmDelete('<?php echo $row['brand_id']; ?>', '<?php echo addslashes($row['brand_name_th']); ?>')"
+                                  title="ลบ">
+                                  <i class="bi bi-trash3-fill"></i>
+                                </button>
+                              </div>
+
+                            <?php else: ?>
+                              <span class="badge bg-secondary bg-opacity-75 text-white" style="cursor: default;" title="ข้อมูลส่วนกลาง">
+                                <i class="bi bi-globe2 me-1"></i>ส่วนกลาง
+                              </span>
+                            <?php endif; ?>
+
                           </td>
                         </tr>
                       <?php endwhile; ?>

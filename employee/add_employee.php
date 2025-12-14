@@ -3,6 +3,9 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_employee');
 
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 // --- ฟังก์ชันสำหรับ Hash รหัสผ่าน ---
 function hashPassword($password)
 {
@@ -26,16 +29,16 @@ if (!$religion_result) {
     die("Error fetching religions: " . mysqli_error($conn));
 }
 
-// --- แผนก (Departments) ---
-$department_sql = "SELECT dept_id, dept_name FROM departments ORDER BY dept_name";
+// --- แผนก (Departments) [แก้ไข 2: กรองเฉพาะของร้านนี้] ---
+$department_sql = "SELECT dept_id, dept_name FROM departments WHERE shop_info_shop_id = '$shop_id' ORDER BY dept_name";
 $department_result = mysqli_query($conn, $department_sql);
 if (!$department_result) {
     error_log("Error fetching departments: " . mysqli_error($conn));
     die("Error fetching departments: " . mysqli_error($conn));
 }
 
-// --- สาขา (Branches) ---
-$branch_sql = "SELECT branch_id, branch_name FROM branches ORDER BY branch_name";
+// --- สาขา (Branches) [แก้ไข 3: กรองเฉพาะของร้านนี้] ---
+$branch_sql = "SELECT branch_id, branch_name FROM branches WHERE shop_info_shop_id = '$shop_id' ORDER BY branch_name";
 $branch_result = mysqli_query($conn, $branch_sql);
 if (!$branch_result) {
     error_log("Error fetching branches: " . mysqli_error($conn));

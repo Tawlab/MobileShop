@@ -2,6 +2,10 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_customer');
+
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 // -----------------------------------------------------------------------------
 //จัดการเส้นทางย้อนกลับ (Return URL)
 // -----------------------------------------------------------------------------
@@ -81,16 +85,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$stmt->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ");
             $stmt->close();
 
-            // บันทึกข้อมูลลูกค้า (Customer)
+            // [แก้ไข 2] เพิ่ม shop_info_shop_id ลงใน INSERT
             $sql_cus = "INSERT INTO customers (
                             cs_id, cs_national_id, firstname_th, lastname_th, 
                             firstname_en, lastname_en, cs_phone_no, cs_email, cs_line_id, 
-                            prefixs_prefix_id, Addresses_address_id, create_at, update_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+                            prefixs_prefix_id, Addresses_address_id, shop_info_shop_id, create_at, update_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
 
             $stmt2 = $conn->prepare($sql_cus);
+            // เพิ่ม type 'i' และตัวแปร $shop_id
             $stmt2->bind_param(
-                "issssssssii",
+                "issssssssiis",
                 $cs_id,
                 $national,
                 $fname_th,
@@ -101,7 +106,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $email,
                 $line_id,
                 $prefix_id,
-                $addr_id
+                $addr_id,
+                $shop_id 
             );
 
             if (!$stmt2->execute()) throw new Exception("บันทึกข้อมูลลูกค้าไม่สำเร็จ");

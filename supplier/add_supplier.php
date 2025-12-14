@@ -3,6 +3,9 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_supplier');
 
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 $error_message = '';
 
 // รับ return_url
@@ -60,9 +63,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $max_row = $max_result->fetch_assoc();
             $new_supplier_id = $max_row['max_id'] + 1;
 
-            // ตรวจสอบชื่อบริษัทซ้ำ
-            $stmt_check = $conn->prepare("SELECT supplier_id FROM suppliers WHERE co_name = ?");
-            $stmt_check->bind_param("s", $co_name);
+            // [แก้ไข 2] ตรวจสอบชื่อบริษัทซ้ำ (เฉพาะในร้านเดียวกัน)
+            $stmt_check = $conn->prepare("SELECT supplier_id FROM suppliers WHERE co_name = ? AND shop_info_shop_id = ?");
+            $stmt_check->bind_param("si", $co_name, $shop_id);
             $stmt_check->execute();
             if ($stmt_check->get_result()->num_rows > 0) {
                 throw new Exception('ชื่อบริษัท "' . htmlspecialchars($co_name) . '" นี้มีอยู่แล้วในระบบ');
@@ -90,18 +93,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_addr->execute();
             $stmt_addr->close();
 
-            // บันทึกข้อมูล Supplier
+            // [แก้ไข 3] บันทึกข้อมูล Supplier พร้อม shop_id
             $sql_insert = "INSERT INTO suppliers (
-                                supplier_id, co_name, tax_id, 
-                                contact_firstname, contact_lastname, 
-                                supplier_email, supplier_phone_no, 
-                                prefixs_prefix_id, Addresses_address_id, 
-                                create_at, update_at
-                           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+                                        supplier_id, co_name, tax_id, 
+                                        contact_firstname, contact_lastname, 
+                                        supplier_email, supplier_phone_no, 
+                                        prefixs_prefix_id, Addresses_address_id, 
+                                        shop_info_shop_id, create_at, update_at
+                                   ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
 
             $stmt_insert = $conn->prepare($sql_insert);
             $stmt_insert->bind_param(
-                "issssssii",
+                "issssssiii",
                 $new_supplier_id,
                 $co_name,
                 $tax_id,
@@ -110,7 +113,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $supplier_email,
                 $supplier_phone_no,
                 $prefixs_prefix_id,
-                $new_address_id
+                $new_address_id,
+                $shop_id 
             );
 
             if (!$stmt_insert->execute()) {

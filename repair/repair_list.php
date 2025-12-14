@@ -3,6 +3,9 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'repair_list');
 
+// [แก้ไข 1] รับค่า Branch ID จาก Session
+$branch_id = $_SESSION['branch_id'];
+
 // SETTINGS
 $limit = 10;
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
@@ -32,7 +35,8 @@ $filter_customer_id = isset($_GET['filter_customer_id']) ? mysqli_real_escape_st
 $filter_customer_name = isset($_GET['filter_customer_name']) ? htmlspecialchars($_GET['filter_customer_name']) : ''; // ใช้แสดงผลเท่านั้น
 
 // BUILD WHERE CLAUSE 
-$where_conditions = [];
+// [แก้ไข 2] บังคับกรองงานซ่อมเฉพาะสาขานี้
+$where_conditions = ["r.branches_branch_id = '$branch_id'"];
 $is_filtered = false; 
 
 //  รหัสงาน
@@ -104,8 +108,14 @@ $main_sql = "SELECT
             $where_clause
             ORDER BY $sort_by $order";
 
-// พนักงาน
-$employees_filter_result = mysqli_query($conn, "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE emp_status = 'Active' ORDER BY firstname_th");
+// พนักงาน (ต้องกรองเฉพาะสาขานี้ด้วย หรือเอาทุกคนในร้านก็ได้)
+// เพื่อความถูกต้อง ควรแสดงเฉพาะพนักงานในร้านเดียวกัน
+$employees_filter_result = mysqli_query($conn, "SELECT e.emp_id, e.firstname_th, e.lastname_th 
+                                                FROM employees e 
+                                                LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
+                                                WHERE e.emp_status = 'Active' 
+                                                AND b.shop_info_shop_id = (SELECT shop_info_shop_id FROM branches WHERE branch_id = '$branch_id')
+                                                ORDER BY e.firstname_th");
 
 // สถานะ
 $status_options = ['รับเครื่อง', 'ประเมิน', 'รออะไหล่', 'กำลังซ่อม', 'ซ่อมเสร็จ', 'ส่งมอบ', 'ยกเลิก'];
@@ -140,6 +150,7 @@ function get_sort_link($column, $current_sort, $current_order)
     return "<a href=\"?sort={$column}&order={$new_order}{$query_string}\" class=\"sort-link\">{$icon}</a>";
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="th">
 

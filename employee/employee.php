@@ -3,6 +3,9 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'employee');
 
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 // --- (ส่วนรับข้อความแจ้งเตือนจากหน้า Add/Edit) ---
 $message = $_SESSION['message'] ?? null;
 $message_type = $_SESSION['message_type'] ?? null;
@@ -29,9 +32,10 @@ $sql = "
     LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
 ";
 
-$where_clauses = [];
-$bind_types = "";
-$bind_values = [];
+// [แก้ไข 2] เพิ่มเงื่อนไขกรอง Shop ID ผ่านตาราง Branch
+$where_clauses = ["b.shop_info_shop_id = ?"];
+$bind_types = "i"; // i = integer
+$bind_values = [$shop_id];
 
 // --- เงื่อนไขการค้นหา ---
 if (!empty($search_term)) {
@@ -68,6 +72,7 @@ if ($stmt) {
     $result = $stmt->get_result();
 
     // --- ดึงข้อมูลทั้งหมดมาเก็บใน array ---
+    $employees = []; // ประกาศตัวแปร array ไว้ก่อนกัน Error
     while ($row = $result->fetch_assoc()) {
         $employees[] = $row;
     }

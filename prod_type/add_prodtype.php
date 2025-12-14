@@ -1,134 +1,161 @@
 <?php
 session_start();
+ob_start();
+
 require '../config/config.php';
 checkPageAccess($conn, 'add_prodtype');
 require '../config/load_theme.php';
 
-// ฟังก์ชัน getNextTypeId, getNextTypeIds
-function getNextTypeId($conn)
-{
-  $query = "SELECT type_id FROM prod_types ORDER BY type_id DESC LIMIT 1";
-  $result = mysqli_query($conn, $query);
-  if ($result && mysqli_num_rows($result) > 0) {
-    $row = mysqli_fetch_assoc($result);
-    $lastId = intval($row['type_id']);
-    return str_pad($lastId + 1, 4, '0', STR_PAD_LEFT);
-  }
-  return '0001';
+// [1] รับค่า Shop ID และ User ID
+$shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
+
+// [2] ตรวจสอบสิทธิ์ "centralinf" (จัดการข้อมูลส่วนกลาง)
+$has_centralinf_permission = false;
+$check_perm_sql = "SELECT p.permission_id 
+                   FROM permissions p
+                   JOIN role_permissions rp ON p.permission_id = rp.permissions_permission_id
+                   JOIN user_roles ur ON rp.roles_role_id = ur.roles_role_id
+                   WHERE ur.users_user_id = ? 
+                   AND p.permission_name = 'centralinf' 
+                   LIMIT 1";
+
+if ($stmt_perm = mysqli_prepare($conn, $check_perm_sql)) {
+    mysqli_stmt_bind_param($stmt_perm, "i", $current_user_id);
+    mysqli_stmt_execute($stmt_perm);
+    mysqli_stmt_store_result($stmt_perm);
+    if (mysqli_stmt_num_rows($stmt_perm) > 0) {
+        $has_centralinf_permission = true;
+    }
+    mysqli_stmt_close($stmt_perm);
 }
+
+// ฟังก์ชันสำหรับดึงรหัสถัดไป n รหัส
 function getNextTypeIds($conn, $count)
 {
-  $ids = array();
-  $query = "SELECT type_id FROM prod_types ORDER BY type_id DESC LIMIT 1";
-  $result = mysqli_query($conn, $query);
-  $startId = 1;
-  if ($result && mysqli_num_rows($result) > 0) {
-    $row = mysqli_fetch_assoc($result);
-    $startId = intval($row['type_id']) + 1;
-  }
-  for ($i = 0; $i < $count; $i++) {
-    $ids[] = str_pad($startId + $i, 4, '0', STR_PAD_LEFT);
-  }
-  return $ids;
+    $ids = array();
+    $query = "SELECT type_id FROM prod_types ORDER BY type_id DESC LIMIT 1";
+    $result = mysqli_query($conn, $query);
+
+    $startId = 1;
+    if ($result && mysqli_num_rows($result) > 0) {
+        $row = mysqli_fetch_assoc($result);
+        $startId = intval($row['type_id']) + 1;
+    }
+
+    for ($i = 0; $i < $count; $i++) {
+        $ids[] = str_pad($startId + $i, 4, '0', STR_PAD_LEFT);
+    }
+
+    return $ids;
 }
 
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-  $types = $_POST['types'] ?? [];
-  $success_count = 0;
-  $errors = [];
+    $types = $_POST['types'] ?? [];
+    $success_count = 0;
+    $errors = [];
 
-  foreach ($types as $index => $type) {
-    $type_name_th = trim($type['type_name_th'] ?? '');
-    // รับค่าชื่ออังกฤษ 
-    $type_name_en_input = trim($type['type_name_en'] ?? '');
-    $type_name_en = !empty($type_name_en_input) ? $type_name_en_input : NULL;
+    foreach ($types as $index => $type) {
+        $type_name_th = trim($type['type_name_th'] ?? '');
+        $type_name_en_input = trim($type['type_name_en'] ?? '');
+        $type_name_en = !empty($type_name_en_input) ? $type_name_en_input : NULL;
+        $type_id = trim($type['type_id'] ?? '');
 
-    $type_id = trim($type['type_id'] ?? '');
+        // [3] รับค่า Checkbox และกำหนด Shop ID
+        $is_central = isset($type['is_central']) && $type['is_central'] == '1';
+        
+        if ($has_centralinf_permission && $is_central) {
+            $save_shop_id = 0; // ส่วนกลาง
+        } else {
+            $save_shop_id = $shop_id; // ร้านตัวเอง
+        }
 
-    // ข้ามถ้าไม่มีข้อมูล (เช็คแค่ชื่อไทย)
-    if (empty($type_name_th)) {
-      continue;
+        // ข้ามถ้าไม่มีข้อมูล (เช็คแค่ชื่อไทย)
+        if (empty($type_name_th)) {
+            continue;
+        }
+
+        // ตรวจสอบค่าที่จำเป็น 
+        if (empty($type_id)) {
+            $errors[] = "แถวที่ " . ($index + 1) . ": เกิดข้อผิดพลาด ไม่พบรหัสประเภท";
+            continue;
+        }
+
+        // ตรวจสอบ ID ซ้ำ (Global Check)
+        $stmt_check_id = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_id = ?");
+        $stmt_check_id->bind_param("s", $type_id);
+        $stmt_check_id->execute();
+        $stmt_check_id->bind_result($count_id);
+        $stmt_check_id->fetch();
+        $stmt_check_id->close();
+        if ($count_id > 0) {
+            $errors[] = "แถวที่ " . ($index + 1) . ": รหัสประเภท '$type_id' ซ้ำในระบบ (โปรดรีเฟรชหน้า)";
+            continue;
+        }
+
+        // [4] ตรวจสอบชื่อไทยซ้ำ (Hybrid Check: ร้านเรา หรือ ส่วนกลาง)
+        $stmt_check_th = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_name_th = ? AND (shop_info_shop_id = 0 OR shop_info_shop_id = ?)");
+        $stmt_check_th->bind_param("si", $type_name_th, $shop_id);
+        $stmt_check_th->execute();
+        $stmt_check_th->bind_result($count_th);
+        $stmt_check_th->fetch();
+        $stmt_check_th->close();
+
+        if ($count_th > 0) {
+            $errors[] = "แถวที่ " . ($index + 1) . ": ชื่อประเภท (ไทย) '$type_name_th' มีอยู่แล้วในระบบ";
+            continue;
+        }
+
+        // ตรวจสอบชื่ออังกฤษซ้ำ (Hybrid Check)
+        if ($type_name_en !== NULL) {
+            $stmt_check_en = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_name_en = ? AND (shop_info_shop_id = 0 OR shop_info_shop_id = ?)");
+            $stmt_check_en->bind_param("si", $type_name_en, $shop_id);
+            $stmt_check_en->execute();
+            $stmt_check_en->bind_result($count_en);
+            $stmt_check_en->fetch();
+            $stmt_check_en->close();
+
+            if ($count_en > 0) {
+                $errors[] = "แถวที่ " . ($index + 1) . ": ชื่อประเภท (อังกฤษ) '$type_name_en' มีอยู่แล้วในระบบ";
+                continue;
+            }
+        }
+
+        // [5] เพิ่มข้อมูล (เพิ่ม shop_info_shop_id)
+        $stmt = $conn->prepare("INSERT INTO prod_types (type_id, type_name_th, type_name_en, shop_info_shop_id) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("sssi", $type_id, $type_name_th, $type_name_en, $save_shop_id);
+
+        if ($stmt->execute()) {
+            $success_count++;
+        } else {
+            $errors[] = "แถวที่ " . ($index + 1) . ": เกิดข้อผิดพลาดในการบันทึก (" . $stmt->error . ")";
+        }
+
+        $stmt->close();
     }
 
-    //  ตรวจสอบค่าที่จำเป็น 
-    if (empty($type_id)) {
-      $errors[] = "แถวที่ " . ($index + 1) . ": เกิดข้อผิดพลาด ไม่พบรหัสประเภท";
-      continue;
-    }
-
-    //  ตรวจสอบ ID ซ้ำ 
-    $stmt_check_id = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_id = ?");
-    $stmt_check_id->bind_param("s", $type_id);
-    $stmt_check_id->execute();
-    $stmt_check_id->bind_result($count_id);
-    $stmt_check_id->fetch();
-    $stmt_check_id->close();
-    if ($count_id > 0) {
-      $errors[] = "แถวที่ " . ($index + 1) . ": รหัสประเภท '$type_id' ซ้ำในระบบ (โปรดรีเฟรชหน้า)";
-      continue;
-    }
-
-    // (5) ตรวจสอบชื่อไทยซ้ำ (บังคับ)
-    $stmt_check_th = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_name_th = ?");
-    $stmt_check_th->bind_param("s", $type_name_th);
-    $stmt_check_th->execute();
-    $stmt_check_th->bind_result($count_th);
-    $stmt_check_th->fetch();
-    $stmt_check_th->close();
-
-    if ($count_th > 0) {
-      $errors[] = "แถวที่ " . ($index + 1) . ": ชื่อประเภท (ไทย) '$type_name_th' ซ้ำในระบบ";
-      continue;
-    }
-
-    // ตรวจสอบชื่ออังกฤษซ้ำ 
-    if ($type_name_en !== NULL) {
-      $stmt_check_en = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_name_en = ?");
-      $stmt_check_en->bind_param("s", $type_name_en);
-      $stmt_check_en->execute();
-      $stmt_check_en->bind_result($count_en);
-      $stmt_check_en->fetch();
-      $stmt_check_en->close();
-
-      if ($count_en > 0) {
-        $errors[] = "แถวที่ " . ($index + 1) . ": ชื่อประเภท (อังกฤษ) '$type_name_en' ซ้ำในระบบ";
-        continue;
-      }
-    }
-
-    // เพิ่มข้อมูล 
-    $stmt = $conn->prepare("INSERT INTO prod_types (type_id, type_name_th, type_name_en) VALUES (?, ?, ?)");
-    $stmt->bind_param("sss", $type_id, $type_name_th, $type_name_en); // $type_name_en อาจเป็น NULL
-
-    if ($stmt->execute()) {
-      $success_count++;
+    if ($success_count > 0 && empty($errors)) {
+        $_SESSION['success'] = "เพิ่มประเภทสินค้าสำเร็จ จำนวน $success_count รายการ";
+        echo "<script>window.location.href='prodtype.php';</script>";
+        exit();
+    } elseif ($success_count > 0 && !empty($errors)) {
+        $_SESSION['warning'] = "เพิ่มประเภทสำเร็จ $success_count รายการ แต่มีข้อผิดพลาดบางรายการ";
+        $_SESSION['errors'] = $errors;
+        echo "<script>window.location.href='prodtype.php';</script>";
+        exit();
     } else {
-      $errors[] = "แถวที่ " . ($index + 1) . ": เกิดข้อผิดพลาดในการบันทึก (" . $stmt->error . ")";
+        $_SESSION['error'] = "ไม่สามารถเพิ่มประเภทได้";
+        $_SESSION['errors'] = $errors;
+        $form_count = isset($_GET['count']) ? max(1, intval($_GET['count'])) : 1;
+        echo "<script>window.location.href='add_prodtype.php?count=$form_count';</script>";
+        exit();
     }
-
-    $stmt->close();
-  }
-
-  if ($success_count > 0 && empty($errors)) {
-    $_SESSION['success'] = "เพิ่มประเภทสินค้าสำเร็จ จำนวน $success_count รายการ";
-    echo "<script>window.location.href='prodtype.php';</script>";
-    exit();
-  } elseif ($success_count > 0 && !empty($errors)) {
-    $_SESSION['warning'] = "เพิ่มประเภทสำเร็จ $success_count รายการ แต่มีข้อผิดพลาดบางรายการ";
-    $_SESSION['errors'] = $errors;
-    echo "<script>window.location.href='prodtype.php';</script>";
-    exit();
-  } else {
-    $_SESSION['error'] = "ไม่สามารถเพิ่มประเภทได้";
-    $_SESSION['errors'] = $errors;
-    echo "<script>window.location.href='add_prodtype.php?count=$form_count';</script>";
-    exit();
-  }
 }
 
 $form_count = isset($_GET['count']) ? max(1, intval($_GET['count'])) : 1;
 $next_ids = getNextTypeIds($conn, $form_count);
+
+ob_end_flush();
 ?>
 
 <!DOCTYPE html>
@@ -342,7 +369,7 @@ $next_ids = getNextTypeIds($conn, $form_count);
                         <div class="row g-3">
                           <input type="hidden" name="types[<?php echo $i; ?>][type_id]" value="<?php echo $next_ids[$i]; ?>">
 
-                          <div class="col-md-6">
+                          <div class="col-md-4">
                             <label class="form-label required-label">ชื่อประเภท (ภาษาไทย)</label>
                             <input type="text" name="types[<?php echo $i; ?>][type_name_th]"
                               class="form-control border-secondary"
@@ -353,7 +380,7 @@ $next_ids = getNextTypeIds($conn, $form_count);
                             <div class="invalid-feedback">ชื่อประเภทต้องเป็นภาษาไทย</div>
                           </div>
 
-                          <div class="col-md-6">
+                          <div class="col-md-4">
                             <label class="form-label">ชื่อประเภท (ภาษาอังกฤษ)</label>
                             <input type="text" name="types[<?php echo $i; ?>][type_name_en]"
                               class="form-control border-secondary"
@@ -362,6 +389,21 @@ $next_ids = getNextTypeIds($conn, $form_count);
                               title="กรุณากรอกชื่อประเภทเป็นภาษาอังกฤษ (ถ้ามี)">
                             <div class="invalid-feedback">ชื่อประเภทต้องเป็นภาษาอังกฤษ (ถ้ามี)</div>
                           </div>
+
+                          <div class="col-md-4 d-flex align-items-end">
+                              <?php if ($has_centralinf_permission): ?>
+                                  <div class="form-check mb-2">
+                                      <input class="form-check-input border-secondary" type="checkbox" 
+                                              name="types[<?php echo $i; ?>][is_central]" 
+                                              value="1" 
+                                              id="is_central_<?php echo $i; ?>">
+                                      <label class="form-check-label fw-bold text-primary" for="is_central_<?php echo $i; ?>">
+                                          <i class="bi bi-globe2 me-1"></i>ตั้งเป็นประเภทส่วนกลาง
+                                      </label>
+                                  </div>
+                              <?php endif; ?>
+                          </div>
+
                         </div>
                       </div>
                     </div>

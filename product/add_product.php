@@ -4,11 +4,14 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_product');
 require '../config/load_theme.php';
 
-// ดึงข้อมูล brands และ types
-$brands_query = "SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th";
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
+// [แก้ไข 2] ดึงข้อมูล brands และ types (เฉพาะของร้านนี้)
+$brands_query = "SELECT brand_id, brand_name_th FROM prod_brands WHERE shop_info_shop_id = '$shop_id' ORDER BY brand_name_th";
 $brands_result = mysqli_query($conn, $brands_query);
 
-$types_query = "SELECT type_id, type_name_th FROM prod_types ORDER BY type_name_th";
+$types_query = "SELECT type_id, type_name_th FROM prod_types WHERE shop_info_shop_id = '$shop_id' ORDER BY type_name_th";
 $types_result = mysqli_query($conn, $types_query);
 
 // ประมวลผลฟอร์ม
@@ -34,6 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     // ตรวจสอบรหัสสินค้า (prod_id) และ รหัสรุ่น (model_no) ซ้ำ
     if (empty($errors)) {
+        // เช็ค prod_id (Primary Key ต้องเช็คทั้งระบบหรือเช็คในร้านก็ได้ แต่ปกติ PK ซ้ำไม่ได้เลย)
         $check_id_sql = "SELECT prod_id FROM products WHERE prod_id = ?";
         $check_id_stmt = $conn->prepare($check_id_sql);
         $check_id_stmt->bind_param("i", $prod_id);
@@ -44,26 +48,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $check_id_stmt->close();
 
-        // เช็ค model_no
-        $check_model_sql = "SELECT prod_id FROM products WHERE model_no = ?";
+        // เช็ค model_no (เช็คเฉพาะในร้านตัวเอง เพื่อให้ร้านอื่นใช้ model_no เดียวกันได้ถ้าต้องการ)
+        $check_model_sql = "SELECT prod_id FROM products WHERE model_no = ? AND shop_info_shop_id = ?";
         $check_model_stmt = $conn->prepare($check_model_sql);
-        $check_model_stmt->bind_param("s", $model_no);
+        $check_model_stmt->bind_param("si", $model_no, $shop_id);
         $check_model_stmt->execute();
         $check_model_result = $check_model_stmt->get_result();
         if ($check_model_result->num_rows > 0) {
-            $errors[] = "รหัสรุ่น (Model No.) '$model_no' นี้มีอยู่แล้วในระบบ";
+            $errors[] = "รหัสรุ่น (Model No.) '$model_no' นี้มีอยู่แล้วในร้านของคุณ";
         }
         $check_model_stmt->close();
     }
 
     if (empty($errors)) {
-        //  ใช้ Prepared Statement 
-        $sql = "INSERT INTO products (prod_id, prod_name, prod_brands_brand_id, prod_types_type_id, model_name, model_no, prod_desc, prod_price) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+        // [แก้ไข 3] เพิ่ม shop_info_shop_id ลงใน INSERT
+        $sql = "INSERT INTO products (prod_id, prod_name, prod_brands_brand_id, prod_types_type_id, model_name, model_no, prod_desc, prod_price, shop_info_shop_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $conn->prepare($sql);
+        // เพิ่ม 'i' ท้ายสุดของ types string และเพิ่ม $shop_id ในพารามิเตอร์
         $stmt->bind_param(
-            "isiisssd",
+            "isiisssdi",
             $prod_id,
             $prod_name,
             $prod_brands_brand_id,
@@ -71,7 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $model_name,
             $model_no,
             $prod_desc,
-            $prod_price
+            $prod_price,
+            $shop_id 
         );
 
         if ($stmt->execute()) {

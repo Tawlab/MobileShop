@@ -3,6 +3,9 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'supplier');
 
+// [แก้ไข 1] รับค่า Shop ID จาก Session
+$shop_id = $_SESSION['shop_id'];
+
 // การจัดการค้นหาและจัดเรียง
 $search_term = $_GET['search'] ?? '';
 $sort_column = $_GET['sort'] ?? 'supplier_id';
@@ -21,19 +24,22 @@ if (!in_array(strtoupper($sort_order), ['ASC', 'DESC'])) {
 }
 
 // สร้าง SQL Query 
-$sql_where = "";
-$params = [];
-$types = "";
+// [แก้ไข 2] ตั้งค่าเริ่มต้นให้กรอง Shop ID เสมอ
+$sql_where = " WHERE s.shop_info_shop_id = ?";
+$params = [$shop_id];
+$types = "i"; // 'i' คือ integer
 
 if (!empty($search_term)) {
   // ค้นหาจาก รหัส, ชื่อบริษัท, ชื่อ-นามสกุลผู้ติดต่อ, เบอร์โทร, อีเมล
-  $sql_where = " WHERE (s.supplier_id LIKE ? 
-                       OR s.co_name LIKE ? 
-                       OR s.contact_firstname LIKE ? 
-                       OR s.contact_lastname LIKE ? 
-                       OR s.supplier_phone_no LIKE ? 
-                       OR s.supplier_email LIKE ?)";
+  // ใช้ AND เชื่อมต่อจากเงื่อนไข Shop ID
+  $sql_where .= " AND (s.supplier_id LIKE ? 
+                        OR s.co_name LIKE ? 
+                        OR s.contact_firstname LIKE ? 
+                        OR s.contact_lastname LIKE ? 
+                        OR s.supplier_phone_no LIKE ? 
+                        OR s.supplier_email LIKE ?)";
   $search_like = "%{$search_term}%";
+  // เพิ่ม parameters ต่อท้าย
   array_push($params, $search_like, $search_like, $search_like, $search_like, $search_like, $search_like);
   $types .= "ssssss";
 }
@@ -53,18 +59,17 @@ $sql_count = "SELECT COUNT(*) as total FROM suppliers s $sql_where";
 $stmt_data = $conn->prepare($sql_data);
 $stmt_count = $conn->prepare($sql_count);
 
-if (!empty($search_term)) {
-  $stmt_data->bind_param($types, ...$params);
-  $stmt_count->bind_param($types, ...$params);
-}
+// Bind params (ตอนนี้มี shop_id เป็นตัวแรกเสมอ)
+$stmt_data->bind_param($types, ...$params);
+$stmt_count->bind_param($types, ...$params);
 
 $stmt_data->execute();
 $result = $stmt_data->get_result();
 $stmt_count->execute();
 $total_rows = $stmt_count->get_result()->fetch_assoc()['total'];
 $total_pages = ceil($total_rows / $limit);
-
 ?>
+
 <!DOCTYPE html>
 <html lang="th">
 
