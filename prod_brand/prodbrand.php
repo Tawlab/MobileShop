@@ -115,7 +115,7 @@ $sql = "SELECT brand_id, brand_name_th, brand_name_en, shop_info_shop_id
         ORDER BY $sort_by $order 
         LIMIT $items_per_page OFFSET $offset";
 $result = mysqli_query($conn, $sql);
-
+//
 ob_end_flush();
 ?>
 
