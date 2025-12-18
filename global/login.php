@@ -299,6 +299,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     เข้าสู่ระบบ
                 </button>
             </div>
+            <div class="d-flex justify-content-center mb-4 mt-3">
+                <a href="register.php" class="forgot-link">
+                    สมัครสมาชิก 
+                </a>
+            </div>
         </form>
 
         <div class="footer-text">

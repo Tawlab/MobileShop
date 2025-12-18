@@ -6,47 +6,56 @@ require '../config/config.php';
 checkPageAccess($conn, 'prodbrand');
 require '../config/load_theme.php';
 
-// [1] รับค่า Shop ID และ User ID
+// [1] รับค่า Shop ID และ User ID จาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์พิเศษ "AAA" (จัดการข้อมูลส่วนกลาง)
+// [2] ตรวจสอบสิทธิ์และบทบาท (ตรวจสอบว่าเป็น Admin สูงสุดหรือไม่)
+$is_super_admin = false;
 $has_centralinf_permission = false;
-$check_perm_sql = "SELECT p.permission_id 
-                   FROM permissions p
-                   JOIN role_permissions rp ON p.permission_id = rp.permissions_permission_id
-                   JOIN user_roles ur ON rp.roles_role_id = ur.roles_role_id
-                   WHERE ur.users_user_id = ? 
-                   AND p.permission_name = 'centralinf' 
-                   LIMIT 1";
 
-if ($stmt_perm = mysqli_prepare($conn, $check_perm_sql)) {
-    mysqli_stmt_bind_param($stmt_perm, "i", $current_user_id);
-    mysqli_stmt_execute($stmt_perm);
-    mysqli_stmt_store_result($stmt_perm);
-    if (mysqli_stmt_num_rows($stmt_perm) > 0) {
-        $has_centralinf_permission = true;
+$check_user_sql = "SELECT r.role_name, p.permission_name 
+                   FROM users u
+                   JOIN user_roles ur ON u.user_id = ur.users_user_id
+                   JOIN roles r ON ur.roles_role_id = r.role_id
+                   LEFT JOIN role_permissions rp ON r.role_id = rp.roles_role_id
+                   LEFT JOIN permissions p ON rp.permissions_permission_id = p.permission_id
+                   WHERE u.user_id = ?";
+
+if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
+    mysqli_stmt_bind_param($stmt_user, "i", $current_user_id);
+    mysqli_stmt_execute($stmt_user);
+    $res_user = mysqli_stmt_get_result($stmt_user);
+    while ($row = mysqli_fetch_assoc($res_user)) {
+        // แก้ไข: เปลี่ยนจาก 'SystemOwner' เป็น 'Admin' ให้ตรงกับฐานข้อมูล
+        if ($row['role_name'] === 'Admin') { 
+            $is_super_admin = true;
+        }
+        // เช็คสิทธิ์จัดการข้อมูลส่วนกลาง (Permission 'centralinf')
+        if ($row['permission_name'] === 'centralinf') {
+            $has_centralinf_permission = true;
+        }
     }
-    mysqli_stmt_close($stmt_perm);
+    mysqli_stmt_close($stmt_user);
 }
 
-// [3] การจัดการการลบ
+// [3] การจัดการการลบ (Logic แยกตามระดับสิทธิ์)
 if (isset($_GET['delete_id'])) {
     $delete_id = $_GET['delete_id'];
-    $delete_success = false;
-    $delete_error = "";
 
-    // เตรียม SQL ตามสิทธิ์
-    if ($has_centralinf_permission) {
-        // ถ้ามีสิทธิ์ AAA ลบได้ทุกอย่าง (รวมถึงของส่วนกลาง)
+    if ($is_super_admin) {
+        // 1. Super Admin: ลบยี่ห้อของร้านใดก็ได้ในระบบ
         $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ?";
+    } elseif ($has_centralinf_permission) {
+        // 2. มีสิทธิ์ Central: ลบของร้านตัวเอง และข้อมูลส่วนกลาง (shop_id = 0)
+        $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ? AND (shop_info_shop_id = ? OR shop_info_shop_id = 0)";
     } else {
-        // ถ้าไม่มีสิทธิ์ ลบได้เฉพาะของร้านตัวเอง
+        // 3. ทั่วไป: ลบได้เฉพาะยี่ห้อที่ร้านตัวเองสร้างขึ้นเท่านั้น
         $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ? AND shop_info_shop_id = ?";
     }
 
     if ($stmt = mysqli_prepare($conn, $delete_sql)) {
-        if ($has_centralinf_permission) {
+        if ($is_super_admin) {
             mysqli_stmt_bind_param($stmt, "s", $delete_id);
         } else {
             mysqli_stmt_bind_param($stmt, "si", $delete_id, $shop_id);
@@ -55,68 +64,57 @@ if (isset($_GET['delete_id'])) {
         if (mysqli_stmt_execute($stmt)) {
             if (mysqli_stmt_affected_rows($stmt) > 0) {
                 $_SESSION['success'] = "ลบยี่ห้อสินค้าสำเร็จ";
-                $delete_success = true;
             } else {
-                $_SESSION['error'] = "คุณไม่สามารถลบยี่ห้อสินค้านี้ได้ (อาจเป็นยี่ห้อส่วนกลางหรือไม่มีสิทธิ์)";
+                $_SESSION['error'] = "ไม่พบข้อมูล หรือคุณไม่มีสิทธิ์จัดการรายการนี้";
             }
         } else {
-            // ตรวจจับ Foreign Key Error
             if (mysqli_errno($conn) == 1451) {
-                $_SESSION['error'] = "ลบไม่สำเร็จ: ยี่ห้อนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
+                $_SESSION['error'] = "ลบไม่สำเร็จ: ยี่ห้อนี้ถูกนำไปใช้งานในข้อมูลอื่นแล้ว";
             } else {
-                $_SESSION['error'] = "เกิดข้อผิดพลาดในการลบ: " . mysqli_error($conn);
+                $_SESSION['error'] = "เกิดข้อผิดพลาด: " . mysqli_error($conn);
             }
         }
         mysqli_stmt_close($stmt);
     }
-
-    // ล้าง output buffer และ redirect
     ob_end_clean();
     header('Location: prodbrand.php');
     exit();
 }
 
-// [4] การค้นหาและ Pagination
+// [4] การดึงข้อมูลและการกรอง (Data Isolation vs Super Admin View)
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'brand_id';
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
-
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
-// สร้าง WHERE clause แบบ Hybrid (ส่วนกลาง + ส่วนตัว)
 $where_conditions = [];
-$where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
+
+// ส่วนสำคัญ: หากเป็น Super Admin จะไม่กรอง shop_id เพื่อให้เห็นข้อมูลทุกร้าน
+if (!$is_super_admin) {
+    // สำหรับ Partner หรือพนักงานทั่วไป: เห็นเฉพาะของร้านตัวเอง และข้อมูลส่วนกลาง (shop_id = 0)
+    $where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
+}
 
 if (!empty($search)) {
     $where_conditions[] = "(brand_name_th LIKE '%$search%' OR brand_name_en LIKE '%$search%')";
 }
 
-$where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
+$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
 
-// นับจำนวน
+// คำนวณจำนวนหน้าและดึงข้อมูลตามเงื่อนไขสิทธิ์ข้างต้น
 $count_sql = "SELECT COUNT(*) as total FROM prod_brands $where_clause";
 $count_result = mysqli_query($conn, $count_sql);
 $total_brands = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_brands / $items_per_page);
 
-// ดึงข้อมูล
 $sql = "SELECT brand_id, brand_name_th, brand_name_en, shop_info_shop_id 
         FROM prod_brands 
         $where_clause 
         ORDER BY $sort_by $order 
         LIMIT $items_per_page OFFSET $offset";
 $result = mysqli_query($conn, $sql);
-
-function build_query_string($exclude = [])
-{
-    $params = $_GET;
-    foreach ($exclude as $key) {
-        unset($params[$key]);
-    }
-    return !empty($params) ? '&' . http_build_query($params) : '';
-}
 
 ob_end_flush();
 ?>
