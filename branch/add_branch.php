@@ -1,506 +1,381 @@
 <?php
+ob_start(); // ป้องกัน Error แทรกใน JSON
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'add_branch');
+require '../config/load_theme.php';
 
-$error_message = '';
-$return_url = $_GET['return_url'] ?? 'branch.php';
- 
-//ดึงข้อมูลสำหรับ Dropdowns
-$shop_result = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
-$provinces_result = $conn->query("SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
-$districts_result = $conn->query("SELECT district_id, district_name_th, provinces_province_id FROM districts");
-$subdistricts_result = $conn->query("SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts");
+// ตรวจสอบสิทธิ์
+checkPageAccess($conn, 'branch');
 
-$all_districts = $districts_result->fetch_all(MYSQLI_ASSOC);
-$all_subdistricts = $subdistricts_result->fetch_all(MYSQLI_ASSOC);
+$current_shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    //รับค่าจากฟอร์ม
-    $branch_name = trim($_POST['branch_name']);
-    $branch_code = trim($_POST['branch_code']) ?: NULL;
-    $branch_phone = trim($_POST['branch_phone']) ?: NULL;
-    $shop_id = !empty($_POST['shop_info_shop_id']) ? (int)$_POST['shop_info_shop_id'] : NULL;
-
-    // ข้อมูลที่อยู่
-    $home_no = trim($_POST['home_no']) ?: NULL;
-    $moo = trim($_POST['moo']) ?: NULL;
-    $soi = trim($_POST['soi']) ?: NULL;
-    $road = trim($_POST['road']) ?: NULL;
-    $village = trim($_POST['village']) ?: NULL;
-    $subdistricts_id = !empty($_POST['subdistricts_subdistrict_id']) ? (int)$_POST['subdistricts_subdistrict_id'] : NULL;
-
-    //ตรวจสอบข้อมูล (Server-side Validation)
-    if (empty($branch_name)) {
-        $error_message = 'กรุณากรอก "ชื่อสาขา"';
-    } elseif (empty($shop_id)) {
-        $error_message = 'กรุณาเลือก "สังกัดร้านค้า"';
-    } elseif (empty($subdistricts_id)) {
-        $error_message = 'กรุณาเลือกที่อยู่ (จังหวัด/อำเภอ/ตำบล) ให้ครบถ้วน';
-    } else {
-        // ตรวจสอบเบอร์โทรศัพท์ 
-        $phone_valid = true;
-        if (!empty($branch_phone)) {
-            if (!preg_match('/^(02|05|06|08|09)[0-9]{8}$/', $branch_phone)) {
-                $phone_valid = false;
-                $error_message = 'เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)';
-            }
-        }
-
-        if ($phone_valid) {
-            $conn->begin_transaction();
-            try {
-                // สร้าง ID สาขาใหม่ 
-                $sql_max_id = "SELECT IFNULL(MAX(branch_id), 0) as max_id FROM branches";
-                $max_result = $conn->query($sql_max_id);
-                $new_branch_id = $max_result->fetch_assoc()['max_id'] + 1;
-
-                // ตรวจสอบชื่อสาขาซ้ำ
-                $stmt_check = $conn->prepare("SELECT branch_id FROM branches WHERE branch_name = ?");
-                $stmt_check->bind_param("s", $branch_name);
-                $stmt_check->execute();
-                if ($stmt_check->get_result()->num_rows > 0) {
-                    throw new Exception('ชื่อสาขา "' . htmlspecialchars($branch_name) . '" นี้มีอยู่แล้วในระบบ');
-                }
-                $stmt_check->close();
-
-                // สร้างข้อมูลที่อยู่
-                $sql_max_addr = "SELECT IFNULL(MAX(address_id), 0) as max_addr_id FROM addresses";
-                $res_addr = $conn->query($sql_max_addr);
-                $new_address_id = $res_addr->fetch_assoc()['max_addr_id'] + 1;
-
-                $stmt_addr = $conn->prepare("INSERT INTO addresses (address_id, home_no, moo, soi, road, village, subdistricts_subdistrict_id) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt_addr->bind_param("isssssi", $new_address_id, $home_no, $moo, $soi, $road, $village, $subdistricts_id);
-                if (!$stmt_addr->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ");
-                $stmt_addr->close();
-
-                // บันทึกข้อมูลสาขา
-                $sql_insert = "INSERT INTO branches (
-                                    branch_id, branch_code, branch_name, branch_phone, 
-                                    shop_info_shop_id, Addresses_address_id, 
-                                    create_at, update_at
-                               ) VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())";
-
-                $stmt_insert = $conn->prepare($sql_insert);
-                $stmt_insert->bind_param("isssii", $new_branch_id, $branch_code, $branch_name, $branch_phone, $shop_id, $new_address_id);
-
-                if (!$stmt_insert->execute()) throw new Exception("บันทึกข้อมูลสาขาล้มเหลว: " . $stmt_insert->error);
-                $stmt_insert->close();
-
-                $conn->commit();
-                $_SESSION['success'] = "เพิ่มสาขา '" . htmlspecialchars($branch_name) . "' เรียบร้อยแล้ว";
-
-                header("Location: " . $return_url);
-                exit();
-            } catch (Exception $e) {
-                $conn->rollback();
-                $error_message = $e->getMessage();
-            }
-        }
-    }
+// --------------------------------------------------------------------------
+// [PHP Logic] ฟังก์ชันหา ID ถัดไป (Manual Increment) ใช้ได้กับทุกตาราง
+// --------------------------------------------------------------------------
+function getNextId($conn, $table, $column) {
+    $sql = "SELECT MAX($column) as max_id FROM $table";
+    $result = mysqli_query($conn, $sql);
+    $row = mysqli_fetch_assoc($result);
+    // ถ้ามีค่า ให้บวก 1, ถ้าไม่มี (เป็นค่าว่าง/NULL) ให้เริ่มที่ 1
+    return ($row['max_id']) ? $row['max_id'] + 1 : 1;
 }
+// --------------------------------------------------------------------------
+
+// ตรวจสอบว่าเป็น Admin หรือไม่
+$is_super_admin = false;
+$chk_sql = "SELECT r.role_name FROM roles r 
+            JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+            WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt = $conn->prepare($chk_sql)) {
+    $stmt->bind_param("i", $current_user_id);
+    $stmt->execute();
+    if ($stmt->get_result()->num_rows > 0) $is_super_admin = true;
+    $stmt->close();
+}
+
+// ==========================================================================================
+// [1] FORM SUBMISSION: บันทึกข้อมูล
+// ==========================================================================================
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+    ob_clean(); 
+    header('Content-Type: application/json');
+    
+    try {
+        // 1. รับค่าและ Validate
+        $shop_id = ($is_super_admin && !empty($_POST['shop_id'])) ? intval($_POST['shop_id']) : $current_shop_id;
+        $branch_name = trim($_POST['branch_name']);
+        $branch_code = trim($_POST['branch_code']);
+        $branch_phone = trim($_POST['branch_phone']);
+        
+        $home_no = trim($_POST['home_no']);
+        $moo = trim($_POST['moo']);
+        $soi = trim($_POST['soi']);
+        $road = trim($_POST['road']);
+        
+        $subdistrict_id = isset($_POST['subdistrict_id']) ? intval($_POST['subdistrict_id']) : 0;
+
+        if (empty($branch_name)) throw new Exception("กรุณากรอกชื่อสาขา");
+        if ($subdistrict_id <= 0) throw new Exception("กรุณาเลือก ตำบล/แขวง ให้ถูกต้อง");
+
+        // ตรวจสอบชื่อสาขาซ้ำ
+        $chk_sql = "SELECT branch_id FROM branches WHERE branch_name = ? AND shop_info_shop_id = ?";
+        $stmt = $conn->prepare($chk_sql);
+        $stmt->bind_param("si", $branch_name, $shop_id);
+        $stmt->execute();
+        if ($stmt->get_result()->num_rows > 0) {
+            throw new Exception("ชื่อสาขา '$branch_name' มีอยู่แล้วในร้านนี้");
+        }
+        $stmt->close();
+
+        // 2. เริ่ม Transaction
+        $conn->begin_transaction();
+
+        // ---------------------------------------------------------
+        // Step 1: บันทึกที่อยู่ (Addresses) ด้วย Manual ID
+        // ---------------------------------------------------------
+        $new_address_id = getNextId($conn, 'addresses', 'address_id'); // ** หา ID ที่อยู่ใหม่ **
+
+        $sql_addr = "INSERT INTO addresses (address_id, home_no, moo, soi, road, subdistricts_subdistrict_id) 
+                     VALUES (?, ?, ?, ?, ?, ?)";
+        $stmt = $conn->prepare($sql_addr);
+        $stmt->bind_param("issssi", $new_address_id, $home_no, $moo, $soi, $road, $subdistrict_id);
+        
+        if (!$stmt->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ: " . $stmt->error);
+        $stmt->close();
+
+        // ---------------------------------------------------------
+        // Step 2: บันทึกสาขา (Branches) ด้วย Manual ID
+        // ---------------------------------------------------------
+        $new_branch_id = getNextId($conn, 'branches', 'branch_id'); // ** หา ID สาขาใหม่ **
+
+        $sql_branch = "INSERT INTO branches (branch_id, branch_code, branch_name, branch_phone, Addresses_address_id, shop_info_shop_id, create_at, update_at) 
+                       VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        
+        $stmt = $conn->prepare($sql_branch);
+        // Param: i(id), s(code), s(name), s(phone), i(addr_id), i(shop_id)
+        $stmt->bind_param("isssii", $new_branch_id, $branch_code, $branch_name, $branch_phone, $new_address_id, $shop_id);
+        
+        if (!$stmt->execute()) {
+             // เช็ค Error ซ้ำอีกทีเผื่อ Race Condition
+            if ($conn->errno == 1062) throw new Exception("รหัสสาขาซ้ำ ($new_branch_id) กรุณาลองใหม่อีกครั้ง");
+            throw new Exception("บันทึกสาขาไม่สำเร็จ: " . $stmt->error);
+        }
+        $stmt->close();
+
+        // 3. Commit
+        $conn->commit();
+        echo json_encode(['status' => 'success', 'message' => 'บันทึกสำเร็จ รหัสสาขา: ' . $new_branch_id]);
+
+    } catch (Exception $e) {
+        if ($conn->connect_errno == 0) $conn->rollback();
+        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+    }
+    exit;
+}
+
+// ==========================================================================================
+// [2] PRE-FETCH DATA
+// ==========================================================================================
+$shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name") : null;
+$provinces_res = $conn->query("SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
+
+$districts_res = $conn->query("SELECT district_id, district_name_th, provinces_province_id FROM districts ORDER BY district_name_th");
+$all_districts = [];
+while ($row = $districts_res->fetch_assoc()) $all_districts[] = $row;
+
+$subdistricts_res = $conn->query("SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts ORDER BY subdistrict_name_th");
+$all_subdistricts = [];
+while ($row = $subdistricts_res->fetch_assoc()) $all_subdistricts[] = $row;
+
+ob_end_flush();
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
-    <title>เพิ่มข้อมูลสาขา</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>เพิ่มสาขาใหม่ - Mobile Shop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <?php include '../config/load_theme.php'; ?>
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <style>
-        /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
-        *, *::before, *::after {
-            box-sizing: border-box; 
-        }
-
-        body { 
-            /* **[เพิ่ม]** ป้องกัน Overflow และเพิ่ม Padding */
-            margin: 0; 
-            overflow-x: hidden; 
-            padding: 15px; 
-        }
-
-        h5 {
-            margin-top: 20px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid <?= $theme_color ?>;
-            font-weight: 600;
-            color: <?= $theme_color ?>;
-        }
-
-        .form-section {
-            background: #fff;
-            border-radius: 10px;
-            padding: 20px 25px;
-            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-            margin-bottom: 25px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 10px; /* สำหรับ Desktop */
-        }
-
-        .label-col {
-            width: 150px; /* สำหรับ Desktop */
-            font-weight: 500;
-            vertical-align: top;
-            padding-top: 10px;
-        }
-
-        .form-label {
-            margin-bottom: 4px;
-            font-weight: 500;
-        }
-
-        .error-feedback {
-            font-size: 13px;
-            color: #dc3545;
-            margin-top: 4px;
-            display: none;
-        }
-
-        .form-control.is-invalid,
-        .form-select.is-invalid {
-            border-color: #dc3545;
-        }
-
-        .form-control.is-invalid~.error-feedback,
-        .form-select.is-invalid~.error-feedback {
-            display: block;
-        }
-
-        .required-label::after {
-            content: " *";
-            color: red;
-        }
+        body { background-color: <?= $background_color ?>; font-family: '<?= $font_style ?>', sans-serif; color: <?= $text_color ?>; }
         
-        /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
-        /* -------------------------------------------------------------------- */
-        @media (max-width: 767.98px) {
-            .form-section {
-                padding: 15px; /* ลด Padding การ์ด */
-                margin-bottom: 15px;
-            }
-            
-            /* ยกเลิก Layout ตาราง */
-            table {
-                display: block;
-                border-spacing: 0;
-            }
-            
-            tbody, tr {
-                display: block;
-                width: 100%;
-            }
-
-            /* ทำให้แต่ละเซลล์แสดงผลเป็นบล็อก (เรียงซ้อนกัน) */
-            td {
-                display: block;
-                width: 100%;
-                vertical-align: unset; 
-                padding: 5px 0 !important;
-            }
-
-            /* จัดการ Label */
-            .label-col {
-                width: 100%; /* ให้ label เต็มความกว้าง */
-                padding-top: 0 !important;
-                margin-bottom: 5px;
-                font-weight: 600;
-            }
-            
-            /* จัดการ Input Content */
-            tr td:last-child {
-                margin-bottom: 15px; /* เพิ่มระยะห่างหลัง Input */
-            }
-            
-            /* ทำให้ปุ่มหลัก (Save) ใช้เต็มความกว้าง (ถ้าใช้ d-grid) */
-            .d-grid .btn {
-                width: 100% !important;
-                margin-bottom: 10px;
-            }
+        /* Custom Header: สีขาวตามที่ขอ */
+        .card-header-custom { 
+            background: linear-gradient(135deg, <?= $theme_color ?>, #0f5132); 
+            color: #ffffff !important; /* บังคับตัวหนังสือสีขาว */
+            padding: 1.5rem; 
+            border-radius: 15px 15px 0 0; 
         }
+        .card-header-custom h4, .card-header-custom i {
+            color: #ffffff !important;
+        }
+
+        .form-section-title { font-weight: 700; color: <?= $theme_color ?>; border-left: 5px solid <?= $theme_color ?>; padding-left: 10px; margin: 25px 0 15px 0; background: #f8f9fa; padding: 10px; border-radius: 0 5px 5px 0; }
+        .required-star { color: #dc3545; }
+        .select2-container--bootstrap-5 .select2-selection { border-radius: 0.375rem; }
     </style>
 </head>
-
-
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
-            <div class="container-fluid py-4">
+            <div class="container py-5">
+                <div class="row justify-content-center">
+                    <div class="col-lg-10">
+                        <div class="card shadow-sm border-0 rounded-4">
+                            
+                            <div class="card-header-custom d-flex justify-content-between align-items-center">
+                                <h4 class="mb-0 fw-bold"><i class="bi bi-shop-window me-2"></i>เพิ่มสาขาใหม่</h4>
+                            </div>
 
-                <div class="container my-4">
-                    <h4 class="mb-4"><i class="bi bi-shop me-2"></i>เพิ่มข้อมูลสาขา</h4>
-
-                    <?php if (!empty($error_message)): ?>
-                        <div class="alert alert-danger" role="alert">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <?= htmlspecialchars($error_message) ?>
-                        </div>
-                    <?php endif; ?>
-
-                    <form method="POST" action="add_branch.php" id="branchForm" novalidate>
-                        <input type="hidden" name="return_url" value="<?= htmlspecialchars($return_url) ?>">
-
-                        <div class="form-section">
-                            <h5>ข้อมูลสาขา</h5>
-                            <table>
-                                <tr>
-                                    <td class="label-col"><label class="form-label required-label">ชื่อสาขา</label></td>
-                                    <td>
-                                        <input type="text" name="branch_name" class="form-control" required style="width: 300px;"
-                                            placeholder="กรอกชื่อสาขา" value="<?= htmlspecialchars($_POST['branch_name'] ?? '') ?>">
-                                        <div class="error-feedback">กรุณากรอกชื่อสาขา</div>
-                                    </td>
-                                    <td class="label-col"><label class="form-label ms-3">รหัสสาขา</label></td>
-                                    <td>
-                                        <input type="text" name="branch_code" class="form-control" style="width: 300px;"
-                                            placeholder="กรอกรหัสสาขา" value="<?= htmlspecialchars($_POST['branch_code'] ?? '') ?>">
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td class="label-col"><label class="form-label required-label">สังกัดร้านค้า</label></td>
-                                    <td>
-                                        <select name="shop_info_shop_id" class="form-select" style="width: 300px;" required>
-                                            <option value="">-- เลือกร้านค้า --</option>
-                                            <?php while ($shop = $shop_result->fetch_assoc()): ?>
-                                                <option value="<?= $shop['shop_id'] ?>" <?= (isset($_POST['shop_info_shop_id']) && $_POST['shop_info_shop_id'] == $shop['shop_id']) ? 'selected' : '' ?>>
-                                                    <?= htmlspecialchars($shop['shop_name']) ?>
-                                                </option>
-                                            <?php endwhile; ?>
-                                        </select>
-                                        <div class="error-feedback">กรุณาเลือกร้านค้า</div>
-                                    </td>
-                                    <td class="label-col"><label class="form-label ms-3">เบอร์โทร</label></td>
-                                    <td>
-                                        <input type="text" name="branch_phone" id="branch_phone" class="form-control"
-                                            placeholder="0xxxxxxxxx (10 หลัก)" style="width: 300px;"
-                                            value="<?= htmlspecialchars($_POST['branch_phone'] ?? '') ?>"
-                                            maxlength="10">
-                                        <div id="phone_error" class="error-feedback">เบอร์โทรไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)</div>
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
-
-                        <div class="form-section">
-                            <h5>ที่อยู่สาขา (จำเป็นต้องเลือก ตำบล)</h5>
-                            <table>
-                                <tr>
-                                    <td class="label-col"><label class="form-label">บ้านเลขที่ / หมู่ที่</label></td>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <input type="text" name="home_no" class="form-control" placeholder="บ้านเลขที่"
-                                                style="width: 140px;" value="<?= htmlspecialchars($_POST['home_no'] ?? '') ?>">
-                                            <input type="text" name="moo" class="form-control" placeholder="หมู่ที่"
-                                                style="width: 150px;" value="<?= htmlspecialchars($_POST['moo'] ?? '') ?>">
+                            <div class="card-body p-4 p-md-5">
+                                <form id="addBranchForm" class="needs-validation" novalidate>
+                                    
+                                    <div class="form-section-title">ข้อมูลพื้นฐาน</div>
+                                    <div class="row g-3">
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">สังกัดร้านค้า</label>
+                                            <?php if ($is_super_admin): ?>
+                                                <select class="form-select select2" name="shop_id" required>
+                                                    <option value="">-- ค้นหาร้านค้า --</option>
+                                                    <?php while($s = $shops->fetch_assoc()): ?>
+                                                        <option value="<?= $s['shop_id'] ?>"><?= $s['shop_name'] ?></option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                            <?php else: ?>
+                                                <input type="text" class="form-control bg-light text-muted" value="<?= $_SESSION['shop_name'] ?>" readonly>
+                                                <input type="hidden" name="shop_id" value="<?= $current_shop_id ?>">
+                                            <?php endif; ?>
                                         </div>
-                                    </td>
-                                    <td class="label-col"><label class="form-label ms-3">ซอย / หมู่บ้าน</label></td>
-                                    <td>
-                                        <div class="d-flex align-items-center gap-2">
-                                            <input type="text" name="soi" class="form-control" placeholder="ซอย"
-                                                style="width: 140px;" value="<?= htmlspecialchars($_POST['soi'] ?? '') ?>">
-                                            <input type="text" name="village" class="form-control" placeholder="หมู่บ้าน"
-                                                style="width: 150px;" value="<?= htmlspecialchars($_POST['village'] ?? '') ?>">
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td class="label-col"><label class="form-label">ถนน</label></td>
-                                    <td>
-                                        <input type="text" name="road" class="form-control" placeholder="ถนน"
-                                            style="width: 300px;" value="<?= htmlspecialchars($_POST['road'] ?? '') ?>">
-                                    </td>
-                                    <td class="label-col"><label class="form-label ms-3">รหัสไปรษณีย์</label></td>
-                                    <td>
-                                        <input type="text" id="zip_code" class="form-control bg-light"
-                                            placeholder="รอเลือกตำบล" style="width: 300px;" readonly>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td class="label-col"><label class="form-label required-label">จังหวัด</label></td>
-                                    <td>
-                                        <select id="province" class="form-select" style="width: 300px;" required>
-                                            <option value="">-- เลือกจังหวัด --</option>
-                                            <?php
-                                            mysqli_data_seek($provinces_result, 0);
-                                            while ($p = mysqli_fetch_assoc($provinces_result)) {
-                                                echo "<option value='{$p['province_id']}'>" . htmlspecialchars($p['province_name_th']) . "</option>";
-                                            }
-                                            ?>
-                                        </select>
-                                        <div class="error-feedback">กรุณาเลือกจังหวัด</div>
-                                    </td>
-                                    <td class="label-col"><label class="form-label ms-3 required-label">อำเภอ</label></td>
-                                    <td>
-                                        <select id="district" class="form-select" style="width: 300px;" required>
-                                            <option value="">-- เลือกอำเภอ --</option>
-                                        </select>
-                                        <div class="error-feedback">กรุณาเลือกอำเภอ</div>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td class="label-col"><label class="form-label required-label">ตำบล</label></td>
-                                    <td>
-                                        <select name="subdistricts_subdistrict_id" id="subdistrict" class="form-select" required style="width: 300px;">
-                                            <option value="">-- เลือกตำบล --</option>
-                                        </select>
-                                        <div class="error-feedback">กรุณาเลือกตำบล</div>
-                                    </td>
-                                </tr>
-                            </table>
-                        </div>
+                                        <div class="col-md-6"></div>
 
-                        <div class="text-end mt-4">
-                            <button type="submit" class="btn btn-add"><i class="bi bi-save-fill me-1"></i> บันทึก</button>
-                            <a href="<?= htmlspecialchars($return_url) ?>" class="btn btn-outline-secondary"><i class="bi bi-x-circle me-1"></i> ยกเลิก</a>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">ชื่อสาขา <span class="required-star">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-white"><i class="bi bi-tag"></i></span>
+                                                <input type="text" class="form-control" name="branch_name" required placeholder="เช่น สาขานคร">
+                                            </div>
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold">รหัสสาขา (Code)</label>
+                                            <input type="text" class="form-control" name="branch_code" placeholder="เช่น BR-001">
+                                        </div>
+
+                                        <div class="col-md-3">
+                                            <label class="form-label fw-bold">เบอร์โทรศัพท์</label>
+                                            <input type="text" class="form-control" name="branch_phone" placeholder="02-xxx-xxxx">
+                                        </div>
+                                    </div>
+
+                                    <div class="form-section-title">ที่ตั้งสาขา</div>
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="form-label">เลขที่บ้าน</label>
+                                            <input type="text" class="form-control" name="home_no">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">หมู่ที่</label>
+                                            <input type="text" class="form-control" name="moo">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">ซอย</label>
+                                            <input type="text" class="form-control" name="soi">
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="form-label">ถนน</label>
+                                            <input type="text" class="form-control" name="road">
+                                        </div>
+
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">จังหวัด <span class="required-star">*</span></label>
+                                            <select class="form-select select2" id="provinceSelect" required>
+                                                <option value="">-- ค้นหาจังหวัด --</option>
+                                                <?php while($p = $provinces_res->fetch_assoc()): ?>
+                                                    <option value="<?= $p['province_id'] ?>"><?= $p['province_name_th'] ?></option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">อำเภอ/เขต <span class="required-star">*</span></label>
+                                            <select class="form-select select2" id="districtSelect" required disabled>
+                                                <option value="">-- เลือกจังหวัดก่อน --</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">ตำบล/แขวง <span class="required-star">*</span></label>
+                                            <select class="form-select select2" name="subdistrict_id" id="subdistrictSelect" required disabled>
+                                                <option value="">-- เลือกอำเภอก่อน --</option>
+                                            </select>
+                                        </div>
+                                        
+                                        <div class="col-12 text-end">
+                                            <span class="text-muted small me-2">รหัสไปรษณีย์:</span>
+                                            <span id="zipcodeDisplay" class="fw-bold text-primary">-</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="d-flex justify-content-between align-items-center mt-5 pt-3 border-top">
+                                        <a href="branch.php" class="btn btn-light rounded-pill px-4"><i class="bi bi-arrow-left me-2"></i>ย้อนกลับ</a>
+                                        <button type="submit" class="btn btn-success rounded-pill px-5 fw-bold shadow-sm">
+                                            <i class="bi bi-save2-fill me-2"></i>บันทึกข้อมูล
+                                        </button>
+                                    </div>
+
+                                </form>
+                            </div>
                         </div>
-                    </form>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
     <script>
-        (function() {
-            'use strict';
+        // ข้อมูลสำหรับ Filter
+        const allDistricts = <?= json_encode($all_districts, JSON_UNESCAPED_UNICODE) ?>;
+        const allSubdistricts = <?= json_encode($all_subdistricts, JSON_UNESCAPED_UNICODE) ?>;
 
-            // ข้อมูลที่อยู่จาก PHP
-            const districts = <?php echo json_encode($all_districts); ?>;
-            const subdistricts = <?php echo json_encode($all_subdistricts); ?>;
+        $(document).ready(function() {
+            // Init Select2
+            $('.select2').select2({ theme: 'bootstrap-5', width: '100%', placeholder: 'กรุณาเลือก' });
 
-            const provinceSelect = document.getElementById('province');
-            const districtSelect = document.getElementById('district');
-            const subdistrictSelect = document.getElementById('subdistrict');
-            const zipCodeInput = document.getElementById('zip_code');
-            const phoneInput = document.getElementById('branch_phone');
-            const phoneError = document.getElementById('phone_error');
+            // 1. เปลี่ยนจังหวัด -> อัปเดตอำเภอ
+            $('#provinceSelect').on('change', function() {
+                const pId = $(this).val();
+                const $dSelect = $('#districtSelect');
+                const $sSelect = $('#subdistrictSelect');
 
-            if (phoneInput) {
-                phoneInput.addEventListener('input', function() {
-                    // ลบทุกอย่างที่ไม่ใช่ตัวเลข
-                    this.value = this.value.replace(/[^0-9]/g, '');
+                $dSelect.empty().append('<option value="">-- ค้นหาอำเภอ --</option>').val(null).trigger('change').prop('disabled', true);
+                $sSelect.empty().append('<option value="">-- เลือกอำเภอก่อน --</option>').val(null).trigger('change').prop('disabled', true);
+                $('#zipcodeDisplay').text('-');
 
-                    const value = this.value;
-                    const phonePattern = /^(02|05|06|08|09)[0-9]{8}$/;
+                if (pId) {
+                    const filtered = allDistricts.filter(d => d.provinces_province_id == pId);
+                    filtered.forEach(d => $dSelect.append(new Option(d.district_name_th, d.district_id)));
+                    $dSelect.prop('disabled', false).trigger('change');
+                }
+            });
 
-                    if (value.length > 0) {
-                        if (!phonePattern.test(value)) {
-                            phoneError.style.display = 'block';
-                            phoneInput.classList.add('is-invalid');
-                        } else {
-                            phoneError.style.display = 'none';
-                            phoneInput.classList.remove('is-invalid');
-                        }
-                    } else {
-                        // ถ้าว่าง ให้ซ่อน Error (เพราะไม่ได้บังคับกรอก)
-                        phoneError.style.display = 'none';
-                        phoneInput.classList.remove('is-invalid');
-                    }
-                });
-            }
+            // 2. เปลี่ยนอำเภอ -> อัปเดตตำบล
+            $('#districtSelect').on('change', function() {
+                const dId = $(this).val();
+                const $sSelect = $('#subdistrictSelect');
 
-            // จัดการ Dropdown จังหวัด -> อำเภอ
-            if (provinceSelect) {
-                provinceSelect.addEventListener('change', function() {
-                    const provinceId = this.value;
-                    districtSelect.innerHTML = '<option value="">-- เลือกอำเภอ --</option>';
-                    subdistrictSelect.innerHTML = '<option value="">-- เลือกตำบล --</option>';
-                    zipCodeInput.value = ''; // Reset Zip
-                    districtSelect.classList.remove('is-invalid');
+                $sSelect.empty().append('<option value="">-- ค้นหาตำบล --</option>').val(null).trigger('change').prop('disabled', true);
+                $('#zipcodeDisplay').text('-');
 
-                    if (provinceId) {
-                        districts.forEach(district => {
-                            if (district.provinces_province_id == provinceId) {
-                                const option = document.createElement('option');
-                                option.value = district.district_id;
-                                option.textContent = district.district_name_th;
-                                districtSelect.appendChild(option);
-                            }
-                        });
-                    }
-                });
-            }
-
-            // จัดการ Dropdown อำเภอ -> ตำบล
-            if (districtSelect) {
-                districtSelect.addEventListener('change', function() {
-                    const districtId = this.value;
-                    subdistrictSelect.innerHTML = '<option value="">-- เลือกตำบล --</option>';
-                    zipCodeInput.value = ''; // Reset Zip
-                    subdistrictSelect.classList.remove('is-invalid');
-
-                    if (districtId) {
-                        subdistricts.forEach(subdistrict => {
-                            if (subdistrict.districts_district_id == districtId) {
-                                const option = document.createElement('option');
-                                option.value = subdistrict.subdistrict_id;
-                                option.textContent = subdistrict.subdistrict_name_th;
-                                option.dataset.zip = subdistrict.zip_code; // เก็บ Zip code ไว้
-                                subdistrictSelect.appendChild(option);
-                            }
-                        });
-                    }
-                });
-            }
-
-            // แสดง Zip Code เมื่อเลือกตำบล
-            if (subdistrictSelect) {
-                subdistrictSelect.addEventListener('change', function() {
-                    const selectedOption = this.options[this.selectedIndex];
-                    if (selectedOption && selectedOption.dataset.zip) {
-                        zipCodeInput.value = selectedOption.dataset.zip;
-                    } else {
-                        zipCodeInput.value = '';
-                    }
-                    if (this.value) this.classList.remove('is-invalid');
-                });
-            }
-
-            // ตรวจสอบก่อน Submit
-            const form = document.getElementById('branchForm');
-            if (form) {
-                form.addEventListener('submit', function(event) {
-                    let isValid = true;
-
-                    // ถ้าเบอร์โทรผิดรูปแบบ ห้ามส่งฟอร์ม
-                    if (phoneInput && phoneInput.classList.contains('is-invalid')) {
-                        isValid = false;
-                        phoneInput.focus();
-                    }
-
-                    if (!form.checkValidity() || !isValid) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    }
-                    form.classList.add('was-validated');
-
-                    // ตรวจสอบ Dropdown
-                    [provinceSelect, districtSelect, subdistrictSelect].forEach(select => {
-                        if (!select.value) select.classList.add('is-invalid');
-                        else select.classList.remove('is-invalid');
+                if (dId) {
+                    const filtered = allSubdistricts.filter(s => s.districts_district_id == dId);
+                    filtered.forEach(s => {
+                        const opt = new Option(s.subdistrict_name_th, s.subdistrict_id);
+                        $(opt).attr('data-zip', s.zip_code);
+                        $sSelect.append(opt);
                     });
-                }, false);
+                    $sSelect.prop('disabled', false).trigger('change');
+                }
+            });
 
-                [provinceSelect, districtSelect, subdistrictSelect].forEach(select => {
-                    select.addEventListener('change', function() {
-                        if (this.value) this.classList.remove('is-invalid');
-                    });
+            // 3. เปลี่ยนตำบล -> Zipcode
+            $('#subdistrictSelect').on('change', function() {
+                const zip = $(this).find(':selected').data('zip');
+                $('#zipcodeDisplay').text(zip ? zip : '-');
+            });
+
+            // 4. Submit Form
+            $('#addBranchForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                if (!this.checkValidity()) {
+                    e.stopPropagation();
+                    $(this).addClass('was-validated');
+                    return;
+                }
+                if (!$('#subdistrictSelect').val()) {
+                    Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกที่อยู่ให้ครบถ้วน', 'warning');
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'กำลังบันทึก...',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
                 });
-            }
-        })();
+
+                fetch('add_branch.php', {
+                    method: 'POST',
+                    body: new FormData(this)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'สำเร็จ!',
+                            text: data.message,
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => window.location.href = 'branch.php');
+                    } else {
+                        Swal.fire('บันทึกไม่สำเร็จ', data.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('System Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+                });
+            });
+        });
     </script>
 </body>
-
 </html>

@@ -3,75 +3,170 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'purchase_order');
 
-// Pagination, Search, Sort
-$limit = 10; // จำนวนรายการต่อหน้า
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
-$search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
+// [1] รับค่าพื้นฐานจาก Session
+$branch_id = $_SESSION['branch_id'];
+$shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
 
-// สำหรับค้นหา
-$where_conditions = [];
-if (!empty($search)) {
-    $where_conditions[] = "(
-        po.purchase_id LIKE '%$search%' OR 
-        s.co_name LIKE '%$search%' OR 
-        e.firstname_th LIKE '%$search%' OR 
-        e.lastname_th LIKE '%$search%' OR
-        b.branch_name LIKE '%$search%'
-    )";
+// [2] ตรวจสอบสิทธิ์ Admin
+$is_super_admin = false;
+$check_admin_sql = "SELECT r.role_name FROM roles r 
+                    JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+                    WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt_admin = $conn->prepare($check_admin_sql)) {
+    $stmt_admin->bind_param("i", $current_user_id);
+    $stmt_admin->execute();
+    if ($stmt_admin->get_result()->num_rows > 0) $is_super_admin = true;
+    $stmt_admin->close();
 }
-$where_clause = empty($where_conditions) ? '' : 'WHERE ' . implode(' AND ', $where_conditions);
 
-//  SQL QUERY (หลัก)
-$main_sql = "SELECT 
-                po.purchase_id,
-                po.purchase_date,
-                po.po_status, 
-                s.co_name as supplier_name,
-                b.branch_name,
-                e.firstname_th,
-                e.lastname_th,
-                (SELECT COUNT(*) 
-                 FROM order_details od 
-                 WHERE od.purchase_orders_purchase_id = po.purchase_id) as item_count,
-                 
-                (SELECT SUM(od.price * od.amount) 
-                 FROM order_details od 
-                 WHERE od.purchase_orders_purchase_id = po.purchase_id) as total_amount,
-                 
-                (SELECT SUM(od.amount) 
-                 FROM order_details od 
-                 WHERE od.purchase_orders_purchase_id = po.purchase_id) as total_quantity,
+// ==========================================
+// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ==========================================
+if (isset($_GET['ajax'])) {
+    $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
+    $status_f = isset($_GET['status']) ? $_GET['status'] : '';
+    $supplier_f = isset($_GET['supplier']) ? $_GET['supplier'] : '';
+    $shop_f = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
+    $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
 
-                (SELECT COUNT(DISTINCT sm.prod_stocks_stock_id) 
-                 FROM order_details od_sm 
-                 JOIN stock_movements sm ON od_sm.order_id = sm.ref_id AND sm.ref_table = 'order_details'
-                 WHERE od_sm.purchase_orders_purchase_id = po.purchase_id) as received_quantity
+    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
+    $offset = ($page - 1) * $limit;
 
+    // 3. กรองตามสิทธิ์ (สาขาตัวเอง vs ทั้งหมดสำหรับ Admin)
+    $conditions = [];
+    if (!$is_super_admin) {
+        $conditions[] = "po.branches_branch_id = '$branch_id'";
+    } else {
+        if (!empty($branch_f)) $conditions[] = "po.branches_branch_id = '$branch_f'";
+        elseif (!empty($shop_f)) $conditions[] = "b.shop_info_shop_id = '$shop_f'";
+    }
+
+    if (!empty($search)) {
+        $conditions[] = "(po.purchase_id LIKE '%$search%' OR s.co_name LIKE '%$search%' OR e.firstname_th LIKE '%$search%')";
+    }
+    if (!empty($status_f)) $conditions[] = "po.po_status = '$status_f'";
+    if (!empty($supplier_f)) $conditions[] = "po.suppliers_supplier_id = '$supplier_f'";
+
+    $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+
+    // นับจำนวนหน้า
+    $count_sql = "SELECT COUNT(*) as total FROM purchase_orders po LEFT JOIN suppliers s ON po.suppliers_supplier_id = s.supplier_id LEFT JOIN branches b ON po.branches_branch_id = b.branch_id $where_sql";
+    $total_items = $conn->query($count_sql)->fetch_assoc()['total'];
+    $total_pages = ceil($total_items / $limit);
+
+    // ดึงข้อมูลพร้อมระบุสังกัด (กรณี Admin)
+    $sql = "SELECT po.*, s.co_name as supplier_name, b.branch_name, sh.shop_name, e.firstname_th, e.lastname_th,
+            (SELECT SUM(od.price * od.amount) FROM order_details od WHERE od.purchase_orders_purchase_id = po.purchase_id) as total_amount,
+            (SELECT SUM(od.amount) FROM order_details od WHERE od.purchase_orders_purchase_id = po.purchase_id) as total_qty,
+            (SELECT COUNT(DISTINCT sm.prod_stocks_stock_id) FROM order_details od_sm JOIN stock_movements sm ON od_sm.order_id = sm.ref_id AND sm.ref_table = 'order_details' WHERE od_sm.purchase_orders_purchase_id = po.purchase_id) as received_qty
             FROM purchase_orders po
             LEFT JOIN suppliers s ON po.suppliers_supplier_id = s.supplier_id
             LEFT JOIN branches b ON po.branches_branch_id = b.branch_id
+            LEFT JOIN shop_info sh ON b.shop_info_shop_id = sh.shop_id
             LEFT JOIN employees e ON po.employees_emp_id = e.emp_id
-            $where_clause
-            ORDER BY po.purchase_id DESC";
+            $where_sql ORDER BY po.purchase_id DESC LIMIT $limit OFFSET $offset";
+    $result = $conn->query($sql);
+?>
 
-// COUNT TOTAL (สำหรับ Pagination)
-$count_result = mysqli_query($conn, "SELECT COUNT(*) as total FROM ($main_sql) as count_table");
-$total_records = mysqli_fetch_assoc($count_result)['total'];
-$total_pages = ceil($total_records / $limit);
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" width="8%">เลขที่ PO</th>
+                    <th width="12%">วันที่สั่ง</th>
+                    <th width="18%">Supplier</th>
+                    <?php if ($is_super_admin): // คอลัมน์ระบุสาขาสำหรับ Admin 
+                    ?>
+                        <th width="15%" class="text-center">สาขา/ร้าน</th>
+                    <?php endif; ?>
+                    <th width="12%">ยอดรวม (บาท)</th>
+                    <th width="12%" class="text-center">สถานะการรับ</th>
+                    <th width="12%" class="text-center">สถานะ PO</th>
+                    <th width="12%" class="text-center">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($result->num_rows > 0): while ($row = $result->fetch_assoc()):
+                        $total_q = (int)$row['total_qty'];
+                        $received_q = (int)$row['received_qty'];
+                        $status_badge = match ($row['po_status']) {
+                            'Pending' => 'bg-warning text-dark',
+                            'Completed' => 'bg-success',
+                            'Cancelled' => 'bg-danger',
+                            default => 'bg-secondary'
+                        };
+                ?>
+                        <tr>
+                            <td class="text-center fw-bold">#<?= $row['purchase_id'] ?></td>
+                            <td class="small"><?= date('d/m/Y H:i', strtotime($row['purchase_date'])) ?></td>
+                            <td class="small fw-bold text-truncate" style="max-width: 150px;"><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
+                            <?php if ($is_super_admin): ?>
+                                <td class="text-center small">
+                                    <div class="fw-bold text-primary"><?= htmlspecialchars($row['shop_name'] ?? '-') ?></div>
+                                    <div class="text-muted fs-xs"><?= htmlspecialchars($row['branch_name'] ?? '-') ?></div>
+                                </td>
+                            <?php endif; ?>
+                            <td class="text-end fw-bold">฿<?= number_format($row['total_amount'] ?? 0, 2) ?></td>
+                            <td class="text-center">
+                                <div class="progress" style="height: 10px; width: 80px; margin: 0 auto;">
+                                    <div class="progress-bar bg-info" style="width: <?= ($total_q > 0) ? ($received_q / $total_q) * 100 : 0 ?>%"></div>
+                                </div>
+                                <small class="text-muted fs-xs"><?= $received_q ?> / <?= $total_q ?></small>
+                            </td>
+                            <td class="text-center"><span class="badge <?= $status_badge ?> px-3 rounded-pill"><?= $row['po_status'] ?></span></td>
+                            <td class="text-center">
+                                <div class="d-flex justify-content-center gap-1">
+                                    <?php if ($row['po_status'] == 'Pending'): ?>
+                                        <a href="receive_po.php?po_id=<?= $row['purchase_id'] ?>" class="btn btn-outline-success btn-sm border-0"><i class="bi bi-truck"></i></a>
+                                        <a href="edit_purchase_order.php?id=<?= $row['purchase_id'] ?>" class="btn btn-outline-warning btn-sm border-0"><i class="bi bi-pencil-square"></i></a>
+                                    <?php endif; ?>
+                                    <a href="view_purchase_order.php?id=<?= $row['purchase_id'] ?>" class="btn btn-outline-info btn-sm border-0"><i class="bi bi-eye"></i></a>
+                                    <?php if ($row['po_status'] == 'Pending'): ?>
+                                        <button onclick="confirmCancel(<?= $row['purchase_id'] ?>)" class="btn btn-outline-danger btn-sm border-0"><i class="bi bi-x-circle"></i></button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endwhile;
+                else: ?>
+                    <tr>
+                        <td colspan="<?= $is_super_admin ? 8 : 7 ?>" class="text-center py-5 text-muted">-- ไม่พบข้อมูลใบสั่งซื้อ --</td>
+                    </tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
 
-// สำหรับแสดงผล
-$data_sql = $main_sql . " LIMIT $limit OFFSET $offset";
-$result = mysqli_query($conn, $data_sql);
+    <?php if ($total_pages > 1): ?>
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center pagination-sm">
+                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="1"><i class="bi bi-chevron-double-left"></i></a></li>
+                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $page - 1 ?>"><i class="bi bi-chevron-left"></i></a></li>
+                <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+                    <li class="page-item <?= ($page == $i) ? 'active' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a></li>
+                <?php endfor; ?>
+                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $page + 1 ?>"><i class="bi bi-chevron-right"></i></a></li>
+                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>"><i class="bi bi-chevron-double-right"></i></a></li>
+            </ul>
+        </nav>
+        <div class="d-flex justify-content-center mt-2 gap-2 align-items-center">
+            <div class="input-group input-group-sm" style="max-width: 150px;">
+                <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปหน้า" min="1" max="<?= $total_pages ?>">
+                <button class="btn btn-success" type="button" id="btnJumpPage">ไป</button>
+            </div>
+            <div class="small text-muted">หน้า <?= $page ?> / <?= $total_pages ?> (ทั้งหมด <?= number_format($total_items) ?> รายการ)</div>
+        </div>
+<?php endif;
+    exit();
+}
 
-// HELPER FUNCTION 
-function build_query_string($exclude = [])
-{
-    $params = $_GET;
-    foreach ($exclude as $key) {
-        unset($params[$key]);
-    }
-    return !empty($params) ? '&' . http_build_query($params) : '';
+// [4] โหลดข้อมูลสำหรับตัวกรอง
+$suppliers_res = $conn->query("SELECT supplier_id, co_name FROM suppliers WHERE shop_info_shop_id = '$shop_id' ORDER BY co_name ASC");
+if ($is_super_admin) {
+    $all_shops = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name ASC");
+    $all_branches = $conn->query("SELECT branch_id, branch_name, shop_info_shop_id FROM branches ORDER BY branch_name ASC");
 }
 ?>
 
@@ -80,11 +175,10 @@ function build_query_string($exclude = [])
 
 <head>
     <meta charset="UTF-8">
-    <title>รายการใบสั่งซื้อ/รับเข้า</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"> 
+    <title>รายการใบสั่งซื้อ/รับเข้า - Mobile Shop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
         body {
@@ -126,10 +220,11 @@ function build_query_string($exclude = [])
         /* **[เพิ่ม]** จัดการคอลัมน์ Action ในตาราง */
         .table td:last-child {
             display: flex;
-            gap: 5px; 
+            gap: 5px;
             justify-content: center;
             align-items: center;
-            flex-wrap: nowrap; /* ป้องกันปุ่มขึ้นบรรทัดใหม่บน Desktop */
+            flex-wrap: nowrap;
+            /* ป้องกันปุ่มขึ้นบรรทัดใหม่บน Desktop */
         }
 
         /* ... โค้ดปุ่มและ Form Control เดิม ... */
@@ -238,31 +333,33 @@ function build_query_string($exclude = [])
 
             /* 1. จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex) */
             .card-header .d-flex {
-                flex-direction: column; 
+                flex-direction: column;
                 gap: 10px;
             }
 
-            .card-header .d-flex > div {
-                 width: 100% !important; 
+            .card-header .d-flex>div {
+                width: 100% !important;
             }
 
             /* 2. ทำให้ Form Control และ Button ใช้เต็มความกว้าง */
             .card-header .form-control,
             .card-header .form-select,
             .card-header .btn {
-                width: 100% !important; 
+                width: 100% !important;
             }
 
             /* 3. ปรับ Table Cell Padding/Font */
-            .table th, .table td {
-                padding: 0.5rem 0.5rem; 
-                font-size: 0.8rem; 
-                white-space: nowrap; 
+            .table th,
+            .table td {
+                padding: 0.5rem 0.5rem;
+                font-size: 0.8rem;
+                white-space: nowrap;
             }
-            
+
             /* 4. จัดการคอลัมน์ Action ในตาราง */
             .table td:last-child {
-                flex-direction: column; /* เรียงปุ่ม Action เป็นแนวตั้งบน Mobile */
+                flex-direction: column;
+                /* เรียงปุ่ม Action เป็นแนวตั้งบน Mobile */
                 gap: 5px;
             }
 
@@ -280,335 +377,182 @@ function build_query_string($exclude = [])
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
+                <div class="container" style="max-width: 1400px;">
 
-                <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-                            <div class="modal-header">
-                                <h5 class="modal-title text-danger">
-                                    <i class="fas fa-exclamation-triangle me-2"></i> ยืนยันการลบ
-                                </h5>
-                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                            </div>
-                            <div class="modal-body">
-                                <p>คุณต้องการลบใบสั่งซื้อ/รับเข้า <strong id="deletePoName"></strong> ใช่หรือไม่?</p>
-                                <p class="text-danger small">
-                                    <strong>คำเตือน:</strong> การลบใบสั่งซื้อนี้ จะลบรายการสินค้าที่รับเข้า (Order Details) ทั้งหมด
-                                    (เราตั้งค่า ON DELETE CASCADE ไว้)
-                                </p>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                                <form id="deleteForm" method="POST" action="delete_purchase_order.php" style="display:inline;">
-                                    <input type="hidden" name="po_id" id="deletePoIdInput">
-                                    <button type="submit" class="btn btn-delete">
-                                        <i class="fas fa-trash me-1"></i> ยืนยันการลบ
-                                    </button>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="modal fade" id="confirmCancelModal" tabindex="-1">
-                    <div class="modal-dialog modal-dialog-centered">
-                        <div class="modal-content">
-
-                            <form id="cancelForm" method="POST" action="cancel_purchase_order.php" novalidate>
-                                <div class="modal-header bg-warning">
-                                    <h5 class="modal-title text-dark">
-                                        <i class="fas fa-exclamation-triangle me-2"></i> ยืนยันการยกเลิก
-                                    </h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                </div>
-                                <div class="modal-body">
-                                    <p>คุณต้องการยกเลิกใบสั่งซื้อ <strong id="cancelPoName"></strong> ใช่หรือไม่?</p>
-
-                                    <div class="mb-3">
-                                        <label for="cancelCommentInput" class="form-label"><strong>เหตุผลการยกเลิก (จำเป็น):</strong></label>
-                                        <textarea class="form-control" id="cancelCommentInput" name="cancel_comment" rows="3" required placeholder="เช่น: สั่งสินค้าผิด, supplier ไม่มีของ, ฯลฯ"></textarea>
-                                        <div class="invalid-feedback">
-                                            กรุณากรอกเหตุผลการยกเลิก
-                                        </div>
-                                    </div>
-
-                                    <p class="text-danger small">
-                                        <strong>คำเตือน:</strong> สถานะ PO จะถูกเปลี่ยนเป็น 'Cancelled' และจะไม่สามารถรับสินค้าเข้าจาก PO นี้ได้อีก
-                                    </p>
-                                </div>
-                                <div class="modal-footer">
-                                    <input type="hidden" name="po_id" id="cancelPoIdInput">
-
-                                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">ปิด</button>
-
-                                    <button type="submit" class="btn btn-warning">
-                                        <i class="fas fa-ban me-1"></i> ยืนยันการยกเลิก
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-                </div>
-
-
-                <div class="container-xl py-5">
-                    <div class="card">
-                        <div class="card-header">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <h4 class="mb-0">
-                                    <i class="fas fa-dolly-flatbed me-2" style="color: <?= $theme_color ?>;"></i>
-                                    รายการใบสั่งซื้อ / รับเข้าสินค้า
-                                </h4>
-                                <a href="add_purchase_order.php" class="btn btn-add">
-                                    <i class="fas fa-plus-circle me-1"></i> สร้างใบสั่งซื้อใหม่
+                    <div class="card shadow-sm border-0 rounded-4">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom-0">
+                            <h4 class="mb-0 text-success fw-bold"><i class="bi bi-clipboard-check me-2"></i>รายการใบสั่งซื้อ / รับเข้าสินค้า</h4>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-success btn-sm fw-bold px-3" onclick="toggleFilter()">
+                                    <i class="bi bi-filter me-1"></i> <span id="filterBtnText">กรองข้อมูล</span>
+                                </button>
+                                <a href="add_purchase_order.php" class="btn btn-success btn-sm fw-bold px-3">
+                                    <i class="bi bi-plus-circle me-1"></i> สร้างใบสั่งซื้อ
                                 </a>
                             </div>
                         </div>
 
                         <div class="card-body">
-
-                            <?php if (isset($_SESSION['success'])): ?>
-                                <div class="alert alert-success alert-dismissible fade show">
-                                    <i class="fas fa-check-circle me-2"></i>
-                                    <?php echo $_SESSION['success'];
-                                    unset($_SESSION['success']); ?>
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                </div>
-                            <?php endif; ?>
-                            <?php if (isset($_SESSION['error'])): ?>
-                                <div class="alert alert-danger alert-dismissible fade show">
-                                    <i class="fas fa-exclamation-triangle me-2"></i>
-                                    <?php echo $_SESSION['error'];
-                                    unset($_SESSION['error']); ?>
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                </div>
-                            <?php endif; ?>
-
-                            <div class="row mb-3">
-                                <div class="col-md-12">
-                                    <form method="GET" action="purchase_order.php">
-                                        <div class="input-group">
-                                            <input type="text" name="search" class="form-control"
-                                                placeholder="ค้นหาเลขที่ PO, ชื่อ Supplier, ชื่อพนักงาน..."
-                                                value="<?= htmlspecialchars($search) ?>">
-                                            <button class="btn btn-outline-secondary" type="submit">
-                                                <i class="fas fa-search"></i> ค้นหา
-                                            </button>
-                                            <?php if (!empty($search)): ?>
-                                                <a href="purchase_order.php" class="btn btn-outline-danger">
-                                                    <i class="fas fa-times"></i> ล้าง
-                                                </a>
-                                            <?php endif; ?>
+                            <div class="card bg-light border-0 mb-4" id="filterCard" style="display: none; border-radius: 15px;">
+                                <div class="card-body p-4">
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold text-muted mb-1">สถานะ PO</label>
+                                            <select id="statusFilter" class="form-select border-0 shadow-sm">
+                                                <option value="">-- ทุกสถานะ --</option>
+                                                <option value="Pending">Pending (รอรับ)</option>
+                                                <option value="Completed">Completed (ครบแล้ว)</option>
+                                                <option value="Cancelled">Cancelled (ยกเลิก)</option>
+                                            </select>
                                         </div>
-                                    </form>
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold text-muted mb-1">Supplier</label>
+                                            <select id="supplierFilter" class="form-select border-0 shadow-sm">
+                                                <option value="">-- ทั้งหมด --</option>
+                                                <?php while ($s = $suppliers_res->fetch_assoc()): ?>
+                                                    <option value="<?= $s['supplier_id'] ?>"><?= htmlspecialchars($s['co_name']) ?></option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+
+                                        <?php if ($is_super_admin): // ผู้ดูแลกรองดูบิลแต่ละร้านได้ 
+                                        ?>
+                                            <div class="col-md-3">
+                                                <label class="small fw-bold text-primary mb-1">ร้านค้า (Shop)</label>
+                                                <select id="shopFilter" class="form-select border-primary border-opacity-25 shadow-sm">
+                                                    <option value="">-- ทุกร้าน --</option>
+                                                    <?php while ($sh = $all_shops->fetch_assoc()): ?>
+                                                        <option value="<?= $sh['shop_id'] ?>"><?= htmlspecialchars($sh['shop_name']) ?></option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-3">
+                                                <label class="small fw-bold text-primary mb-1">สาขา (Branch)</label>
+                                                <select id="branchFilter" class="form-select border-primary border-opacity-25 shadow-sm">
+                                                    <option value="">-- ทุกสาขา --</option>
+                                                    <?php mysqli_data_seek($all_branches, 0);
+                                                    while ($br = $all_branches->fetch_assoc()): ?>
+                                                        <option value="<?= $br['branch_id'] ?>" data-shop="<?= $br['shop_info_shop_id'] ?>"><?= htmlspecialchars($br['branch_name']) ?></option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                            </div>
+                                        <?php endif; ?>
+
+                                        <div class="col-12 text-end">
+                                            <button class="btn btn-link btn-sm text-danger text-decoration-none" onclick="clearFilters()">ล้างค่าทั้งหมด</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
-                            <div class="table-responsive">
-                                <table class="table table-bordered table-hover align-middle">
-                                    <thead>
-                                        <tr>
-                                            <th width="8%">เลขที่ PO</th>
-                                            <th width="12%">วันที่สั่ง</th>
-                                            <th width="20%">Supplier</th>
-                                            <th width="12%">สาขาที่รับ</th>
-                                            <th width="12%">พนักงาน</th>
-                                            <th width="12%">สถานะ PO</th>
-                                            <th width="10%">ยอดรวม (บาท)</th>
-                                            <th width="14%">จัดการ</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php if ($result->num_rows > 0): ?>
-                                            <?php while ($row = $result->fetch_assoc()): ?>
-                                                <?php
-                                                // (คำนวณสถานะ)
-                                                $status_text = 'รอรับ';
-                                                $status_class = 'status-pending';
-                                                $can_receive = true;
-
-                                                $total_qty = (int)$row['total_quantity'];
-                                                $received_qty = (int)$row['received_quantity'];
-
-                                                // (*** FIXED ***: ตรวจสอบ po_status ก่อน)
-                                                if ($row['po_status'] == 'Cancelled') {
-                                                    $status_text = 'ยกเลิกแล้ว';
-                                                    $status_class = 'status-cancelled';
-                                                    $can_receive = false;
-                                                } elseif ($received_qty > 0 && $received_qty < $total_qty) {
-                                                    $status_text = 'รับแล้วบางส่วน';
-                                                    $status_class = 'status-partial';
-                                                } elseif ($received_qty >= $total_qty && $total_qty > 0) {
-                                                    $status_text = 'รับครบแล้ว';
-                                                    $status_class = 'status-completed';
-                                                    $can_receive = false; // (รับครบแล้วไม่ต้องมีปุ่ม)
-                                                } elseif ($total_qty == 0) {
-                                                    $status_text = 'ยังไม่สั่งของ';
-                                                    $status_class = 'status-pending';
-                                                    $can_receive = false; // (PO ว่าง)
-                                                }
-
-                                                // (ถ้าสถานะ Pending แต่รับครบแล้ว ให้เปลี่ยนเป็น Completed)
-                                                if ($row['po_status'] == 'Pending' && $status_text == 'รับครบแล้ว') {
-                                                    $status_text = 'รับครบแล้ว';
-                                                    $status_class = 'status-completed';
-                                                }
-                                                ?>
-                                                <tr>
-                                                    <td class="text-center">
-                                                        <strong><?= htmlspecialchars($row['purchase_id']) ?></strong>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <?= date('d/m/Y H:i', strtotime($row['purchase_date'])) ?>
-                                                    </td>
-                                                    <td><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
-                                                    <td><?= htmlspecialchars($row['branch_name'] ?? 'N/A') ?></td>
-                                                    <td><?= htmlspecialchars($row['firstname_th'] . ' ' . $row['lastname_th']) ?></td>
-
-                                                    <td class="text-center">
-                                                        <span class="status-badge <?= $status_class ?>"><?= $status_text ?></span>
-                                                        <div style="font-size: 0.8em; margin-top: 4px;">
-                                                            (<?= $received_qty ?> / <?= $total_qty ?>)
-                                                        </div>
-                                                    </td>
-
-                                                    <td class="text-end">
-                                                        <?= number_format($row['total_amount'] ?? 0, 2) ?>
-                                                    </td>
-                                                    <td class="text-center">
-
-                                                        <?php if ($row['po_status'] == 'Pending'): ?>
-
-                                                            <?php if ($can_receive): ?>
-                                                                <a href="receive_po.php?po_id=<?= $row['purchase_id'] ?>"
-                                                                    class="btn btn-receive btn-sm" title="รับสินค้าเข้า">
-                                                                    <i class="fas fa-truck-loading"></i>
-                                                                </a>
-                                                            <?php endif; ?>
-
-                                                            <a href="edit_purchase_order.php?id=<?= $row['purchase_id'] ?>"
-                                                                class="btn btn-edit btn-sm" title="แก้ไข PO">
-                                                                <i class="fas fa-edit"></i>
-                                                            </a>
-
-                                                        <?php endif; ?>
-
-                                                        <a href="view_purchase_order.php?id=<?= $row['purchase_id'] ?>"
-                                                            class="btn btn-info btn-sm" title="ดูรายละเอียด">
-                                                            <i class="fas fa-eye"></i>
-                                                        </a>
-
-                                                        <?php if ($row['po_status'] == 'Pending'): ?>
-                                                            <button class="btn btn-warning btn-sm cancel-btn"
-                                                                data-id="<?= $row['purchase_id'] ?>"
-                                                                data-name="PO #<?= $row['purchase_id'] ?>"
-                                                                title="ยกเลิก PO">
-                                                                <i class="fas fa-ban"></i>
-                                                            </button>
-                                                        <?php endif; ?>
-
-                                                    </td>
-                                                </tr>
-                                            <?php endwhile; ?>
-                                        <?php else: ?>
-                                            <tr>
-                                                <td colspan="8">
-                                                    <div class="empty-state">
-                                                        <i class="fas fa-file-invoice-dollar"></i>
-                                                        <h4>ไม่พบข้อมูลใบสั่งซื้อ</h4>
-                                                        <?php if (!empty($search)): ?>
-                                                            <p>ไม่พบข้อมูลที่ตรงกับคำค้นหา "<?= htmlspecialchars($search) ?>"</p>
-                                                        <?php else: ?>
-                                                            <p>ยังไม่มีการสร้างใบรับเข้าสินค้า</p>
-                                                        <?php endif; ?>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
+                            <div class="row mb-4">
+                                <div class="col-md-5">
+                                    <div class="input-group shadow-sm" style="border-radius: 10px; overflow: hidden;">
+                                        <span class="input-group-text bg-white border-0"><i class="bi bi-search"></i></span>
+                                        <input type="text" id="searchInput" class="form-control border-0" placeholder="ค้นหาเลขที่ PO, ชื่อซัพพลายเออร์...">
+                                    </div>
+                                </div>
                             </div>
 
-                            <?php if ($total_pages > 1): ?>
-                                <nav aria-label="Page navigation" class="mt-4">
-                                    <ul class="pagination justify-content-center">
-                                        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                                            <a class="page-link" href="?page=<?= $page - 1 ?><?= build_query_string(['page']) ?>">
-                                                <i class="fas fa-chevron-left"></i>
-                                            </a>
-                                        </li>
-
-                                        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                                            <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
-                                                <a class="page-link" href="?page=<?= $i ?><?= build_query_string(['page']) ?>">
-                                                    <?= $i ?>
-                                                </a>
-                                            </li>
-                                        <?php endfor; ?>
-
-                                        <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                                            <a class="page-link" href="?page=<?= $page + 1 ?><?= build_query_string(['page']) ?>">
-                                                <i class="fas fa-chevron-right"></i>
-                                            </a>
-                                        </li>
-                                    </ul>
-                                </nav>
-                            <?php endif; ?>
-
+                            <div id="tableContainer">
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-success"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
+
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="cancelModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <form id="cancelForm" method="POST" action="cancel_purchase_order.php">
+                    <div class="modal-header bg-warning border-0">
+                        <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-octagon me-2"></i>ยกเลิกใบสั่งซื้อ</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <p class="mb-3">คุณแน่ใจหรือไม่ว่าต้องการยกเลิกใบสั่งซื้อนี้? <br><small class="text-muted">กรุณาระบุเหตุผลในการยกเลิก</small></p>
+                        <textarea class="form-control border-0 bg-light" name="cancel_comment" rows="3" required placeholder="เหตุผลการยกเลิก..."></textarea>
+                        <input type="hidden" name="po_id" id="cancelPoId">
+                    </div>
+                    <div class="modal-footer border-0 bg-light">
+                        <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">ปิด</button>
+                        <button type="submit" class="btn btn-danger rounded-pill px-4">ยืนยันยกเลิก</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-
-        // Modal Delete 
-        const deleteModal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
-        document.querySelectorAll('.delete-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const poId = this.getAttribute('data-id');
-                const poName = this.getAttribute('data-name');
-                document.getElementById('deletePoName').textContent = poName;
-                document.getElementById('deletePoIdInput').value = poId;
-                deleteModal.show();
+        function fetchPOData(page = 1) {
+            const params = new URLSearchParams({
+                ajax: 1,
+                page,
+                search: document.getElementById('searchInput').value,
+                status: document.getElementById('statusFilter').value,
+                supplier: document.getElementById('supplierFilter').value,
+                shop_filter: document.getElementById('shopFilter')?.value || '',
+                branch_filter: document.getElementById('branchFilter')?.value || ''
             });
-        });
 
-        // ปุ่มยกเลิก
-        const cancelModal = new bootstrap.Modal(document.getElementById('confirmCancelModal'));
-        const cancelCommentInput = document.getElementById('cancelCommentInput');
-        const cancelForm = document.getElementById('cancelForm');
+            fetch(`purchase_order.php?${params.toString()}`)
+                .then(res => res.text()).then(data => document.getElementById('tableContainer').innerHTML = data);
+        }
 
-        document.querySelectorAll('.cancel-btn').forEach(button => {
-            button.addEventListener('click', function() {
-                const poId = this.getAttribute('data-id');
-                const poName = this.getAttribute('data-name');
+        function toggleFilter() {
+            const card = document.getElementById('filterCard');
+            const isHidden = card.style.display === 'none';
+            card.style.display = isHidden ? 'block' : 'none';
+            document.getElementById('filterBtnText').innerText = isHidden ? 'ปิดตัวกรอง' : 'กรองข้อมูล';
+        }
 
-                // ใส่ ID และชื่อใน Modal
-                document.getElementById('cancelPoName').textContent = poName;
-                document.getElementById('cancelPoIdInput').value = poId;
-
-                // ล้างค่า textarea เก่า และลบ error
-                cancelCommentInput.value = '';
-                cancelCommentInput.classList.remove('is-invalid');
-
-                // แสดง Modal
-                cancelModal.show();
+        function clearFilters() {
+            ['statusFilter', 'supplierFilter', 'shopFilter', 'branchFilter', 'searchInput'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
             });
-        });
+            fetchPOData(1);
+        }
 
-        //  เพิ่มการ Validation ก่อน Submit
-        cancelForm.addEventListener('submit', function(event) {
-            if (!cancelCommentInput.value.trim()) {
-                event.preventDefault(); // หยุดการส่งฟอร์ม
-                cancelCommentInput.classList.add('is-invalid'); // แสดงกรอบสีแดง
-            } else {
-                cancelCommentInput.classList.remove('is-invalid');
+        ['searchInput'].forEach(id => document.getElementById(id).addEventListener('input', () => fetchPOData(1)));
+        ['statusFilter', 'supplierFilter', 'shopFilter', 'branchFilter'].forEach(id => document.getElementById(id)?.addEventListener('change', () => fetchPOData(1)));
+
+        document.addEventListener('click', e => {
+            const link = e.target.closest('.ajax-page-link');
+            if (link) {
+                e.preventDefault();
+                fetchPOData(link.dataset.page);
+            }
+            if (e.target.id === 'btnJumpPage') {
+                const p = document.getElementById('jumpPageInput').value;
+                if (p > 0) fetchPOData(p);
             }
         });
+
+        function confirmCancel(id) {
+            document.getElementById('cancelPoId').value = id;
+            new bootstrap.Modal(document.getElementById('cancelModal')).show();
+        }
+
+        // กรองสาขาตามร้านที่เลือก (Admin)
+        document.getElementById('shopFilter')?.addEventListener('change', function() {
+            const shopId = this.value;
+            const branchSelect = document.getElementById('branchFilter');
+            branchSelect.value = '';
+            Array.from(branchSelect.options).forEach(opt => {
+                if (opt.value === '') opt.style.display = 'block';
+                else opt.style.display = (shopId === '' || opt.dataset.shop === shopId) ? 'block' : 'none';
+            });
+        });
+
+        window.onload = () => fetchPOData();
     </script>
 </body>
 

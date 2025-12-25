@@ -2,214 +2,210 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'religion');
-$sql = "SELECT * FROM religions ORDER BY religion_id ASC";
-$result = mysqli_query($conn, $sql);
+
+// [1] รับค่าพื้นฐานจาก Session
+$shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
+
+// [2] ตรวจสอบสิทธิ์ Admin และ Permission 'centralinf'
+$is_super_admin = false;
+$has_central_perm = false;
+
+$check_user_sql = "SELECT r.role_name, p.permission_name 
+                   FROM users u
+                   JOIN user_roles ur ON u.user_id = ur.users_user_id
+                   JOIN roles r ON ur.roles_role_id = r.role_id
+                   LEFT JOIN role_permissions rp ON r.role_id = rp.roles_role_id
+                   LEFT JOIN permissions p ON rp.permissions_permission_id = p.permission_id
+                   WHERE u.user_id = ?";
+
+if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
+    mysqli_stmt_bind_param($stmt_user, "i", $current_user_id);
+    mysqli_stmt_execute($stmt_user);
+    $res_user = mysqli_stmt_get_result($stmt_user);
+    while ($row = mysqli_fetch_assoc($res_user)) {
+        if ($row['role_name'] === 'Admin') { 
+            $is_super_admin = true;
+        }
+        if ($row['permission_name'] === 'centralinf') {
+            $has_central_perm = true;
+        }
+    }
+    mysqli_stmt_close($stmt_user);
+}
+
+// ==========================================
+// [3] ส่วนประมวลผล AJAX สำหรับดึงตารางข้อมูล
+// ==========================================
+if (isset($_GET['ajax'])) {
+    // สร้างเงื่อนไข WHERE แบบ Hybrid (ส่วนกลาง + ร้านค้า)
+    $where_sql = "";
+    if (!$is_super_admin) {
+        $where_sql = "WHERE (r.shop_info_shop_id = 0 OR r.shop_info_shop_id = '$shop_id')";
+    }
+
+    // ดึงข้อมูลพร้อมชื่อร้าน
+    $sql = "SELECT r.*, s.shop_name 
+            FROM religions r 
+            LEFT JOIN shop_info s ON r.shop_info_shop_id = s.shop_id 
+            $where_sql 
+            ORDER BY r.shop_info_shop_id ASC, r.religion_id ASC";
+    $result = mysqli_query($conn, $sql);
+    ?>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" width="5%">#</th>
+                    <th width="10%">รหัส</th>
+                    <th width="25%">ชื่อศาสนา (ไทย)</th>
+                    <th width="25%">ชื่อศาสนา (อังกฤษ)</th>
+                    <th width="15%" class="text-center">ผู้เพิ่ม/สังกัด</th>
+                    <th width="10%" class="text-center">สถานะ</th>
+                    <th width="10%" class="text-center">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (mysqli_num_rows($result) > 0): 
+                    $idx = 1;
+                    while ($row = mysqli_fetch_assoc($result)): 
+                        // ตรวจสอบสิทธิ์การแก้ไข (ของตัวเอง หรือ มีสิทธิ์ centralinf)
+                        $can_edit = ($row['shop_info_shop_id'] == $shop_id || $has_central_perm);
+                        $clickable_class = $can_edit ? 'toggle-status' : 'readonly-status';
+                ?>
+                <tr>
+                    <td class="text-center"><?= $idx++ ?></td>
+                    <td class="text-center"><span class="badge bg-light text-dark border">#<?= $row['religion_id'] ?></span></td>
+                    <td class="fw-bold"><?= htmlspecialchars($row['religion_name_th']) ?></td>
+                    <td class="text-muted"><?= htmlspecialchars($row['religion_name_en'] ?? '-') ?></td>
+                    <td class="text-center">
+                        <?php if ($row['shop_info_shop_id'] == 0): ?>
+                            <span class="badge bg-secondary opacity-75"><i class="bi bi-globe2 me-1"></i> ส่วนกลาง</span>
+                        <?php else: ?>
+                            <span class="text-primary small fw-bold"><i class="bi bi-shop me-1"></i> <?= htmlspecialchars($row['shop_name'] ?? 'ไม่ทราบร้าน') ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="text-center">
+                        <i class="bi bi-check-circle-fill status-icon text-success <?= $row['is_active'] ? '' : 'inactive' ?> <?= $clickable_class ?>" 
+                           data-id="<?= $row['religion_id'] ?>" data-status="1" style="<?= $can_edit ? '' : 'cursor: default;' ?>"></i>
+                        <i class="bi bi-x-circle-fill status-icon text-danger <?= !$row['is_active'] ? '' : 'inactive' ?> <?= $clickable_class ?>" 
+                           data-id="<?= $row['religion_id'] ?>" data-status="0" style="<?= $can_edit ? '' : 'cursor: default;' ?>"></i>
+                    </td>
+                    <td class="text-center">
+                        <?php if ($is_super_admin || $row['shop_info_shop_id'] == $shop_id): ?>
+                            <div class="d-flex justify-content-center gap-2">
+                                <a href="edit_religion.php?id=<?= $row['religion_id'] ?>" class="btn btn-outline-warning btn-sm border-0"><i class="bi bi-pencil-square fs-5"></i></a>
+                                <button onclick="confirmDelete(<?= $row['religion_id'] ?>, '<?= addslashes($row['religion_name_th']) ?>')" class="btn btn-outline-danger btn-sm border-0"><i class="bi bi-trash3-fill fs-5"></i></button>
+                            </div>
+                        <?php else: ?>
+                            <i class="bi bi-lock-fill text-muted" title="ข้อมูลส่วนกลางแก้ไขไม่ได้"></i>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endwhile; ?>
+                <?php else: ?>
+                <tr><td colspan="7" class="text-center py-5 text-muted italic">-- ไม่พบข้อมูลศาสนา --</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+    <?php
+    exit(); 
+}
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
-    <title>จัดการศาสนา</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>จัดการศาสนา - Mobile Shop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    <?php
-    // (2) โหลดธีม (ไฟล์นี้จะกำหนด CSS <style> ทั้งหมด)
-    require '../config/load_theme.php';
-    ?>
-
+    <?php require '../config/load_theme.php'; ?>
     <style>
-        /* .status-icon, .inactive ถูกกำหนดใน load_theme.php แล้ว */
-        .container {
-            max-width: 900px;
-        }
-
-        th,
-        td {
-            vertical-align: middle;
-            text-align: center;
-        }
-
-        /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
-        /* -------------------------------------------------------------------- */
-        @media (max-width: 767.98px) {
-            .container {
-                /* เพิ่มขอบด้านข้างบนมือถือ */
-                padding-left: 10px;
-                padding-right: 10px;
-            }
-
-            th, td {
-                /* ปรับขนาดและ Padding ให้เหมาะสมกับจอเล็ก */
-                padding: 8px 5px; 
-                font-size: 0.9rem;
-                /* ป้องกันไม่ให้ข้อความยาวๆ ขึ้นบรรทัดใหม่ (สำคัญเมื่อใช้ table-responsive) */
-                white-space: nowrap; 
-            }
-            
-            /* จัดการคอลัมน์ Action (สมมติว่าเป็นคอลัมน์สุดท้าย) */
-            td:last-child {
-                /* ใช้ Flexbox จัดเรียงปุ่ม Action ให้อยู่ตรงกลางและมีระยะห่าง */
-                display: flex;
-                gap: 5px;
-                justify-content: center;
-                align-items: center;
-            }
-        }
+        body { background-color: <?= $background_color ?>; font-family: 'Prompt', sans-serif; }
+        .main-card { background: white; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); border: none; }
+        .card-header-custom { background: <?= $theme_color ?>; color: white; border-radius: 15px 15px 0 0; padding: 1.5rem; }
+        .status-icon { cursor: pointer; font-size: 1.2rem; transition: transform 0.2s; }
+        .status-icon.inactive { opacity: 0.25; filter: grayscale(1); }
+        .status-icon.readonly-status { cursor: default !important; opacity: 0.3; }
     </style>
 </head>
-
 <body>
-  <div class="d-flex" id="wrapper">
-    <?php include '../global/sidebar.php'; ?>
-    <div class="main-content w-100">
-      <div class="container-fluid py-4">
+    <div class="d-flex" id="wrapper">
+        <?php include '../global/sidebar.php'; ?>
+        <div class="main-content w-100">
+            <div class="container-fluid py-4">
+                <div class="container py-2" style="max-width: 1000px;">
+                    
+                    <div class="main-card card shadow-sm">
+                        <div class="card-header-custom d-flex justify-content-between align-items-center">
+                            <h4 class="mb-0 text-white"><i class="bi bi-book me-2"></i>รายการข้อมูลศาสนา</h4>
+                            <a href="add_religion.php" class="btn btn-light btn-sm fw-bold">
+                                <i class="bi bi-plus-circle me-1"></i> เพิ่มศาสนา
+                            </a>
+                        </div>
 
-        <div class="container py-4">
-          <div class="card shadow rounded-4 p-4">
+                        <div class="card-body p-4">
+                            <div id="tableContainer">
+                                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                            </div>
+                        </div>
+                    </div>
 
-            <?php if (!empty($_SESSION['success'])): ?>
-              <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <?= $_SESSION['success'];
-                unset($_SESSION['success']); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-              </div>
-            <?php endif; ?>
-            <?php if (!empty($_SESSION['error'])): ?>
-              <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <?= $_SESSION['error'];
-                unset($_SESSION['error']); ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-              </div>
-            <?php endif; ?>
-
-            <div class="d-flex justify-content-between align-items-center mb-3">
-              <h4 class="m-0"><i class="bi bi-book me-2"></i>รายการศาสนา</h4>
-              <a href="add_religion.php" class="btn btn-success">
-                <i class="bi bi-plus-circle me-1"></i> เพิ่มศาสนา
-              </a>
+                </div>
             </div>
-
-            <div class="table-responsive">
-              <table class="table table-bordered table-hover align-middle">
-                <thead>
-                  <tr>
-                    <th>ลำดับ</th>
-                    <th>รหัส</th>
-                    <th>ชื่อศาสนา (ไทย)</th>
-                    <th>ชื่อศาสนา (อังกฤษ)</th>
-                    <th>สถานะ</th>
-                    <th>การจัดการ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <?php $i = 1;
-                  while ($row = mysqli_fetch_assoc($result)):
-                  ?>
-                    <tr>
-                      <td><?= $i++ ?></td>
-                      <td><?= $row['religion_id'] ?></td>
-                      <td><?= htmlspecialchars($row['religion_name_th']) ?></td>
-                      <td><?= htmlspecialchars($row['religion_name_en']) ?></td>
-                      <td>
-                        <i class="bi bi-check-circle-fill status-icon on toggle-status <?= $row['is_active'] ? '' : 'inactive' ?>"
-                          data-id="<?= $row['religion_id'] ?>" data-status="1" title="เปิดใช้งาน"></i>
-                        <i class="bi bi-x-circle-fill status-icon off toggle-status <?= !$row['is_active'] ? '' : 'inactive' ?>"
-                          data-id="<?= $row['religion_id'] ?>" data-status="0" title="ปิดการใช้งาน"></i>
-                      </td>
-
-                      <td>
-                        <a href="edit_religion.php?id=<?= $row['religion_id'] ?>" class="btn btn-edit btn-sm me-1">
-                          <i class="bi bi-pencil-square"></i>
-                        </a>
-                        <button class="btn btn-delete btn-sm delete-btn"
-                          data-id="<?= $row['religion_id'] ?>"
-                          data-name="<?= htmlspecialchars($row['religion_name_th']) ?>">
-                          <i class="bi bi-trash3-fill"></i>
-                        </button>
-                      </td>
-                    </tr>
-                  <?php endwhile; ?>
-                </tbody>
-              </table>
-            </div>
-          </div>
         </div>
-
-        <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title danger"><i class="bi bi-exclamation-circle me-2"></i>ยืนยันการลบศาสนา</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body">
-                <p id="deleteMessage" class="mb-0">คุณแน่ใจหรือไม่ว่าต้องการลบ?</p>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                <a id="confirmDeleteBtn" href="#" class="btn btn-delete">ลบ</a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
-      const deleteButtons = document.querySelectorAll('.delete-btn');
-      const deleteMessage = document.getElementById('deleteMessage');
-      const confirmBtn = document.getElementById('confirmDeleteBtn');
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header bg-danger text-white border-0">
+                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>ยืนยันการลบ</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="fs-5">คุณแน่ใจหรือไม่ที่จะลบศาสนา <strong id="delName"></strong> ?</p>
+                    <small class="text-muted">ข้อมูลที่ถูกลบไม่สามารถกู้คืนได้</small>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                    <a id="confirmDelBtn" href="#" class="btn btn-danger px-4">ยืนยันการลบ</a>
+                </div>
+            </div>
+        </div>
+    </div>
 
-      deleteButtons.forEach(button => {
-        button.addEventListener('click', () => {
-          const id = button.getAttribute('data-id');
-          const name = button.getAttribute('data-name');
-          deleteMessage.textContent = `คุณแน่ใจหรือไม่ว่าจะลบศาสนา "${name}" (รหัส ${id}) ?`;
-          confirmBtn.href = `delete_religion.php?id=${encodeURIComponent(id)}`;
-          modal.show();
-        });
-      });
-    });
-  </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ฟังก์ชันโหลดข้อมูลตาราง
+        function fetchReligionData() {
+            fetch(`religion.php?ajax=1`)
+                .then(res => res.text())
+                .then(data => document.getElementById('tableContainer').innerHTML = data);
+        }
 
-  <script>
-    document.querySelectorAll('.toggle-status').forEach(icon => {
-      icon.addEventListener('click', () => {
-        const id = icon.dataset.id;
-        const newStatus = icon.dataset.status;
-        fetch('toggle_religion_status.php', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded'
-            },
-            body: `id=${id}&status=${newStatus}`
-          })
-          .then(res => res.text())
-          .then(text => {
-            if (text.trim() === 'updated') {
-              const iconsInGroup = document.querySelectorAll(`.toggle-status[data-id="${id}"]`);
-              iconsInGroup.forEach(i => {
-                if (i.dataset.status === newStatus) {
-                  i.classList.remove('inactive');
-                } else {
-                  i.classList.add('inactive');
-                }
-              });
+        document.addEventListener('click', e => {
+            // คลิกเปลี่ยนสถานะ
+            if (e.target.classList.contains('toggle-status')) {
+                fetch('toggle_religion_status.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `id=${e.target.dataset.id}&status=${e.target.dataset.status}`
+                }).then(() => fetchReligionData());
             }
-          })
-          .catch(err => console.error(err));
-      });
-    });
-  </script>
-</body>
+        });
 
+        function confirmDelete(id, name) {
+            document.getElementById('delName').innerText = name;
+            document.getElementById('confirmDelBtn').href = `delete_religion.php?id=${id}`;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        window.onload = () => fetchReligionData();
+    </script>
+</body>
 </html>

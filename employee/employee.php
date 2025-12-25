@@ -3,98 +3,166 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'employee');
 
-// [แก้ไข 1] รับค่า Shop ID จาก Session
+// [1] รับค่าพื้นฐานจาก Session
+$branch_id = $_SESSION['branch_id'];
 $shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
 
-// --- (ส่วนรับข้อความแจ้งเตือนจากหน้า Add/Edit) ---
-$message = $_SESSION['message'] ?? null;
-$message_type = $_SESSION['message_type'] ?? null;
-unset($_SESSION['message'], $_SESSION['message_type']);
-
-// --- (ส่วนจัดการการค้นหาและฟิลเตอร์) ---
-$search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
-$status_filter = isset($_GET['status_filter']) ? $_GET['status_filter'] : 'All'; 
-
-$sql = "
-    SELECT
-        e.emp_id,
-        e.emp_code,
-        e.firstname_th,
-        e.lastname_th,
-        e.emp_status,
-        e.emp_image,
-        p.prefix_th,
-        d.dept_name,
-        b.branch_name
-    FROM employees AS e
-    LEFT JOIN prefixs p ON e.prefixs_prefix_id = p.prefix_id
-    LEFT JOIN departments d ON e.departments_dept_id = d.dept_id
-    LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
-";
-
-// [แก้ไข 2] เพิ่มเงื่อนไขกรอง Shop ID ผ่านตาราง Branch
-$where_clauses = ["b.shop_info_shop_id = ?"];
-$bind_types = "i"; // i = integer
-$bind_values = [$shop_id];
-
-// --- เงื่อนไขการค้นหา ---
-if (!empty($search_term)) {
-    $where_clauses[] = "(e.emp_code LIKE ? OR e.firstname_th LIKE ? OR e.lastname_th LIKE ? OR d.dept_name LIKE ? OR b.branch_name LIKE ?)";
-    $search_like = "%" . $search_term . "%";
-    $bind_types .= "sssss";
-    array_push($bind_values, $search_like, $search_like, $search_like, $search_like, $search_like);
+// [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
+$is_super_admin = false;
+$check_admin_sql = "SELECT r.role_name FROM roles r 
+                    JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+                    WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt_admin = $conn->prepare($check_admin_sql)) {
+    $stmt_admin->bind_param("i", $current_user_id);
+    $stmt_admin->execute();
+    if ($stmt_admin->get_result()->num_rows > 0) $is_super_admin = true;
+    $stmt_admin->close();
 }
 
-// --- เงื่อนไขฟิลเตอร์สถานะ  ---
-if ($status_filter != 'All') {
-    $where_clauses[] = "e.emp_status = ?";
-    $bind_types .= "s";
-    $bind_values[] = $status_filter;
-}
+// ==========================================
+// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ==========================================
+if (isset($_GET['ajax'])) {
+    $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
+    $status_f = isset($_GET['status']) ? $_GET['status'] : '';
+    $dept_f = isset($_GET['dept']) ? $_GET['dept'] : '';
+    $shop_f = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
+    $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
+    
+    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
+    $offset = ($page - 1) * $limit;
 
-// --- (รวมเงื่อนไข WHERE) ---
-if (!empty($where_clauses)) {
-    $sql .= " WHERE " . implode(" AND ", $where_clauses);
-}
-
-$sql .= " ORDER BY e.emp_id DESC"; // เรียงจากใหม่ไปเก่า
-
-// --- ใช้ Prepared Statement เพื่อความปลอดภัย ---
-$stmt = $conn->prepare($sql);
-
-if ($stmt) {
-    // --- ผูกค่าพารามิเตอร์ถ้ามี ---
-    if (!empty($bind_types)) {
-        $stmt->bind_param($bind_types, ...$bind_values);
+    // 3. กรองตามสิทธิ์ (เห็นแค่สาขาตัวเอง / แอดมินเห็นทั้งหมดหรือตามกรอง)
+    $conditions = [];
+    if (!$is_super_admin) {
+        $conditions[] = "e.branches_branch_id = '$branch_id'";
+    } else {
+        if (!empty($branch_f)) $conditions[] = "e.branches_branch_id = '$branch_f'";
+        elseif (!empty($shop_f)) $conditions[] = "b.shop_info_shop_id = '$shop_f'";
     }
 
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    // --- ดึงข้อมูลทั้งหมดมาเก็บใน array ---
-    $employees = []; // ประกาศตัวแปร array ไว้ก่อนกัน Error
-    while ($row = $result->fetch_assoc()) {
-        $employees[] = $row;
+    if (!empty($search)) {
+        $conditions[] = "(e.emp_code LIKE '%$search%' OR e.firstname_th LIKE '%$search%' OR e.lastname_th LIKE '%$search%')";
     }
-    $stmt->close();
-} else {
-    // --- จัดการกรณี Query ผิดพลาด ---
-    die("Error preparing statement: " . $conn->error);
+    if (!empty($status_f)) $conditions[] = "e.emp_status = '$status_f'";
+    if (!empty($dept_f)) $conditions[] = "e.departments_dept_id = '$dept_f'";
+
+    $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+
+    // นับจำนวนทั้งหมดเพื่อคำนวณหน้า
+    $count_sql = "SELECT COUNT(*) as total FROM employees e 
+                  LEFT JOIN branches b ON e.branches_branch_id = b.branch_id 
+                  $where_sql";
+    $total_items = $conn->query($count_sql)->fetch_assoc()['total'];
+    $total_pages = ceil($total_items / $limit);
+
+    // ดึงข้อมูลพนักงาน
+    $sql = "SELECT e.*, p.prefix_th, d.dept_name, b.branch_name, sh.shop_name 
+            FROM employees e
+            LEFT JOIN prefixs p ON e.prefixs_prefix_id = p.prefix_id
+            LEFT JOIN departments d ON e.departments_dept_id = d.dept_id
+            LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
+            LEFT JOIN shop_info sh ON b.shop_info_shop_id = sh.shop_id
+            $where_sql 
+            ORDER BY e.emp_status ASC, e.emp_id DESC 
+            LIMIT $limit OFFSET $offset";
+    $result = $conn->query($sql);
+    ?>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" width="5%">#</th>
+                    <th width="8%">รูป</th>
+                    <th width="12%">รหัสพนักงาน</th>
+                    <th width="22%">ชื่อ-นามสกุล</th>
+                    <th width="15%">แผนก</th>
+                    <?php if ($is_super_admin): // 3. เพิ่มคอลัมน์ระบุสาขา/ร้าน ?>
+                        <th width="15%" class="text-center">สาขา/ร้าน</th>
+                    <?php endif; ?>
+                    <th width="10%" class="text-center">สถานะ</th>
+                    <th width="13%" class="text-center">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($result->num_rows > 0): $idx = $offset + 1; while ($row = $result->fetch_assoc()): ?>
+                <tr>
+                    <td class="text-center text-muted fw-bold"><?= $idx++ ?></td>
+                    <td class="text-center">
+                        <img src="<?= !empty($row['emp_image']) ? '../uploads/employees/'.$row['emp_image'] : '../assets/img/user-avatar.png' ?>" 
+                             class="rounded-circle border" style="width: 38px; height: 38px; object-fit: cover;">
+                    </td>
+                    <td class="fw-bold text-primary"><?= htmlspecialchars($row['emp_code']) ?></td>
+                    <td>
+                        <div class="fw-bold text-dark"><?= htmlspecialchars($row['prefix_th'].$row['firstname_th'].' '.$row['lastname_th']) ?></div>
+                        <div class="small text-muted"><i class="bi bi-telephone me-1"></i><?= $row['emp_phone_no'] ?></div>
+                    </td>
+                    <td><span class="badge bg-light text-dark border"><?= htmlspecialchars($row['dept_name'] ?? '-') ?></span></td>
+                    <?php if ($is_super_admin): ?>
+                        <td class="text-center small">
+                            <div class="fw-bold text-success"><?= htmlspecialchars($row['shop_name'] ?? '-') ?></div>
+                            <div class="text-muted fs-xs"><?= htmlspecialchars($row['branch_name'] ?? '-') ?></div>
+                        </td>
+                    <?php endif; ?>
+                    <td class="text-center">
+                        <span class="badge <?= $row['emp_status'] == 'Active' ? 'bg-success' : 'bg-secondary' ?> bg-opacity-10 text-dark border rounded-pill px-3">
+                            <?= $row['emp_status'] == 'Active' ? 'ทำงานอยู่' : 'ลาออก' ?>
+                        </span>
+                    </td>
+                    <td class="text-center">
+                        <div class="btn-group gap-1">
+                            <a href="view_employee.php?id=<?= $row['emp_id'] ?>" class="btn btn-outline-info btn-sm border-0" title="ดูรายละเอียด"><i class="bi bi-eye"></i></a>
+                            <a href="edit_employee.php?id=<?= $row['emp_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square"></i></a>
+                            <button onclick="confirmDelete(<?= $row['emp_id'] ?>, '<?= addslashes($row['firstname_th']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                <?php endwhile; else: ?>
+                <tr><td colspan="<?= $is_super_admin ? 8 : 7 ?>" class="text-center py-5 text-muted">-- ไม่พบข้อมูลพนักงาน --</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if ($total_pages > 1): ?>
+    <nav class="mt-4"><ul class="pagination justify-content-center pagination-sm">
+        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="1"><i class="bi bi-chevron-double-left"></i></a></li>
+        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $page - 1 ?>"><i class="bi bi-chevron-left"></i></a></li>
+        <?php for ($i = max(1, $page-2); $i <= min($total_pages, $page+2); $i++): ?>
+            <li class="page-item <?= ($page == $i) ? 'active' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a></li>
+        <?php endfor; ?>
+        <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $page + 1 ?>"><i class="bi bi-chevron-right"></i></a></li>
+        <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>"><i class="bi bi-chevron-double-right"></i></a></li>
+    </ul></nav>
+    <div class="d-flex justify-content-center mt-2 gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width: 150px;">
+            <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปหน้า" min="1" max="<?= $total_pages ?>">
+            <button class="btn btn-success" type="button" id="btnJumpPage">ไป</button>
+        </div>
+        <div class="small text-muted">หน้า <?= $page ?> / <?= $total_pages ?> (ทั้งหมด <?= number_format($total_items) ?> คน)</div>
+    </div>
+    <?php endif; exit(); }
+
+// [4] โหลดข้อมูลสำหรับตัวกรอง (Dropdown)
+$depts_res = $conn->query("SELECT dept_id, dept_name FROM departments WHERE shop_info_shop_id = '$shop_id' ORDER BY dept_name ASC");
+if ($is_super_admin) {
+    $all_shops = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name ASC");
+    $all_branches = $conn->query("SELECT branch_id, branch_name, shop_info_shop_id FROM branches ORDER BY branch_name ASC");
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
+    <title>จัดการพนักงาน - Mobile Shop</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>รายการพนักงาน - Mobile Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
-
     <style>
         body {
             background-color: #f0fdf4;
@@ -289,271 +357,175 @@ if ($stmt) {
         }
     </style>
 </head>
-
 <body>
-
     <div class="d-flex" id="wrapper">
-
         <?php include '../global/sidebar.php'; ?>
-
         <div class="main-content w-100">
             <div class="container-fluid py-4">
-
-                <?php if ($message): ?>
-                    <div class="custom-alert alert-<?= $message_type == 'success' ? 'success' : 'danger' ?> shadow-sm mb-4" role="alert">
-                        <div class="d-flex align-items-center">
-                            <i class="fas fa-<?= $message_type == 'success' ? 'check-circle' : 'exclamation-triangle' ?> fa-2x me-3"></i>
-                            <div>
-                                <strong class="d-block"><?= $message_type == 'success' ? 'สำเร็จ!' : 'เกิดข้อผิดพลาด!' ?></strong>
-                                <span><?= htmlspecialchars($message) ?></span>
+                <div class="container" style="max-width: 1300px;">
+                    
+                    <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom-0">
+                            <h4 class="mb-0 text-success fw-bold"><i class="bi bi-people-fill me-2"></i>ระบบจัดการรายชื่อพนักงาน</h4>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-outline-success btn-sm fw-bold px-3" onclick="toggleFilter()">
+                                    <i class="bi bi-filter me-1"></i> <span id="filterBtnText">กรองพนักงาน</span>
+                                </button>
+                                <a href="add_employee.php" class="btn btn-success btn-sm fw-bold px-3">
+                                    <i class="bi bi-person-plus-fill me-1"></i> เพิ่มพนักงานใหม่
+                                </a>
                             </div>
-                        </div>
-                        <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close"></button>
-                    </div>
-                <?php endif; ?>
-
-                <div class="container-lg">
-                    <div class="card border-0 shadow-sm">
-
-                        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                            <h4 class="mb-0" style="color: <?= $theme_color ?>;">
-                                <i class="fas fa-users me-2"></i>รายการพนักงาน
-                            </h4>
-                            <a href="add_employee.php" class="btn btn-success text-white shadow-sm">
-                                <i class="fas fa-user-plus me-2"></i>เพิ่มพนักงาน
-                            </a>
                         </div>
 
                         <div class="card-body p-4">
+                            <div class="card bg-light border-0 mb-4" id="filterCard" style="display: none; border-radius: 15px;">
+                                <div class="card-body p-4">
+                                    <div class="row g-3">
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold text-muted mb-1">แผนก</label>
+                                            <select id="deptFilter" class="form-select border-0 shadow-sm">
+                                                <option value="">-- ทุกแผนก --</option>
+                                                <?php while($d = $depts_res->fetch_assoc()): ?>
+                                                    <option value="<?= $d['dept_id'] ?>"><?= htmlspecialchars($d['dept_name']) ?></option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold text-muted mb-1">สถานะ</label>
+                                            <select id="statusFilter" class="form-select border-0 shadow-sm">
+                                                <option value="">-- ทั้งหมด --</option>
+                                                <option value="Active">ทำงานอยู่ (Active)</option>
+                                                <option value="Resigned">ลาออก (Resigned)</option>
+                                            </select>
+                                        </div>
 
-                            <form method="GET" action="employee.php" class="mb-4">
-                                <div class="input-group">
-                                    <span class="input-group-text bg-light border-end-0"><i class="fas fa-search text-muted"></i></span>
-                                    <input type="text" class="form-control border-start-0 bg-light" name="search"
-                                        placeholder="ค้นหารหัส, ชื่อ-สกุล, แผนก..."
-                                        value="<?= htmlspecialchars($search_term) ?>">
-
-                                    <span class="input-group-text bg-light border-end-0 ms-2 rounded-start"><i class="fas fa-filter text-muted"></i></span>
-                                    <select name="status_filter" class="form-select border-start-0 bg-light" style="max-width: 180px;">
-                                        <option value="All" <?= ($status_filter == 'All') ? 'selected' : '' ?>>สถานะทั้งหมด</option>
-                                        <option value="Active" <?= ($status_filter == 'Active') ? 'selected' : '' ?>>ทำงานอยู่</option>
-                                        <option value="Resigned" <?= ($status_filter == 'Resigned') ? 'selected' : '' ?>>ลาออก</option>
-                                    </select>
-
-                                    <button class="btn btn-primary ms-2" type="submit"><i class="fas fa-search"></i> ค้นหา</button>
-
-                                    <?php if (!empty($search_term) || $status_filter != 'All'): ?>
-                                        <a href="employee.php" class="btn btn-outline-secondary ms-1">ล้างค่า</a>
-                                    <?php endif; ?>
-                                </div>
-                            </form>
-
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead style="background-color: <?= $header_bg_color ?>; color: <?= $header_text_color ?>;">
-                                        <tr>
-                                            <th class="text-center" style="width: 5%;">#</th>
-                                            <th class="text-center" style="width: 8%;">รูป</th>
-                                            <th style="width: 15%;">รหัสพนักงาน</th>
-                                            <th style="width: 25%;">ชื่อ - สกุล</th>
-                                            <th class="text-center" style="width: 15%;">แผนก</th>
-                                            <th class="text-center" style="width: 12%;">สาขา</th>
-                                            <th class="text-center" style="width: 10%;">สถานะ</th>
-                                            <th class="text-center" style="width: 10%;">จัดการ</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php if (count($employees) > 0): ?>
-                                            <?php foreach ($employees as $index => $emp): ?>
-                                                <tr>
-                                                    <td class="text-center text-muted"><?= $index + 1 ?></td>
-
-                                                    <td class="text-center">
-                                                        <?php if (!empty($emp['emp_image']) && file_exists("../uploads/employees/" . $emp['emp_image'])): ?>
-                                                            <img src="../uploads/employees/<?= htmlspecialchars($emp['emp_image']) ?>"
-                                                                alt="Profile"
-                                                                class="rounded-circle border"
-                                                                style="width: 40px; height: 40px; object-fit: cover;">
-                                                        <?php else: ?>
-                                                            <div class="rounded-circle bg-light d-inline-flex align-items-center justify-content-center text-secondary border"
-                                                                style="width: 40px; height: 40px;">
-                                                                <i class="fas fa-user"></i>
-                                                            </div>
-                                                        <?php endif; ?>
-                                                    </td>
-
-                                                    <td class="fw-bold text-primary"><?= htmlspecialchars($emp['emp_code']) ?></td>
-
-                                                    <td>
-                                                        <div class="fw-bold"><?= htmlspecialchars($emp['prefix_th'] . $emp['firstname_th'] . ' ' . $emp['lastname_th']) ?></div>
-                                                        <small class="text-muted"><?= htmlspecialchars($emp['emp_email'] ?? '') ?></small>
-                                                    </td>
-
-                                                    <td class="text-center"><span class="badge bg-light text-dark border"><?= htmlspecialchars($emp['dept_name'] ?? '-') ?></span></td>
-                                                    <td class="text-center"><?= htmlspecialchars($emp['branch_name'] ?? '-') ?></td>
-
-                                                    <td class="text-center">
-                                                        <?php if ($emp['emp_status'] == 'Active'): ?>
-                                                            <span class="badge bg-success rounded-pill px-3">ทำงานอยู่</span>
-                                                        <?php else: ?>
-                                                            <span class="badge bg-secondary rounded-pill px-3">ลาออก</span>
-                                                        <?php endif; ?>
-                                                    </td>
-
-                                                    <td class="text-center">
-                                                        <div class="btn-group">
-                                                            <a href="view_employee.php?id=<?= $emp['emp_id'] ?>" class="btn btn-sm btn-outline-info" title="ดูรายละเอียด">
-                                                                <i class="fas fa-eye"></i>
-                                                            </a>
-                                                            <a href="print_employee.php?id=<?= $emp['emp_id'] ?>" class="btn btn-sm btn-outline-primary" title="พิมพ์ใบประวัติ" target="_blank">
-                                                                <i class="fas fa-print"></i>
-                                                            </a>
-                                                            <a href="edit_employee.php?id=<?= $emp['emp_id'] ?>" class="btn btn-sm btn-outline-warning" title="แก้ไข">
-                                                                <i class="fas fa-edit"></i>
-                                                            </a>
-                                                            <a href="delete_employee.php?id=<?= $emp['emp_id'] ?>" class="btn btn-sm btn-outline-danger"
-                                                                onclick="return confirm('คุณต้องการลบข้อมูลพนักงาน <?= htmlspecialchars($emp['firstname_th']) ?> ใช่หรือไม่?');" title="ลบ">
-                                                                <i class="fas fa-trash-alt"></i>
-                                                            </a>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            <?php endforeach; ?>
-                                        <?php else: ?>
-                                            <tr>
-                                                <td colspan="8" class="text-center py-5 text-muted">
-                                                    <i class="fas fa-user-slash fa-3x mb-3 opacity-50"></i><br>
-                                                    <?php if (!empty($search_term) || $status_filter != 'All'): ?>
-                                                        ไม่พบข้อมูลพนักงานที่ตรงกับการค้นหา
-                                                    <?php else: ?>
-                                                        ยังไม่มีข้อมูลพนักงานในระบบ
-                                                    <?php endif; ?>
-                                                </td>
-                                            </tr>
+                                        <?php if ($is_super_admin): // ผู้ดูแลกรองดูแต่ละร้านได้ ?>
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold text-primary mb-1">ร้านค้า (Shop)</label>
+                                            <select id="shopFilter" class="form-select border-primary border-opacity-25 shadow-sm">
+                                                <option value="">-- ทุกร้าน --</option>
+                                                <?php while($sh = $all_shops->fetch_assoc()): ?>
+                                                    <option value="<?= $sh['shop_id'] ?>"><?= htmlspecialchars($sh['shop_name']) ?></option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-3">
+                                            <label class="small fw-bold text-primary mb-1">สาขา (Branch)</label>
+                                            <select id="branchFilter" class="form-select border-primary border-opacity-25 shadow-sm">
+                                                <option value="">-- ทุกสาขา --</option>
+                                                <?php mysqli_data_seek($all_branches, 0); while($br = $all_branches->fetch_assoc()): ?>
+                                                    <option value="<?= $br['branch_id'] ?>" data-shop="<?= $br['shop_info_shop_id'] ?>"><?= htmlspecialchars($br['branch_name']) ?></option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
                                         <?php endif; ?>
-                                    </tbody>
-                                </table>
+
+                                        <div class="col-12 text-end">
+                                            <button class="btn btn-link btn-sm text-danger text-decoration-none" onclick="clearFilters()">ล้างค่ากรอง</button>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
+                            <div class="row mb-4">
+                                <div class="col-md-5">
+                                    <div class="input-group shadow-sm" style="border-radius: 10px; overflow: hidden;">
+                                        <span class="input-group-text bg-white border-0"><i class="bi bi-search text-muted"></i></span>
+                                        <input type="text" id="searchInput" class="form-control border-0" placeholder="ค้นหารหัส, ชื่อ, นามสกุล...">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="tableContainer">
+                                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                            </div>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
     </div>
-    <?php
-    if (isset($conn)) $conn->close();
-    ?>
+
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white border-0">
+                    <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-2"></i>ยืนยันการลบ</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="fs-5 mb-1">ต้องการลบข้อมูลพนักงาน <strong id="delName"></strong> ?</p>
+                    <p class="text-danger small mb-0">การลบข้อมูลพนักงานจะทำให้ประวัติบางส่วนหายไป</p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center bg-light">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                    <a id="confirmDelBtn" href="#" class="btn btn-danger rounded-pill px-4 shadow-sm">ยืนยันการลบ</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // --- สำหรับซ่อน Alert ---
-        setTimeout(() => {
-            document.querySelectorAll('.custom-alert').forEach(alert => {
-                const bsAlert = bootstrap.Alert.getInstance(alert);
-                if (bsAlert) {
-                    bsAlert.close();
-                } else {
-                    alert.style.transition = 'opacity 0.5s ease';
-                    alert.style.opacity = '0';
-                    setTimeout(() => alert.remove(), 500);
-                }
-            });
-        }, 5000);
-
-        // สลับสถานะ
-        document.addEventListener('DOMContentLoaded', function() {
-            // เลือก dropdown สลับสถานะทุกอัน 
-            const statusSelects = document.querySelectorAll('.status-select');
-
-            statusSelects.forEach(select => {
-                select.addEventListener('change', function(e) {
-
-                    const sel = this; 
-                    const empId = sel.dataset.id;
-                    const newStatus = sel.value;
-                    const currentStatus = sel.dataset.status; 
-
-                    if (newStatus === currentStatus) {
-                        return;
-                    }
-
-                    // --- ถามยืนยัน ---
-                    if (!confirm(`คุณต้องการเปลี่ยนสถานะพนักงาน ID: ${empId}\nจาก "${currentStatus}" เป็น "${newStatus}" ใช่หรือไม่?`)) {
-                        sel.value = currentStatus;
-                        return;
-                    }
-
-                    // --- ส่งข้อมูลไปอัปเดต (Fetch/AJAX) ---
-                    fetch('toggle_employee_status.php', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/json',
-                                'Accept': 'application/json'
-                            },
-                            body: JSON.stringify({
-                                emp_id: empId,
-                                new_status: newStatus
-                            })
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.success) {
-                                // ถ้าอัปเดตสำเร็จ
-                                sel.dataset.status = newStatus;
-                                if (newStatus === 'Active') {
-                                    sel.classList.remove('status-select-resigned');
-                                    sel.classList.add('status-select-active');
-                                } else {
-                                    sel.classList.remove('status-select-active');
-                                    sel.classList.add('status-select-resigned');
-                                }
-
-                                showTempAlert('สำเร็จ!', 'เปลี่ยนสถานะพนักงานเรียบร้อยแล้ว', 'success');
-
-                            } else {
-                                // ถ้าล้มเหลว
-                                alert('เกิดข้อผิดพลาด: ' + data.message);
-                                sel.value = currentStatus; 
-                            }
-                        })
-                        .catch(error => {
-                            console.error('Error:', error);
-                            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-                            sel.value = currentStatus;
-                        });
-                });
+        function fetchEmpData(page = 1) {
+            const params = new URLSearchParams({
+                ajax: 1, page,
+                search: document.getElementById('searchInput').value,
+                status: document.getElementById('statusFilter').value,
+                dept: document.getElementById('deptFilter').value,
+                shop_filter: document.getElementById('shopFilter')?.value || '',
+                branch_filter: document.getElementById('branchFilter')?.value || ''
             });
 
-            // สร้าง Alert
-            function showTempAlert(title, message, type = 'success') {
-                const icon = (type === 'success') ? 'fa-check-circle' : 'fa-exclamation-triangle';
-                const alertType = (type === 'success') ? 'alert-success' : 'alert-error';
+            fetch(`employee.php?${params.toString()}`)
+                .then(res => res.text()).then(data => document.getElementById('tableContainer').innerHTML = data);
+        }
 
-                const alertDiv = document.createElement('div');
-                alertDiv.className = `custom-alert ${alertType}`;
-                alertDiv.setAttribute('role', 'alert');
-                alertDiv.innerHTML = `
-                    <i class="fas ${icon} fa-lg"></i>
-                    <div><strong>${title}</strong><br>${message}</div>
-                    <button type="button" class="btn-close ms-auto" data-bs-dismiss="alert" aria-label="Close" style="filter: invert(1) grayscale(100%) brightness(200%);"></button>
-                `;
+        function toggleFilter() {
+            const card = document.getElementById('filterCard');
+            const isHidden = card.style.display === 'none';
+            card.style.display = isHidden ? 'block' : 'none';
+            document.getElementById('filterBtnText').innerText = isHidden ? 'ปิดตัวกรอง' : 'กรองพนักงาน';
+        }
 
-                document.body.appendChild(alertDiv);
+        function clearFilters() {
+            ['statusFilter', 'deptFilter', 'shopFilter', 'branchFilter', 'searchInput'].forEach(id => {
+                const el = document.getElementById(id); if(el) el.value = '';
+            });
+            fetchEmpData(1);
+        }
 
-                setTimeout(() => {
-                    const bsAlert = bootstrap.Alert.getInstance(alertDiv);
-                    if (bsAlert) {
-                        bsAlert.close();
-                    } else {
-                        alertDiv.style.transition = 'opacity 0.5s ease';
-                        alertDiv.style.opacity = '0';
-                        setTimeout(() => alertDiv.remove(), 500);
-                    }
-                }, 3000);
+        document.getElementById('searchInput').addEventListener('input', () => fetchEmpData(1));
+        ['statusFilter', 'deptFilter', 'shopFilter', 'branchFilter'].forEach(id => document.getElementById(id)?.addEventListener('change', () => fetchEmpData(1)));
+
+        document.addEventListener('click', e => {
+            const link = e.target.closest('.ajax-page-link');
+            if (link) { e.preventDefault(); fetchEmpData(link.dataset.page); }
+            if (e.target.id === 'btnJumpPage') {
+                const p = document.getElementById('jumpPageInput').value;
+                if (p > 0) fetchEmpData(p);
             }
-
         });
+
+        function confirmDelete(id, name) {
+            document.getElementById('delName').innerText = name;
+            document.getElementById('confirmDelBtn').href = `delete_employee.php?id=${id}`;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        // กรองสาขาตามร้าน (Admin Only)
+        document.getElementById('shopFilter')?.addEventListener('change', function() {
+            const shopId = this.value;
+            const branchSelect = document.getElementById('branchFilter');
+            branchSelect.value = '';
+            Array.from(branchSelect.options).forEach(opt => {
+                if (opt.value === '') opt.style.display = 'block';
+                else opt.style.display = (shopId === '' || opt.dataset.shop === shopId) ? 'block' : 'none';
+            });
+        });
+
+        window.onload = () => fetchEmpData();
     </script>
 </body>
-
 </html>

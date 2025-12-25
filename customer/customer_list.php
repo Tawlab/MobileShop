@@ -3,321 +3,268 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'customer_list');
 
-// [แก้ไข 1] รับค่า Shop ID จาก Session
+// [1] รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
 
-$return_to = isset($_GET['return_to']) ? urldecode($_GET['return_to']) : '';
-$btn_back_link = !empty($return_to) ? $return_to : '../dashboard.php';
-$next_return = !empty($return_to) ? $return_to : 'customer_list.php';
-$btn_add_link = "add_customer.php?return_to=" . urlencode($next_return);
-// -----------------------------------------------------------------------------
-// SETTINGS & PAGINATION
-// -----------------------------------------------------------------------------
-$limit = 10; // แสดง 10 รายการต่อหน้า
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$offset = ($page - 1) * $limit;
-
-// -----------------------------------------------------------------------------
-// SORTING LOGIC (เรียงลำดับ)
-// -----------------------------------------------------------------------------
-$allowed_sorts = ['c.cs_id', 'c.firstname_th', 'c.cs_phone_no'];
-$sort_col = isset($_GET['sort']) && in_array($_GET['sort'], $allowed_sorts) ? $_GET['sort'] : 'c.create_at'; // Default เรียงตามวันที่สร้าง
-$sort_ord = isset($_GET['order']) && strtoupper($_GET['order']) === 'ASC' ? 'ASC' : 'DESC'; // Default ล่าสุดขึ้นก่อน
-
-// Helper Functions สำหรับสร้าง Link และ Query String
-function build_query_string($exclude = [])
-{
-    $params = $_GET;
-    foreach ($exclude as $key) unset($params[$key]);
-    return http_build_query($params);
+// [2] ตรวจสอบสิทธิ์ Admin
+$is_super_admin = false;
+$check_admin_sql = "SELECT r.role_name FROM roles r 
+                    JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+                    WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt_admin = $conn->prepare($check_admin_sql)) {
+    $stmt_admin->bind_param("i", $current_user_id);
+    $stmt_admin->execute();
+    if ($stmt_admin->get_result()->num_rows > 0) $is_super_admin = true;
+    $stmt_admin->close();
 }
 
-function get_sort_link($column, $label, $current_sort, $current_order)
-{
-    $new_order = ($current_sort == $column && $current_order == 'ASC') ? 'DESC' : 'ASC';
-    $icon = '';
-    if ($current_sort == $column) {
-        $icon = $current_order == 'ASC' ? '<i class="fas fa-sort-up ms-1"></i>' : '<i class="fas fa-sort-down ms-1"></i>';
-    } else {
-        $icon = '<i class="fas fa-sort ms-1 text-muted" style="opacity:0.3;"></i>';
+// ==========================================
+// [3] ส่วนประมวลผล AJAX (เรียกผ่าน Fetch API)
+// ==========================================
+if (isset($_GET['ajax'])) {
+    $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
+    $shop_filter = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
+    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    $limit = 20; // 1. แสดงแค่ 20 รายการต่อหน้า
+    $offset = ($page - 1) * $limit;
+
+    // 2. เงื่อนไขการกรอง (มองเห็นแค่ของร้านตัวเอง หรือ Admin เห็นทั้งหมด)
+    $conditions = [];
+    if (!$is_super_admin) {
+        $conditions[] = "c.shop_info_shop_id = '$shop_id'";
+    } elseif (!empty($shop_filter)) {
+        $conditions[] = "c.shop_info_shop_id = '$shop_filter'";
     }
 
-    // สร้าง URL โดยรักษาค่า search เดิมไว้ แต่เปลี่ยน sort/order
-    $qs = build_query_string(['sort', 'order']);
-    $href = "?$qs&sort=$column&order=$new_order";
+    if (!empty($search)) {
+        $conditions[] = "(c.firstname_th LIKE '%$search%' OR c.lastname_th LIKE '%$search%' OR c.cs_phone_no LIKE '%$search%')";
+    }
+    $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-    return "<a href='$href' class='text-decoration-none text-dark fw-bold'>$label $icon</a>";
+    // นับจำนวนทั้งหมดเพื่อคำนวณหน้า
+    $count_res = $conn->query("SELECT COUNT(*) as total FROM customers c $where_sql");
+    $total_items = $count_res->fetch_assoc()['total'];
+    $total_pages = ceil($total_items / $limit);
+
+    // ดึงข้อมูลลูกค้าพร้อมชื่อร้าน
+    $sql = "SELECT c.*, p.prefix_th, s.shop_name 
+            FROM customers c 
+            LEFT JOIN prefixs p ON c.prefixs_prefix_id = p.prefix_id 
+            LEFT JOIN shop_info s ON c.shop_info_shop_id = s.shop_id 
+            $where_sql 
+            ORDER BY c.create_at DESC 
+            LIMIT $limit OFFSET $offset";
+    $result = $conn->query($sql);
+    ?>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" width="5%">#</th>
+                    <th width="10%">รหัส</th>
+                    <th width="30%">ชื่อ-นามสกุล</th>
+                    <th width="20%">เบอร์โทรศัพท์</th>
+                    <?php if ($is_super_admin): ?>
+                        <th width="15%" class="text-center">สังกัดร้าน</th>
+                    <?php endif; ?>
+                    <th width="20%" class="text-center">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($result->num_rows > 0): 
+                    $idx = $offset + 1;
+                    while ($row = $result->fetch_assoc()): ?>
+                <tr>
+                    <td class="text-center text-muted small fw-bold"><?= $idx++ ?></td>
+                    <td class="text-center small"><span class="badge bg-light text-dark border">#<?= $row['cs_id'] ?></span></td>
+                    <td>
+                        <div class="fw-bold text-dark"><?= htmlspecialchars($row['prefix_th'] . $row['firstname_th'] . ' ' . $row['lastname_th']) ?></div>
+                        <small class="text-muted"><i class="bi bi-card-text me-1"></i><?= htmlspecialchars($row['cs_national_id'] ?: '-') ?></small>
+                    </td>
+                    <td><span class="text-primary fw-bold"><?= htmlspecialchars($row['cs_phone_no']) ?></span></td>
+                    <?php if ($is_super_admin): ?>
+                        <td class="text-center">
+                            <span class="badge bg-info bg-opacity-10 text-info border border-info border-opacity-25 px-3">
+                                <i class="bi bi-shop me-1"></i> <?= htmlspecialchars($row['shop_name'] ?? 'ไม่ระบุ') ?>
+                            </span>
+                        </td>
+                    <?php endif; ?>
+                    <td class="text-center">
+                        <div class="btn-group gap-2">
+                            <a href="view_customer.php?id=<?= $row['cs_id'] ?>" class="btn btn-outline-info btn-sm border-0" title="ดูข้อมูล"><i class="bi bi-eye-fill fs-5"></i></a>
+                            <a href="edit_customer.php?id=<?= $row['cs_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
+                            <button onclick="confirmDelete(<?= $row['cs_id'] ?>, '<?= addslashes($row['firstname_th']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash3-fill fs-5"></i></button>
+                        </div>
+                    </td>
+                </tr>
+                <?php endwhile; else: ?>
+                <tr><td colspan="<?= $is_super_admin ? 6 : 5 ?>" class="text-center py-5 text-muted italic">-- ไม่พบข้อมูลลูกค้า --</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if ($total_pages > 1): ?>
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center pagination-sm">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="1" title="หน้าแรกสุด"><i class="bi bi-chevron-double-left"></i></a>
+            </li>
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="<?= $page - 1 ?>"><i class="bi bi-chevron-left"></i></a>
+            </li>
+            <?php for ($i = max(1, $page-2); $i <= min($total_pages, $page+2); $i++): ?>
+                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+                </li>
+            <?php endfor; ?>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="<?= $page + 1 ?>" title="ถัดไป"><i class="bi bi-chevron-right"></i></a>
+            </li>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>" title="หน้าสุดท้าย"><i class="bi bi-chevron-double-right"></i></a>
+            </li>
+        </ul>
+    </nav>
+    <div class="d-flex justify-content-center mt-2 gap-2 align-items-center">
+        <div class="input-group input-group-sm" style="max-width: 150px;">
+            <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปหน้า" min="1" max="<?= $total_pages ?>">
+            <button class="btn btn-success" type="button" id="btnJumpPage">ไป</button>
+        </div>
+        <div class="small text-muted">หน้า <?= $page ?> / <?= $total_pages ?> (รวม <?= number_format($total_items) ?> คน)</div>
+    </div>
+    <?php endif; ?>
+    <?php
+    exit();
 }
 
-// -----------------------------------------------------------------------------
-// SEARCH & FILTER
-// -----------------------------------------------------------------------------
-$search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
-
-// [แก้ไข 2] บังคับกรองลูกค้าเฉพาะร้านนี้
-$where = ["c.shop_info_shop_id = '$shop_id'"];
-
-if (!empty($search)) {
-    $where[] = "(
-        c.firstname_th LIKE '%$search%' OR 
-        c.lastname_th LIKE '%$search%' OR 
-        c.cs_phone_no LIKE '%$search%' OR 
-        c.cs_national_id LIKE '%$search%' OR
-        c.cs_id LIKE '%$search%'
-    )";
-}
-
-$where_sql = count($where) > 0 ? 'WHERE ' . implode(' AND ', $where) : '';
-$is_filtered = !empty($search); // เช็คว่ามีการกรองอยู่ไหม (เพื่อเปิดกล่องค้างไว้)
-
-// -----------------------------------------------------------------------------
-// QUERY DATA
-// -----------------------------------------------------------------------------
-// นับจำนวนทั้งหมด
-$sql_count = "SELECT COUNT(*) as total FROM customers c $where_sql";
-$res_count = mysqli_query($conn, $sql_count);
-$total_rows = mysqli_fetch_assoc($res_count)['total'];
-$total_pages = ceil($total_rows / $limit);
-$sql = "SELECT c.*, p.prefix_th 
-        FROM customers c
-        LEFT JOIN prefixs p ON c.prefixs_prefix_id = p.prefix_id
-        $where_sql
-        ORDER BY $sort_col $sort_ord
-        LIMIT $limit OFFSET $offset";
-$result = mysqli_query($conn, $sql);
+// ดึงรายชื่อร้านค้าสำหรับตัวกรอง (Admin เท่านั้น)
+$shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name ASC") : null;
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>ข้อมูลลูกค้า (Customers)</title>
+    <title>จัดการข้อมูลลูกค้า - Mobile Shop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body {
-            background-color: <?= $background_color ?>;
-            font-family: '<?= $font_style ?>', sans-serif;
-            color: <?= $text_color ?>;
-        }
-
-        .card {
-            border: none;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-        }
-
-        .table th {
-            background-color: <?= $header_bg_color ?>;
-            color: <?= $header_text_color ?>;
-            white-space: nowrap;
-        }
-
-        /* Avatar วงกลมสำหรับตัวอักษรย่อ */
-        .avatar-circle {
-            width: 35px;
-            height: 35px;
-            background-color: #e9ecef;
-            color: #495057;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
-            margin-right: 10px;
-        }
+        body { background-color: #f8fafc; font-family: 'Prompt', sans-serif; }
+        .main-card { border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow: hidden; }
+        .card-header-custom { background: linear-gradient(135deg, #198754 0%, #14532d 100%); padding: 1.5rem; }
+        .card-header-custom h4 { color: #ffffff !important; font-weight: 600; margin-bottom: 0; }
+        .pagination .page-link { border-radius: 8px; margin: 0 3px; color: #198754; font-weight: 600; border: none; }
+        .pagination .page-item.active .page-link { background-color: #198754; color: white; }
     </style>
 </head>
-
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
-                <div class="container py-5">
-
-                    <?php if (isset($_SESSION['success'])): ?>
-                        <div class="alert alert-success alert-dismissible fade show">
-                            <i class="fas fa-check-circle me-2"></i> <?= $_SESSION['success'];
-                                                                        unset($_SESSION['success']); ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (isset($_SESSION['error'])): ?>
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            <i class="fas fa-exclamation-circle me-2"></i> <?= $_SESSION['error'];
-                                                                            unset($_SESSION['error']); ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
-
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h3 style="color: <?= $theme_color ?>;"><i class="fas fa-users me-2"></i>ข้อมูลลูกค้า (ทั้งหมด <?= number_format($total_rows) ?> คน)</h3>
-
-                        <div class="d-flex gap-2">
-                            <!-- <a href="<?= htmlspecialchars($btn_back_link) ?>" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left me-1"></i> ย้อนกลับ
-            </a> -->
-
-                            <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="<?= $is_filtered ? 'true' : 'false' ?>">
-                                <i class="fas fa-filter"></i> ตัวกรอง
-                            </button>
-
-                            <a href="<?= htmlspecialchars($btn_add_link) ?>" class="btn btn-success">
-                                <i class="fas fa-user-plus me-2"></i> เพิ่มลูกค้า
+                <div class="container py-2" style="max-width: 1200px;">
+                    
+                    <div class="main-card card">
+                        <div class="card-header-custom d-flex justify-content-between align-items-center">
+                            <h4><i class="bi bi-people-fill me-2"></i>จัดการข้อมูลลูกค้า</h4>
+                            <a href="add_customer.php" class="btn btn-light btn-sm fw-bold">
+                                <i class="bi bi-person-plus-fill me-1"></i> เพิ่มลูกค้าใหม่
                             </a>
                         </div>
-                    </div>
 
-                    <div class="collapse <?= $is_filtered ? 'show' : '' ?> mb-4" id="filterCollapse">
-                        <div class="card card-body bg-light">
-                            <form method="GET" class="row g-2 align-items-end">
-                                <div class="col-md-10">
-                                    <label class="form-label fw-bold"><i class="fas fa-search me-1"></i> ค้นหาข้อมูล</label>
-                                    <input type="text" name="search" class="form-control" placeholder="ระบุชื่อ, นามสกุล, เบอร์โทร หรือ รหัสลูกค้า..." value="<?= htmlspecialchars($search) ?>">
-                                </div>
-                                <div class="col-md-2">
-                                    <div class="d-grid gap-2">
-                                        <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> ค้นหา</button>
-                                        <?php if ($search): ?>
-                                            <a href="customer_list.php" class="btn btn-outline-secondary"><i class="fas fa-undo"></i> ล้างค่า</a>
-                                        <?php endif; ?>
+                        <div class="card-body p-4">
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="input-group shadow-sm">
+                                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                                        <input type="text" id="searchInput" class="form-control border-start-0" placeholder="ชื่อ, เบอร์โทร หรือ รหัสลูกค้า...">
                                     </div>
                                 </div>
-                            </form>
-                        </div>
-                    </div>
 
-                    <div class="card">
-                        <div class="card-body p-0">
-                            <div class="table-responsive">
-                                <table class="table table-hover align-middle mb-0">
-                                    <thead>
-                                        <tr>
-                                            <th class="text-center" width="80">ลำดับ</th>
-                                            <th class="text-center" width="120">
-                                                <?= get_sort_link('c.cs_id', 'รหัสลูกค้า', $sort_col, $sort_ord) ?>
-                                            </th>
-                                            <th class="ps-4">
-                                                <?= get_sort_link('c.firstname_th', 'ชื่อ-นามสกุล', $sort_col, $sort_ord) ?>
-                                            </th>
-                                            <th>
-                                                <?= get_sort_link('c.cs_phone_no', 'เบอร์โทรศัพท์', $sort_col, $sort_ord) ?>
-                                            </th>
-                                            <th class="text-center" width="150">จัดการ</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php if (mysqli_num_rows($result) > 0): ?>
-                                            <?php
-                                            $i = 0;
-                                            while ($row = mysqli_fetch_assoc($result)):
-                                                $i++;
-                                                $seq = $offset + $i; // คำนวณลำดับต่อเนื่อง
-                                            ?>
-                                                <tr>
-                                                    <td class="text-center text-muted"><?= $seq ?></td>
-                                                    <td class="text-center fw-bold text-secondary"><?= $row['cs_id'] ?></td>
-                                                    <td class="ps-4">
-                                                        <div class="d-flex align-items-center">
-                                                            <div class="avatar-circle">
-                                                                <?= mb_substr($row['firstname_th'], 0, 1) ?>
-                                                            </div>
-                                                            <div>
-                                                                <span class="fw-bold"><?= $row['prefix_th'] . $row['firstname_th'] . ' ' . $row['lastname_th'] ?></span>
-                                                                <?php if ($row['cs_line_id']): ?>
-                                                                    <br><small class="text-success"><i class="fab fa-line"></i> <?= $row['cs_line_id'] ?></small>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <span class="fw-bold text-primary"><?= $row['cs_phone_no'] ?></span>
-                                                    </td>
-                                                    <td class="text-center">
-                                                        <div class="btn-group">
-                                                            <a href="view_customer.php?id=<?= $row['cs_id'] ?>" class="btn btn-sm btn-outline-info" title="ดูรายละเอียด"><i class="fas fa-eye"></i></a>
-                                                            <a href="edit_customer.php?id=<?= $row['cs_id'] ?>" class="btn btn-sm btn-outline-warning" title="แก้ไข"><i class="fas fa-edit"></i></a>
-                                                            <button type="button" class="btn btn-sm btn-outline-danger" onclick="confirmDelete(<?= $row['cs_id'] ?>, '<?= $row['firstname_th'] ?>')" title="ลบ"><i class="fas fa-trash-alt"></i></button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
+                                <?php if ($is_super_admin): ?>
+                                <div class="col-md-6 col-lg-4">
+                                    <div class="input-group shadow-sm">
+                                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-shop"></i></span>
+                                        <select id="shopFilter" class="form-select border-start-0">
+                                            <option value="">-- แสดงลูกค้าทุกร้าน --</option>
+                                            <?php while($s = $shops_res->fetch_assoc()): ?>
+                                                <option value="<?= $s['shop_id'] ?>">ร้าน: <?= htmlspecialchars($s['shop_name']) ?></option>
                                             <?php endwhile; ?>
-                                        <?php else: ?>
-                                            <tr>
-                                                <td colspan="5" class="text-center py-5 text-muted">
-                                                    <i class="fas fa-user-slash fa-3x mb-3"></i><br>ไม่พบข้อมูลลูกค้า
-                                                </td>
-                                            </tr>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
+                                        </select>
+                                    </div>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+
+                            <div id="tableContainer">
+                                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
                             </div>
                         </div>
-
-                        <?php if ($total_pages > 1): ?>
-                            <div class="card-footer bg-white border-0 py-3">
-                                <nav aria-label="Page navigation">
-                                    <ul class="pagination justify-content-center mb-0">
-
-                                        <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>">
-                                            <a class="page-link" href="?page=<?= $page - 1 ?>&<?= getQueryStr(['page']) ?>">
-                                                <i class="fas fa-chevron-left me-1"></i> ก่อนหน้า
-                                            </a>
-                                        </li>
-
-                                        <?php
-                                        $range = 2; // แสดงหน้าใกล้เคียง +/- 2
-                                        for ($i = 1; $i <= $total_pages; $i++):
-                                            if ($i == 1 || $i == $total_pages || ($i >= $page - $range && $i <= $page + $range)):
-                                        ?>
-                                                <li class="page-item <?= $page == $i ? 'active' : '' ?>">
-                                                    <a class="page-link" href="?page=<?= $i ?>&<?= getQueryStr(['page']) ?>"><?= $i ?></a>
-                                                </li>
-                                            <?php elseif (($i == $page - $range - 1) || ($i == $page + $range + 1)): ?>
-                                                <li class="page-item disabled"><span class="page-link">...</span></li>
-                                        <?php endif;
-                                        endfor; ?>
-
-                                        <li class="page-item <?= $page >= $total_pages ? 'disabled' : '' ?>">
-                                            <a class="page-link" href="?page=<?= $page + 1 ?>&<?= getQueryStr(['page']) ?>">
-                                                ถัดไป <i class="fas fa-chevron-right ms-1"></i>
-                                            </a>
-                                        </li>
-
-                                    </ul>
-                                </nav>
-                            </div>
-                        <?php endif; ?>
                     </div>
+
                 </div>
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white border-0">
+                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>ยืนยันการลบ</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="fs-5 mb-1">ต้องการลบข้อมูลลูกค้า <strong id="delName"></strong> ?</p>
+                    <p class="text-danger small mb-0"><i class="bi bi-info-circle me-1"></i>การลบข้อมูลจะไม่สามารถกู้คืนได้</p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                    <a id="confirmDelBtn" href="#" class="btn btn-danger px-4 shadow-sm">ยืนยันการลบ</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        function confirmDelete(id, name) {
-            Swal.fire({
-                title: 'ยืนยันการลบ?',
-                text: `คุณต้องการลบข้อมูลลูกค้า "${name}" ใช่หรือไม่? การลบนี้ไม่สามารถกู้คืนได้`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#d33',
-                cancelButtonColor: '#3085d6',
-                confirmButtonText: 'ใช่, ลบเลย!',
-                cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    window.location.href = `delete_customer.php?id=${id}`;
-                }
-            })
+        function fetchCustomerData(page = 1) {
+            const search = document.getElementById('searchInput').value;
+            const shopFilter = document.getElementById('shopFilter')?.value || '';
+            
+            fetch(`customer_list.php?ajax=1&page=${page}&search=${encodeURIComponent(search)}&shop_filter=${shopFilter}`)
+                .then(res => res.text())
+                .then(data => document.getElementById('tableContainer').innerHTML = data);
         }
+
+        document.getElementById('searchInput').addEventListener('input', () => fetchCustomerData(1));
+        document.getElementById('shopFilter')?.addEventListener('change', () => fetchCustomerData(1));
+
+        document.addEventListener('click', e => {
+            if (e.target.classList.contains('ajax-page-link') || e.target.closest('.ajax-page-link')) {
+                e.preventDefault();
+                const link = e.target.classList.contains('ajax-page-link') ? e.target : e.target.closest('.ajax-page-link');
+                fetchCustomerData(link.dataset.page);
+            }
+            if (e.target.id === 'btnJumpPage') {
+                const p = document.getElementById('jumpPageInput').value;
+                if (p > 0) fetchCustomerData(p);
+            }
+        });
+
+        function confirmDelete(id, name) {
+            document.getElementById('delName').innerText = name;
+            document.getElementById('confirmDelBtn').href = `delete_customer.php?id=${id}`;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        window.onload = () => fetchCustomerData();
     </script>
-
 </body>
-
 </html>

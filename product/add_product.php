@@ -4,19 +4,49 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_product');
 require '../config/load_theme.php';
 
-// [แก้ไข 1] รับค่า Shop ID จาก Session
+// [1] รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
 
-// [แก้ไข 2] ดึงข้อมูล brands และ types (เฉพาะของร้านนี้)
-$brands_query = "SELECT brand_id, brand_name_th FROM prod_brands WHERE shop_info_shop_id = '$shop_id' ORDER BY brand_name_th";
+// [2] ตรวจสอบสิทธิ์ Admin เพื่อกำหนดปลายทางข้อมูล (Target Shop ID)
+$is_super_admin = false;
+$check_admin_sql = "SELECT r.role_name FROM roles r 
+                    JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+                    WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt_admin = $conn->prepare($check_admin_sql)) {
+    $stmt_admin->bind_param("i", $current_user_id);
+    $stmt_admin->execute();
+    if ($stmt_admin->get_result()->num_rows > 0) {
+        $is_super_admin = true;
+    }
+    $stmt_admin->close();
+}
+
+// *** หัวใจสำคัญ: ถ้าเป็น Admin ให้บันทึกเข้า '0' (ส่วนกลาง), ถ้าไม่ใช่ให้บันทึกเข้า Shop ID ตัวเอง ***
+$save_as_shop_id = $is_super_admin ? 0 : $shop_id;
+
+// ฟังก์ชันหา prod_id ถัดไป (Manual Increment)
+function getNextProductId($conn) {
+    $sql = "SELECT IFNULL(MAX(prod_id), 100000) + 1 as next_id FROM products";
+    $result = mysqli_query($conn, $sql);
+    $row = mysqli_fetch_assoc($result);
+    return $row['next_id'];
+}
+
+// [3] ดึงข้อมูล Brands และ Types (ให้เห็นของตัวเอง + ของส่วนกลาง)
+$brands_query = "SELECT brand_id, brand_name_th FROM prod_brands 
+                 WHERE shop_info_shop_id = '$shop_id' OR shop_info_shop_id = 0 
+                 ORDER BY brand_name_th";
 $brands_result = mysqli_query($conn, $brands_query);
 
-$types_query = "SELECT type_id, type_name_th FROM prod_types WHERE shop_info_shop_id = '$shop_id' ORDER BY type_name_th";
+$types_query = "SELECT type_id, type_name_th FROM prod_types 
+                WHERE shop_info_shop_id = '$shop_id' OR shop_info_shop_id = 0 
+                ORDER BY type_name_th";
 $types_result = mysqli_query($conn, $types_query);
 
-// ประมวลผลฟอร์ม
+// --- ส่วนประมวลผลฟอร์ม (POST) ---
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $prod_id = (int)$_POST['prod_id'];
+    $prod_code = trim($_POST['prod_code']); // รหัสที่ร้านตั้งเอง
     $prod_name = trim($_POST['prod_name']);
     $prod_brands_brand_id = (int)$_POST['prod_brands_brand_id'];
     $prod_types_type_id = (int)$_POST['prod_types_type_id'];
@@ -25,51 +55,44 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $prod_desc = trim($_POST['prod_desc']);
     $prod_price = (float)$_POST['prod_price'];
 
-    //  การตรวจสอบข้อมูล
     $errors = [];
-    if (empty($prod_id)) $errors[] = "กรุณากรอกรหัสสินค้า";
+    
+    // Validation
+    if (empty($prod_code)) $errors[] = "กรุณากรอกรหัสสินค้า (Product Code)";
     if (empty($prod_name)) $errors[] = "กรุณากรอกชื่อสินค้า";
     if (empty($prod_brands_brand_id)) $errors[] = "กรุณาเลือกยี่ห้อ";
     if (empty($prod_types_type_id)) $errors[] = "กรุณาเลือกประเภทสินค้า";
     if (empty($model_name)) $errors[] = "กรุณากรอกชื่อรุ่น";
-    if (empty($model_no)) $errors[] = "กรุณากรอกรหัสรุ่น";
-    if ($prod_price <= 0) $errors[] = "ราคาสินค้าต้องมากกว่า 0";
+    if ($prod_price < 0) $errors[] = "ราคาห้ามติดลบ";
 
-    // ตรวจสอบรหัสสินค้า (prod_id) และ รหัสรุ่น (model_no) ซ้ำ
+    // [4] ตรวจสอบรหัสซ้ำ (Check Duplicate)
     if (empty($errors)) {
-        // เช็ค prod_id (Primary Key ต้องเช็คทั้งระบบหรือเช็คในร้านก็ได้ แต่ปกติ PK ซ้ำไม่ได้เลย)
-        $check_id_sql = "SELECT prod_id FROM products WHERE prod_id = ?";
-        $check_id_stmt = $conn->prepare($check_id_sql);
-        $check_id_stmt->bind_param("i", $prod_id);
-        $check_id_stmt->execute();
-        $check_id_result = $check_id_stmt->get_result();
-        if ($check_id_result->num_rows > 0) {
-            $errors[] = "รหัสสินค้า '$prod_id' นี้มีอยู่แล้วในระบบ";
+        // 4.1 เช็ค prod_code ซ้ำ (เฉพาะใน Scope ที่เราจะบันทึก)
+        $check_code_sql = "SELECT prod_id FROM products WHERE prod_code = ? AND shop_info_shop_id = ?";
+        $stmt_check = $conn->prepare($check_code_sql);
+        $stmt_check->bind_param("si", $prod_code, $save_as_shop_id);
+        $stmt_check->execute();
+        if ($stmt_check->get_result()->num_rows > 0) {
+            $scope_msg = $is_super_admin ? "ระบบส่วนกลาง" : "ร้านของคุณ";
+            $errors[] = "รหัสสินค้า '$prod_code' มีอยู่แล้วใน$scope_msg";
         }
-        $check_id_stmt->close();
-
-        // เช็ค model_no (เช็คเฉพาะในร้านตัวเอง เพื่อให้ร้านอื่นใช้ model_no เดียวกันได้ถ้าต้องการ)
-        $check_model_sql = "SELECT prod_id FROM products WHERE model_no = ? AND shop_info_shop_id = ?";
-        $check_model_stmt = $conn->prepare($check_model_sql);
-        $check_model_stmt->bind_param("si", $model_no, $shop_id);
-        $check_model_stmt->execute();
-        $check_model_result = $check_model_stmt->get_result();
-        if ($check_model_result->num_rows > 0) {
-            $errors[] = "รหัสรุ่น (Model No.) '$model_no' นี้มีอยู่แล้วในร้านของคุณ";
-        }
-        $check_model_stmt->close();
+        $stmt_check->close();
     }
 
+    // [5] บันทึกข้อมูล (INSERT)
     if (empty($errors)) {
-        // [แก้ไข 3] เพิ่ม shop_info_shop_id ลงใน INSERT
-        $sql = "INSERT INTO products (prod_id, prod_name, prod_brands_brand_id, prod_types_type_id, model_name, model_no, prod_desc, prod_price, shop_info_shop_id) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+        // หา ID ถัดไป
+        $prod_id = getNextProductId($conn);
+
+        $sql = "INSERT INTO products (prod_id, prod_code, prod_name, prod_brands_brand_id, prod_types_type_id, model_name, model_no, prod_desc, prod_price, shop_info_shop_id) 
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $conn->prepare($sql);
-        // เพิ่ม 'i' ท้ายสุดของ types string และเพิ่ม $shop_id ในพารามิเตอร์
+        // Param types: i=int, s=string, d=double
         $stmt->bind_param(
-            "isiisssdi",
+            "issiisssdi",
             $prod_id,
+            $prod_code,
             $prod_name,
             $prod_brands_brand_id,
             $prod_types_type_id,
@@ -77,22 +100,21 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $model_no,
             $prod_desc,
             $prod_price,
-            $shop_id 
+            $save_as_shop_id // <-- บันทึกเป็น 0 หรือ ID ร้าน ตามสิทธิ์
         );
 
         if ($stmt->execute()) {
-            $_SESSION['success'] = "เพิ่มสินค้า '$prod_name' (รหัส: $prod_id) สำเร็จ";
+            $_SESSION['success'] = "เพิ่มสินค้าเรียบร้อย " . ($is_super_admin ? "(บันทึกเป็นสินค้าส่วนกลาง)" : "");
             header('Location: product.php');
             exit();
         } else {
-            $_SESSION['error'] = "เกิดข้อผิดพลาดในการบันทึก: " . $stmt->error;
+            $_SESSION['error'] = "เกิดข้อผิดพลาด: " . $stmt->error;
         }
         $stmt->close();
     } else {
-        // หากมี errors
         $_SESSION['errors'] = $errors;
     }
-    // ส่งกลับไปหน้าเดิม (กรณีมี Error)
+    // หากมี Error ให้เด้งกลับมาหน้าเดิม
     header('Location: add_product.php');
     exit();
 }
@@ -100,215 +122,128 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เพิ่มสินค้า - Mobile Shop</title>
+    <title>เพิ่มสินค้าใหม่ - Mobile Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-
     <style>
-        body {
-            background-color: <?= $background_color ?>;
-            font-family: '<?= $font_style ?>', sans-serif;
-            color: <?= $text_color ?>;
-        }
-
-        .card {
-            border: none;
-            border-radius: 15px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .card-header {
-            background: <?= $theme_color ?>;
-            color: white;
-            border-radius: 15px 15px 0 0 !important;
-            padding: 1.5rem;
-        }
-
-        .btn-success {
-            background: <?= $btn_add_color ?>;
-            border: none;
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 500;
-        }
-
-        .btn-success:hover {
-            filter: brightness(90%);
-        }
-
-        .btn-secondary {
-            border-radius: 10px;
-            padding: 0.75rem 2rem;
-            font-weight: 500;
-        }
-
-        .form-control,
-        .form-select {
-            border-radius: 10px;
-            border: 1px solid #e9ecef;
-            padding: 0.75rem 1rem;
-            transition: all 0.3s ease;
-        }
-
-        .form-control:focus,
-        .form-select:focus {
-            border-color: <?= $theme_color ?>;
-            box-shadow: 0 0 0 0.2rem <?= $theme_color ?>40;
-        }
-
-        .form-label {
-            font-weight: 600;
-            color: #495057;
-            margin-bottom: 0.5rem;
-        }
-
-        .alert {
-            border-radius: 10px;
-            border: none;
-        }
+        body { background-color: <?= $background_color ?>; font-family: '<?= $font_style ?>', sans-serif; color: <?= $text_color ?>; }
+        .main-card { border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow: hidden; }
+        .card-header-custom { background: linear-gradient(135deg, #198754 0%, #14532d 100%); padding: 1.5rem; color: white; }
+        .form-label { font-weight: 600; color: #4b5563; }
+        .form-control:focus, .form-select:focus { border-color: #198754; box-shadow: 0 0 0 0.25rem rgba(25, 135, 84, 0.1); }
+        .badge-admin-mode { background-color: #ffc107; color: #000; font-weight: bold; padding: 0.5em 1em; border-radius: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     </style>
 </head>
-
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
-            <div class="container-fluid py-4">
-                <div class="container mt-4">
-                    <div class="row justify-content-center">
-                        <div class="col-lg-8">
-                            <div class="card">
-                                <div class="card-header">
-                                    <h4 class="mb-0 text-light">
-                                        <i class="bi bi-plus-circle-fill me-2"></i>เพิ่มสินค้าใหม่
-                                    </h4>
-                                </div>
-                                <div class="card-body p-4">
-                                    <?php if (isset($_SESSION['errors'])): ?>
-                                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                            <strong>เกิดข้อผิดพลาด!</strong>
-                                            <ul>
-                                                <?php foreach ($_SESSION['errors'] as $error): ?>
-                                                    <li><?php echo htmlspecialchars($error); ?></li>
-                                                <?php endforeach; ?>
-                                            </ul>
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                        </div>
-                                        <?php unset($_SESSION['errors']); ?>
-                                    <?php endif; ?>
+            <div class="container py-5">
+                <div class="row justify-content-center">
+                    <div class="col-lg-9">
+                        
+                        <?php if ($is_super_admin): ?>
+                        <div class="text-center mb-3">
+                            <span class="badge-admin-mode">
+                                <i class="bi bi-globe2 me-2"></i>คุณกำลังเพิ่มสินค้าในฐานะ "ผู้ดูแลระบบ (ส่วนกลาง)"
+                            </span>
+                        </div>
+                        <?php endif; ?>
 
-                                    <?php if (isset($_SESSION['error'])): ?>
-                                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                                            <?php echo htmlspecialchars($_SESSION['error']);
-                                            unset($_SESSION['error']); ?>
-                                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-                                        </div>
-                                    <?php endif; ?>
+                        <div class="main-card card shadow-sm">
+                            <div class="card-header-custom">
+                                <h4 class="mb-0"><i class="bi bi-plus-circle-fill me-2"></i>เพิ่มรายการสินค้าใหม่</h4>
+                            </div>
+                            <div class="card-body p-4 p-md-5">
+                                
+                                <?php if (isset($_SESSION['errors'])): ?>
+                                    <div class="alert alert-danger border-0 shadow-sm mb-4">
+                                        <ul class="mb-0 ps-3">
+                                            <?php foreach ($_SESSION['errors'] as $err): ?><li><?= htmlspecialchars($err) ?></li><?php endforeach; ?>
+                                        </ul>
+                                    </div>
+                                    <?php unset($_SESSION['errors']); ?>
+                                <?php endif; ?>
 
-
-                                    <form method="POST" action="add_product.php" class="needs-validation" novalidate>
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <label for="prod_id" class="form-label">
-                                                    <i class="bi bi-key-fill me-1"></i>รหัสสินค้า (1-6 หลัก)
-                                                </label>
-                                                <input type="text" class="form-control border-secondary" id="prod_id" name="prod_id"
-                                                    required pattern="\d{1,6}" maxlength="6">
-                                                <div class="invalid-feedback">กรุณากรอกรหัสสินค้าเป็นตัวเลข 1-6 หลัก (ห้ามซ้ำ)</div>
+                                <form method="POST" action="add_product.php" class="needs-validation" novalidate>
+                                    <div class="row g-4">
+                                        
+                                        <div class="col-md-6">
+                                            <label for="prod_code" class="form-label">รหัสสินค้า (กำหนดเอง) <span class="text-danger">*</span></label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-light border-end-0"><i class="bi bi-qr-code"></i></span>
+                                                <input type="text" class="form-control border-start-0" id="prod_code" name="prod_code" required 
+                                                       placeholder="เช่น IP16-PRO-BLK" value="<?= htmlspecialchars($_POST['prod_code'] ?? '') ?>">
                                             </div>
-
-                                            <div class="col-md-6 mb-3">
-                                                <label for="prod_name" class="form-label">
-                                                    <i class="bi bi-tag-fill me-1"></i>ชื่อสินค้า
-                                                </label>
-                                                <input type="text" class="form-control border-secondary" id="prod_name" name="prod_name" required>
-                                                <div class="invalid-feedback">กรุณากรอกชื่อสินค้า</div>
-                                            </div>
+                                            <small class="text-muted">รหัสสำหรับร้านค้าใช้เรียกสินค้า (ไม่ซ้ำกันในร้าน)</small>
                                         </div>
 
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <label for="prod_brands_brand_id" class="form-label">
-                                                    <i class="bi bi-building me-1"></i>ยี่ห้อ
-                                                </label>
-                                                <select class="form-select border-secondary" id="prod_brands_brand_id" name="prod_brands_brand_id" required>
-                                                    <option value="">-- เลือกยี่ห้อ --</option>
-                                                    <?php while ($brand = mysqli_fetch_assoc($brands_result)): ?>
-                                                        <option value="<?php echo $brand['brand_id']; ?>">
-                                                            <?php echo htmlspecialchars($brand['brand_name_th']); ?>
-                                                        </option>
-                                                    <?php endwhile; ?>
-                                                </select>
-                                                <div class="invalid-feedback">กรุณาเลือกยี่ห้อ</div>
-                                            </div>
-
-                                            <div class="col-md-6 mb-3">
-                                                <label for="prod_types_type_id" class="form-label">
-                                                    <i class="bi bi-diagram-3-fill me-1"></i>ประเภทสินค้า
-                                                </label>
-                                                <select class="form-select border-secondary" id="prod_types_type_id" name="prod_types_type_id" required>
-                                                    <option value="">-- เลือกประเภท --</option>
-                                                    <?php while ($type = mysqli_fetch_assoc($types_result)): ?>
-                                                        <option value="<?php echo $type['type_id']; ?>">
-                                                            <?php echo htmlspecialchars($type['type_name_th']); ?>
-                                                        </option>
-                                                    <?php endwhile; ?>
-                                                </select>
-                                                <div class="invalid-feedback">กรุณาเลือกประเภทสินค้า</div>
-                                            </div>
+                                        <div class="col-md-6">
+                                            <label for="prod_name" class="form-label">ชื่อสินค้า <span class="text-danger">*</span></label>
+                                            <input type="text" class="form-control" id="prod_name" name="prod_name" required 
+                                                   placeholder="ชื่อที่แสดงบนบิลขาย" value="<?= htmlspecialchars($_POST['prod_name'] ?? '') ?>">
                                         </div>
 
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <label for="model_name" class="form-label">
-                                                    <i class="bi bi-upc me-1"></i>ชื่อรุ่น
-                                                </label>
-                                                <input type="text" class="form-control border-secondary" id="model_name" name="model_name" required>
-                                                <div class="invalid-feedback">กรุณากรอกชื่อรุ่น</div>
-                                            </div>
-                                            <div class="col-md-6 mb-3">
-                                                <label for="model_no" class="form-label">
-                                                    <i class="bi bi-qr-code me-1"></i>รหัสรุ่น (Model No.)
-                                                </label>
-                                                <input type="text" class="form-control border-secondary" id="model_no" name="model_no" required>
-                                                <div class="invalid-feedback">กรุณากรอกรหัสรุ่น (ต้องไม่ซ้ำ)</div>
+                                        <div class="col-md-6">
+                                            <label for="prod_brands_brand_id" class="form-label">ยี่ห้อ</label>
+                                            <select class="form-select" id="prod_brands_brand_id" name="prod_brands_brand_id" required>
+                                                <option value="">-- เลือกยี่ห้อ --</option>
+                                                <?php while ($b = mysqli_fetch_assoc($brands_result)): ?>
+                                                    <option value="<?= $b['brand_id'] ?>"><?= htmlspecialchars($b['brand_name_th']) ?></option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="prod_types_type_id" class="form-label">ประเภทสินค้า</label>
+                                            <select class="form-select" id="prod_types_type_id" name="prod_types_type_id" required>
+                                                <option value="">-- เลือกประเภท --</option>
+                                                <?php while ($t = mysqli_fetch_assoc($types_result)): ?>
+                                                    <option value="<?= $t['type_id'] ?>"><?= htmlspecialchars($t['type_name_th']) ?></option>
+                                                <?php endwhile; ?>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="model_name" class="form-label">ชื่อรุ่น (Model Name)</label>
+                                            <input type="text" class="form-control" id="model_name" name="model_name" required 
+                                                   placeholder="เช่น iPhone 16 Pro Max">
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="model_no" class="form-label">หมายเลขรุ่น (Model No.)</label>
+                                            <input type="text" class="form-control" id="model_no" name="model_no" 
+                                                   placeholder="เช่น A3296">
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label for="prod_price" class="form-label">ราคาสินค้ามาตรฐาน (บาท)</label>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-light">฿</span>
+                                                <input type="number" class="form-control" id="prod_price" name="prod_price" step="0.01" min="0" required 
+                                                       placeholder="0.00">
                                             </div>
                                         </div>
 
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <label for="prod_price" class="form-label">
-                                                    <i class="bi bi-cash-coin me-1"></i>ราคา (บาท)
-                                                </label>
-                                                <input type="number" class="form-control border-secondary" id="prod_price" name="prod_price" step="0.01" min="0.01" required>
-                                                <div class="invalid-feedback">กรุณากรอกราคาที่ถูกต้อง (มากกว่า 0)</div>
-                                            </div>
+                                        <div class="col-12">
+                                            <label for="prod_desc" class="form-label">รายละเอียดสินค้า</label>
+                                            <textarea class="form-control" id="prod_desc" name="prod_desc" rows="3" 
+                                                      placeholder="รายละเอียดเพิ่มเติม..."></textarea>
                                         </div>
+                                    </div>
 
-                                        <div class="mb-4">
-                                            <label for="prod_desc" class="form-label">
-                                                <i class="bi bi-file-text-fill me-1"></i>รายละเอียด
-                                            </label>
-                                            <textarea class="form-control border-secondary" id="prod_desc" name="prod_desc" rows="3"
-                                                placeholder="รายละเอียดเพิ่มเติมของสินค้า (ไม่บังคับ)"></textarea>
-                                        </div>
-
-                                        <div class="d-flex gap-2">
-                                            <button type="submit" class="btn btn-success">
-                                                <i class="bi bi-save-fill me-2"></i>บันทึก
-                                            </button>
-                                            <a href="product.php" class="btn btn-secondary">
-                                                <i class="bi bi-x-circle-fill me-2"></i>ยกเลิก
-                                            </a>
-                                        </div>
-                                    </form>
-                                </div>
+                                    <div class="d-flex justify-content-between align-items-center mt-5">
+                                        <a href="product.php" class="btn btn-light rounded-pill px-4">
+                                            <i class="bi bi-arrow-left me-1"></i> ย้อนกลับ
+                                        </a>
+                                        <button type="submit" class="btn btn-success rounded-pill px-5 shadow-sm fw-bold">
+                                            <i class="bi bi-save2-fill me-2"></i> บันทึกข้อมูล
+                                        </button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -316,9 +251,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             </div>
         </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        //  Bootstrap Validation
+        // Validation UI
         (() => {
             'use strict';
             const forms = document.querySelectorAll('.needs-validation');
@@ -332,14 +268,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }, false);
             });
         })();
-
-        // ตรวจสอบราคาไม่ให้เป็นค่าลบ
-        document.getElementById('prod_price').addEventListener('input', function() {
-            if (this.value < 0) {
-                this.value = 0;
-            }
-        });
     </script>
 </body>
-
 </html>

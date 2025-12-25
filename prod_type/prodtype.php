@@ -1,123 +1,134 @@
 <?php
 session_start();
-ob_start();
-
 require '../config/config.php';
 checkPageAccess($conn, 'prodtype');
-require '../config/load_theme.php';
 
-// [1] รับค่า Shop ID และ User ID
+// [1] รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ "centralinf"
-$has_centralinf_permission = false;
-$check_perm_sql = "SELECT p.permission_id 
-                   FROM permissions p
-                   JOIN role_permissions rp ON p.permission_id = rp.permissions_permission_id
-                   JOIN user_roles ur ON rp.roles_role_id = ur.roles_role_id
-                   WHERE ur.users_user_id = ? 
-                   AND p.permission_name = 'centralinf' 
-                   LIMIT 1";
-
-if ($stmt_perm = mysqli_prepare($conn, $check_perm_sql)) {
-  mysqli_stmt_bind_param($stmt_perm, "i", $current_user_id);
-  mysqli_stmt_execute($stmt_perm);
-  mysqli_stmt_store_result($stmt_perm);
-  if (mysqli_stmt_num_rows($stmt_perm) > 0) {
-    $has_centralinf_permission = true;
-  }
-  mysqli_stmt_close($stmt_perm);
+// [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
+$is_super_admin = false;
+$check_admin_sql = "SELECT r.role_name FROM roles r 
+                    JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+                    WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt_admin = $conn->prepare($check_admin_sql)) {
+  $stmt_admin->bind_param("i", $current_user_id);
+  $stmt_admin->execute();
+  if ($stmt_admin->get_result()->num_rows > 0) $is_super_admin = true;
+  $stmt_admin->close();
 }
 
-// [3] การจัดการการลบประเภท 
-if (isset($_GET['delete_id'])) {
-  $delete_id = $_GET['delete_id'];
+// ==========================================
+// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ==========================================
+if (isset($_GET['ajax'])) {
+  $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
+  $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+  $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
+  $offset = ($page - 1) * $limit;
 
-  // เตรียม SQL ตามสิทธิ์
-  if ($has_centralinf_permission) {
-    // มีสิทธิ์ centralinf -> ลบได้ทุกอย่าง
-    $delete_sql = "DELETE FROM prod_types WHERE type_id = ?";
-  } else {
-    // ไม่มีสิทธิ์ -> ลบได้เฉพาะของร้านตัวเอง
-    $delete_sql = "DELETE FROM prod_types WHERE type_id = ? AND shop_info_shop_id = ?";
+  // 3. กรองตามสิทธิ์ (ร้านค้าเห็นของตนเอง+ส่วนกลาง / แอดมินเห็นทั้งหมด)
+  $conditions = [];
+  if (!$is_super_admin) {
+    $conditions[] = "(pt.shop_info_shop_id = 0 OR pt.shop_info_shop_id = '$shop_id')";
+  }
+  if (!empty($search)) {
+    $conditions[] = "(pt.type_name_th LIKE '%$search%' OR pt.type_name_en LIKE '%$search%' OR pt.type_id LIKE '%$search%')";
   }
 
-  if ($stmt = mysqli_prepare($conn, $delete_sql)) {
-    if ($has_centralinf_permission) {
-      mysqli_stmt_bind_param($stmt, "s", $delete_id);
-    } else {
-      mysqli_stmt_bind_param($stmt, "si", $delete_id, $shop_id);
-    }
+  $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-    if (mysqli_stmt_execute($stmt)) {
-      if (mysqli_stmt_affected_rows($stmt) > 0) {
-        $_SESSION['success'] = "ลบประเภทสินค้าสำเร็จ";
-      } else {
-        $_SESSION['error'] = "คุณไม่สามารถลบประเภทสินค้านี้ได้ (อาจเป็นประเภทส่วนกลางหรือไม่มีสิทธิ์)";
-      }
-    } else {
-      // ตรวจจับ Foreign Key Error
-      if (mysqli_errno($conn) == 1451) {
-        $_SESSION['error'] = "ลบไม่สำเร็จ: ประเภทนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
-      } else {
-        $_SESSION['error'] = "เกิดข้อผิดพลาดในการลบ: " . mysqli_error($conn);
-      }
-    }
-    mysqli_stmt_close($stmt);
-  }
+  // นับจำนวนทั้งหมดเพื่อคำนวณหน้า
+  $count_sql = "SELECT COUNT(*) as total FROM prod_types pt $where_sql";
+  $total_items = $conn->query($count_sql)->fetch_assoc()['total'];
+  $total_pages = ceil($total_items / $limit);
 
-  // ล้าง output buffer และ redirect
-  ob_end_clean();
-  header('Location: prodtype.php');
+  // ดึงข้อมูลประเภทสินค้าพร้อมชื่อร้านผู้เพิ่ม
+  $sql = "SELECT pt.*, sh.shop_name 
+            FROM prod_types pt
+            LEFT JOIN shop_info sh ON pt.shop_info_shop_id = sh.shop_id
+            $where_sql 
+            ORDER BY pt.shop_info_shop_id ASC, pt.type_id DESC 
+            LIMIT $limit OFFSET $offset";
+  $result = $conn->query($sql);
+?>
+
+  <div class="table-responsive">
+    <table class="table table-hover align-middle mb-0">
+      <thead class="table-light">
+        <tr>
+          <th class="text-center" width="5%">#</th>
+          <th width="10%">รหัส</th>
+          <th width="30%">ชื่อประเภท (TH / EN)</th>
+          <th width="20%" class="text-center">ผู้เพิ่มข้อมูล</th>
+          <th width="15%" class="text-center">จัดการ</th>
+        </tr>
+      </thead>
+      <tbody>
+        <?php if ($result->num_rows > 0): $idx = $offset + 1;
+          while ($row = $result->fetch_assoc()): ?>
+            <tr>
+              <td class="text-center text-muted fw-bold"><?= $idx++ ?></td>
+              <td class="text-center small"><span class="badge bg-light text-dark border">#<?= $row['type_id'] ?></span></td>
+              <td>
+                <div class="fw-bold text-dark"><?= htmlspecialchars($row['type_name_th']) ?></div>
+                <div class="small text-muted"><?= htmlspecialchars($row['type_name_en'] ?: '-') ?></div>
+              </td>
+              <td class="text-center">
+                <?php if ($row['shop_info_shop_id'] == 0): ?>
+                  <span class="badge bg-secondary bg-opacity-10 text-secondary border border-secondary border-opacity-25 px-3">
+                    <i class="bi bi-globe2 me-1"></i> ส่วนกลาง
+                  </span>
+                <?php else: ?>
+                  <span class="text-primary small fw-bold">
+                    <i class="bi bi-shop me-1"></i> <?= htmlspecialchars($row['shop_name'] ?? 'ไม่ระบุร้าน') ?>
+                  </span>
+                <?php endif; ?>
+              </td>
+              <td class="text-center">
+                <div class="btn-group gap-1">
+                  <?php if ($is_super_admin || $row['shop_info_shop_id'] == $shop_id): ?>
+                    <a href="edit_prodtype.php?id=<?= $row['type_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
+                    <button onclick="confirmDelete(<?= $row['type_id'] ?>, '<?= addslashes($row['type_name_th']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash3-fill fs-5"></i></button>
+                  <?php else: ?>
+                    <i class="bi bi-lock-fill text-muted" title="ข้อมูลส่วนกลาง (อ่านอย่างเดียว)"></i>
+                  <?php endif; ?>
+                </div>
+              </td>
+            </tr>
+          <?php endwhile;
+        else: ?>
+          <tr>
+            <td colspan="5" class="text-center py-5 text-muted">-- ไม่พบข้อมูลประเภทสินค้า --</td>
+          </tr>
+        <?php endif; ?>
+      </tbody>
+    </table>
+  </div>
+
+  <?php if ($total_pages > 1): ?>
+    <nav class="mt-4">
+      <ul class="pagination justify-content-center pagination-sm">
+        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="1" title="หน้าแรก"><i class="bi bi-chevron-double-left"></i></a></li>
+        <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $page - 1 ?>"><i class="bi bi-chevron-left"></i></a></li>
+        <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+          <li class="page-item <?= ($page == $i) ? 'active' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a></li>
+        <?php endfor; ?>
+        <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $page + 1 ?>"><i class="bi bi-chevron-right"></i></a></li>
+        <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>"><a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>"><i class="bi bi-chevron-double-right"></i></a></li>
+      </ul>
+    </nav>
+    <div class="d-flex justify-content-center mt-2 gap-2 align-items-center">
+      <div class="input-group input-group-sm" style="max-width: 150px;">
+        <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปหน้า" min="1" max="<?= $total_pages ?>">
+        <button class="btn btn-success text-white" type="button" id="btnJumpPage">ไป</button>
+      </div>
+      <div class="small text-muted">หน้า <?= $page ?> / <?= $total_pages ?> (รวม <?= number_format($total_items) ?> รายการ)</div>
+    </div>
+<?php endif;
   exit();
 }
-
-// การค้นหา 
-$search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
-$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'type_id'; // default sort
-$order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
-
-// Pagination
-$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-$items_per_page = 10;
-$offset = ($page - 1) * $items_per_page;
-
-// สร้าง WHERE clause แบบ Hybrid
-$where_conditions = [];
-$where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
-
-if (!empty($search)) {
-  $where_conditions[] = "(type_name_th LIKE '%$search%' OR type_name_en LIKE '%$search%')";
-}
-
-$where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
-
-// นับจำนวน
-$count_sql = "SELECT COUNT(*) as total FROM prod_types $where_clause";
-$count_result = mysqli_query($conn, $count_sql);
-$total_types = mysqli_fetch_assoc($count_result)['total'];
-$total_pages = ceil($total_types / $items_per_page);
-
-// ดึงข้อมูล (เพิ่ม shop_info_shop_id มาเช็คที่หน้า HTML)
-$sql = "SELECT type_id, type_name_th, type_name_en, shop_info_shop_id 
-        FROM prod_types 
-        $where_clause 
-        ORDER BY $sort_by $order 
-        LIMIT $items_per_page OFFSET $offset";
-$result = mysqli_query($conn, $sql);
-
-// ฟังก์ชันช่วยสร้าง query string
-function build_query_string($exclude = [])
-{
-  $params = $_GET;
-  foreach ($exclude as $key) {
-    unset($params[$key]);
-  }
-  return !empty($params) ? '&' . http_build_query($params) : '';
-}
-
-ob_end_flush();
 ?>
 
 <!DOCTYPE html>
@@ -125,11 +136,11 @@ ob_end_flush();
 
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>จัดการประเภทสินค้า - Mobile Shop</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+  <?php require '../config/load_theme.php'; ?>
   <style>
     body {
       background-color: <?= $background_color ?>;
@@ -282,254 +293,53 @@ ob_end_flush();
     <?php include '../global/sidebar.php'; ?>
     <div class="main-content w-100">
       <div class="container-fluid py-4">
+        <div class="container py-2" style="max-width: 1100px;">
 
-        <div class="main-header py-3 text-white">
-          <div class="container">
-            <div class="row align-items-center gy-2">
-              <div class="col-md-4">
-                <h1 class="h4 mb-0 text-light">
-                  <i class="bi bi-diagram-3 me-2"></i> จัดการประเภทสินค้า
-                  <small class="fs-6 d-block opacity-75">
-                    (<?php echo number_format($total_types); ?> รายการ)
-                  </small>
-                </h1>
+          <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom-0">
+              <h4 class="mb-0 text-success fw-bold"><i class="bi bi-diagram-3 me-2"></i>จัดการประเภทสินค้า (Product Types)</h4>
+              <a href="add_prodtype.php" class="btn btn-success btn-sm fw-bold px-3">
+                <i class="bi bi-plus-circle me-1"></i> เพิ่มประเภทสินค้า
+              </a>
+            </div>
+
+            <div class="card-body p-4">
+              <div class="row mb-4">
+                <div class="col-md-6">
+                  <div class="input-group shadow-sm" style="border-radius: 10px; overflow: hidden;">
+                    <span class="input-group-text bg-white border-0"><i class="bi bi-search text-muted"></i></span>
+                    <input type="text" id="searchInput" class="form-control border-0" placeholder="ค้นหาชื่อประเภทสินค้า (ไทย/อังกฤษ)...">
+                  </div>
+                </div>
               </div>
-              <div class="col-md-8">
-                <div class="d-flex justify-content-md-end flex-wrap gap-2">
-                  <form method="GET" class="d-flex">
-                    <?php if (isset($_GET['sort'])): ?>
-                      <input type="hidden" name="sort" value="<?php echo htmlspecialchars($_GET['sort']); ?>">
-                    <?php endif; ?>
-                    <?php if (isset($_GET['order'])): ?>
-                      <input type="hidden" name="order" value="<?php echo htmlspecialchars($_GET['order']); ?>">
-                    <?php endif; ?>
 
-                    <div class="input-group" style="max-width: 300px;">
-                      <input type="text" name="search" class="form-control"
-                        placeholder="ค้นหาประเภท (ไทย/อังกฤษ)..."
-                        value="<?php echo htmlspecialchars($search); ?>"
-                        autocomplete="off">
-                      <button class="btn btn-light" type="submit">
-                        <i class="bi bi-search"></i>
-                      </button>
-                      <?php if (!empty($search)): ?>
-                        <a href="prodtype.php" class="btn btn-outline-light" title="ล้างการค้นหา">
-                          <i class="bi bi-x-lg"></i>
-                        </a>
-                      <?php endif; ?>
-                    </div>
-                  </form>
-
-                  <a href="add_prodtype.php" class="btn btn-warning text-dark" style="z-index: 1;">
-                    <i class="bi bi-plus-circle me-1"></i> เพิ่มประเภท
-                  </a>
+              <div id="tableContainer">
+                <div class="text-center py-5">
+                  <div class="spinner-border text-success"></div>
                 </div>
               </div>
             </div>
           </div>
+
         </div>
+      </div>
+    </div>
+  </div>
 
-        <div class="container">
-          <?php if (isset($_SESSION['success'])): ?>
-            <div class="alert alert-success alert-dismissible fade show">
-              <i class="bi bi-check-circle-fill me-2"></i>
-              <?php echo $_SESSION['success'];
-              unset($_SESSION['success']); ?>
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-          <?php endif; ?>
-          <?php if (isset($_SESSION['error'])): ?>
-            <div class="alert alert-danger alert-dismissible fade show">
-              <i class="bi bi-exclamation-triangle-fill me-2"></i>
-              <?php echo $_SESSION['error'];
-              unset($_SESSION['error']); ?>
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-          <?php endif; ?>
-          <?php if (isset($_SESSION['warning'])): ?>
-            <div class="alert alert-warning alert-dismissible fade show">
-              <i class="bi bi-exclamation-triangle-fill me-2"></i>
-              <?php echo $_SESSION['warning'];
-              unset($_SESSION['warning']); ?>
-              <?php if (isset($_SESSION['errors'])): ?>
-                <ul>
-                  <?php foreach ($_SESSION['errors'] as $error): ?>
-                    <li><?php echo $error; ?></li>
-                  <?php endforeach; ?>
-                </ul>
-                <?php unset($_SESSION['errors']); ?>
-              <?php endif; ?>
-              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-            </div>
-          <?php endif; ?>
-
-          <div class="card table-card shadow-sm">
-            <div class="card-body p-2">
-              <?php if (mysqli_num_rows($result) > 0): ?>
-                <div class="table-responsive">
-                  <table class="table table-hover table-sm align-middle mb-0 text-nowrap w-auto mx-auto">
-                    <thead class="table-light">
-                      <tr class="small">
-                        <th class="text-center" width="10%">ลำดับ</th>
-                        <th width="15%">
-                          <a href="?sort=type_id&order=<?php echo ($sort_by == 'type_id' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
-                            รหัส <i class="bi bi-arrow-down-up"></i>
-                          </a>
-                        </th>
-                        <th width="30%">
-                          <a href="?sort=type_name_th&order=<?php echo ($sort_by == 'type_name_th' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
-                            ชื่อประเภท (ไทย) <i class="bi bi-arrow-down-up"></i>
-                          </a>
-                        </th>
-                        <th width="30%">
-                          <a href="?sort=type_name_en&order=<?php echo ($sort_by == 'type_name_en' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
-                            ชื่อประเภท (อังกฤษ) <i class="bi bi-arrow-down-up"></i>
-                          </a>
-                        </th>
-                        <th class="text-center" width="15%">จัดการ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <?php
-                      $index = ($page - 1) * $items_per_page + 1;
-                      while ($row = mysqli_fetch_assoc($result)):
-                      ?>
-                        <tr class="small">
-                          <td class="text-center">
-                            <span class="badge bg-secondary"><?php echo $index++; ?></span>
-                          </td>
-                          <td class="text-center">
-                            <span class="badge bg-info">#<?php echo $row['type_id']; ?></span>
-                          </td>
-                          <td>
-                            <div class="fw-bold"><?php echo htmlspecialchars($row['type_name_th']); ?></div>
-                          </td>
-                          <td>
-                            <?php echo htmlspecialchars($row['type_name_en']); ?>
-                          </td>
-                          <td class="text-center">
-
-                            <?php
-                            // [เช็คเงื่อนไขแสดงปุ่ม] เป็นของร้านเรา หรือ มีสิทธิ์ "centralinf"
-                            if ($row['shop_info_shop_id'] != 0 || $has_centralinf_permission):
-                            ?>
-                              <div class="d-flex justify-content-center gap-1">
-                                <a href="edit_prodtype.php?id=<?php echo $row['type_id']; ?>"
-                                  class="btn btn-warning btn-sm text-dark" title="แก้ไข">
-                                  <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <button type="button" class="btn btn-danger btn-sm"
-                                  onclick="confirmDelete('<?php echo $row['type_id']; ?>', '<?php echo addslashes($row['type_name_th']); ?>')"
-                                  title="ลบ">
-                                  <i class="bi bi-trash3-fill"></i>
-                                </button>
-                              </div>
-                            <?php else: ?>
-                              <span class="badge bg-secondary bg-opacity-75 text-white" style="cursor: default;" title="ข้อมูลส่วนกลาง">
-                                <i class="bi bi-globe2 me-1"></i>ส่วนกลาง
-                              </span>
-                            <?php endif; ?>
-
-                          </td>
-                        </tr>
-                      <?php endwhile; ?>
-                    </tbody>
-                  </table>
-                </div>
-              <?php else: ?>
-                <div class="empty-state text-center py-5 text-muted small">
-                  <i class="bi bi-inbox-fill fa-2x mb-2"></i>
-                  <h5>ไม่พบข้อมูลประเภทสินค้า</h5>
-                  <p class="mb-3">ไม่มีประเภทที่ตรงกับเงื่อนไขการค้นหา</p>
-                  <a href="add_prodtype.php" class="btn btn-success btn-sm">
-                    <i class="bi bi-plus-circle me-1"></i>เพิ่มประเภท
-                  </a>
-                </div>
-              <?php endif; ?>
-            </div>
-          </div>
-
-          <?php if ($total_pages > 1): ?>
-            <div class="d-flex justify-content-center mt-3">
-              <nav>
-                <ul class="pagination pagination-sm mb-0">
-                  <?php if ($page > 1): ?>
-                    <li class="page-item">
-                      <a class="page-link" href="?page=<?php echo ($page - 1); ?><?php echo build_query_string(['page']); ?>">
-                        <i class="bi bi-chevron-left"></i> ก่อนหน้า
-                      </a>
-                    </li>
-                  <?php else: ?>
-                    <li class="page-item disabled">
-                      <span class="page-link"><i class="bi bi-chevron-left"></i> ก่อนหน้า</span>
-                    </li>
-                  <?php endif; ?>
-
-                  <?php
-                  $start = max(1, $page - 2);
-                  $end = min($total_pages, $page + 2);
-
-                  if ($start > 1) {
-                    echo '<li class="page-item"><a class="page-link" href="?page=1' . build_query_string(['page']) . '">1</a></li>';
-                    if ($start > 2) {
-                      echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                    }
-                  }
-                  for ($i = $start; $i <= $end; $i++) {
-                    echo '<li class="page-item ' . ($i == $page ? 'active' : '') . '"><a class="page-link" href="?page=' . $i . build_query_string(['page']) . '">' . $i . '</a></li>';
-                  }
-                  if ($end < $total_pages) {
-                    if ($end < $total_pages - 1) {
-                      echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                    }
-                    echo '<li class="page-item"><a class="page-link" href="?page=' . $total_pages . build_query_string(['page']) . '">' . $total_pages . '</a></li>';
-                  }
-                  ?>
-                  <?php if ($page < $total_pages): ?>
-                    <li class="page-item">
-                      <a class="page-link" href="?page=<?php echo ($page + 1); ?><?php echo build_query_string(['page']); ?>">
-                        ถัดไป <i class="bi bi-chevron-right"></i>
-                      </a>
-                    </li>
-                  <?php else: ?>
-                    <li class="page-item disabled">
-                      <span class="page-link">ถัดไป <i class="bi bi-chevron-right"></i></span>
-                    </li>
-                  <?php endif; ?>
-                </ul>
-              </nav>
-            </div>
-
-            <div class="text-center mt-2 text-muted small">
-              แสดง <?php echo (($page - 1) * $items_per_page) + 1; ?> -
-              <?php echo min($page * $items_per_page, $total_types); ?>
-              จาก <?php echo number_format($total_types); ?> รายการ
-            </div>
-          <?php endif; ?>
+  <div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content border-0 shadow">
+        <div class="modal-header bg-danger text-white border-0">
+          <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle-fill me-2"></i>ยืนยันการลบ</h5>
+          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
         </div>
-
-        <div class="modal fade" id="deleteModal" tabindex="-1">
-          <div class="modal-dialog">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title danger">
-                  <i class="bi bi-exclamation-triangle-fill me-2"></i>ยืนยันการลบ
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-              </div>
-              <div class="modal-body">
-                <p>คุณต้องการลบประเภท <strong id="typeName"></strong> ใช่หรือไม่?</p>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                  <i class="bi bi-x-lg me-1"></i>ยกเลิก
-                </button>
-                <a href="#" id="confirmDeleteBtn" class="btn btn-delete">
-                  <i class="bi bi-trash3-fill me-1"></i>ลบประเภท
-                </a>
-              </div>
-            </div>
-          </div>
+        <div class="modal-body text-center py-4">
+          <p class="fs-5 mb-1">ต้องการลบประเภทสินค้า <strong id="delName"></strong> ?</p>
+          <p class="text-danger small mb-0"><i class="bi bi-info-circle me-1"></i>โปรดตรวจสอบว่าไม่มีสินค้าที่ผูกกับประเภทนี้อยู่ในระบบ</p>
+        </div>
+        <div class="modal-footer border-0 justify-content-center bg-light">
+          <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">ยกเลิก</button>
+          <a id="confirmDelBtn" href="#" class="btn btn-danger rounded-pill px-4 shadow-sm">ยืนยันการลบ</a>
         </div>
       </div>
     </div>
@@ -537,12 +347,33 @@ ob_end_flush();
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    // ฟังก์ชันยืนยันการลบ
-    function confirmDelete(id, name) {
-      document.getElementById('typeName').textContent = name;
-      document.getElementById('confirmDeleteBtn').href = 'prodtype.php?delete_id=' + id;
-      new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    function fetchTypeData(page = 1) {
+      const search = document.getElementById('searchInput').value;
+      fetch(`prodtype.php?ajax=1&page=${page}&search=${encodeURIComponent(search)}`)
+        .then(res => res.text()).then(data => document.getElementById('tableContainer').innerHTML = data);
     }
+
+    document.getElementById('searchInput').addEventListener('input', () => fetchTypeData(1));
+
+    document.addEventListener('click', e => {
+      const link = e.target.closest('.ajax-page-link');
+      if (link) {
+        e.preventDefault();
+        fetchTypeData(link.dataset.page);
+      }
+      if (e.target.id === 'btnJumpPage') {
+        const p = document.getElementById('jumpPageInput').value;
+        if (p > 0) fetchTypeData(p);
+      }
+    });
+
+    function confirmDelete(id, name) {
+    document.getElementById('delName').innerText = name;
+    document.getElementById('confirmDelBtn').href = `delete_prodtype.php?id=${id}`;
+    new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+    window.onload = () => fetchTypeData();
   </script>
 </body>
 

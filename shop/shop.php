@@ -3,9 +3,35 @@ session_start();
 require_once '../config/config.php';
 checkPageAccess($conn, 'shop');
 
-// รับค่าการค้นหา
+// [1] รับค่าพื้นฐานจาก Session
+$current_shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
+
+// [2] ตรวจสอบบทบาทว่าเป็น Admin (แอดมินระบบ) หรือไม่
+$is_super_admin = false;
+$check_user_sql = "SELECT r.role_name 
+                   FROM users u
+                   JOIN user_roles ur ON u.user_id = ur.users_user_id
+                   JOIN roles r ON ur.roles_role_id = r.role_id
+                   WHERE u.user_id = ?";
+
+if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
+    mysqli_stmt_bind_param($stmt_user, "i", $current_user_id);
+    mysqli_stmt_execute($stmt_user);
+    $res_user = mysqli_stmt_get_result($stmt_user);
+    if ($row = mysqli_fetch_assoc($res_user)) {
+        // อ้างอิงชื่อบทบาท 'Admin' จากฐานข้อมูลสำหรับสิทธิ์สูงสุด
+        if ($row['role_name'] === 'Admin') { 
+            $is_super_admin = true;
+        }
+    }
+    mysqli_stmt_close($stmt_user);
+}
+
+// [3] รับค่าการค้นหา
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
+// [4] สร้างคำสั่ง SQL เพื่อดึงข้อมูลร้านค้าและที่อยู่
 $sql = "SELECT 
             s.shop_id, s.shop_name, s.tax_id, s.shop_phone, s.shop_email, s.logo,
             a.home_no, a.moo, a.soi, a.road, a.village,
@@ -19,29 +45,31 @@ $sql = "SELECT
         LEFT JOIN provinces p ON d.provinces_province_id = p.province_id
         WHERE 1=1";
 
+// [5] เงื่อนไขการกรองข้อมูล (Data Isolation)
+// หากไม่ใช่แอดมินระบบ ให้แสดงเฉพาะข้อมูลของร้านตัวเองเท่านั้น
+if (!$is_super_admin) {
+    $sql .= " AND s.shop_id = '$current_shop_id'";
+}
+
 if ($search) {
-    // (4) *** แก้ไขฟิลด์ที่ใช้ค้นหา ***
     $sql .= " AND (s.shop_name LIKE '%$search%' 
-             OR s.tax_id LIKE '%$search%'
-             OR s.shop_phone LIKE '%$search%'
-             OR s.shop_email LIKE '%$search%')";
+              OR s.tax_id LIKE '%$search%'
+              OR s.shop_phone LIKE '%$search%'
+              OR s.shop_email LIKE '%$search%')";
 }
 
 $sql .= " ORDER BY s.shop_id DESC";
 $result = mysqli_query($conn, $sql);
 
-// ฟังก์ชันตัดข้อความ
-function truncateText($text, $length = 50)
-{
+// --- ฟังก์ชันสำหรับการแสดงผลคงเดิม ---
+function truncateText($text, $length = 50) {
     if (mb_strlen($text) > $length) {
         return mb_substr($text, 0, $length) . '...';
     }
     return $text;
 }
 
-//  ฟังก์ชันแสดงที่อยู่ 
-function formatAddress($shop)
-{
+function formatAddress($shop) {
     $address_parts = [];
     if (!empty($shop['home_no'])) $address_parts[] = "เลขที่ " . $shop['home_no'];
     if (!empty($shop['moo'])) $address_parts[] = "หมู่ " . $shop['moo'];

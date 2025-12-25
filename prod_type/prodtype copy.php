@@ -3,59 +3,48 @@ session_start();
 ob_start();
 
 require '../config/config.php';
-checkPageAccess($conn, 'prodbrand');
+checkPageAccess($conn, 'prodtype');
 require '../config/load_theme.php';
 
-// [1] รับค่า Shop ID และ User ID จาก Session
+// [1] รับค่า Shop ID และ User ID
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์และบทบาท (ตรวจสอบว่าเป็น Admin สูงสุดหรือไม่)
-$is_super_admin = false;
+// [2] ตรวจสอบสิทธิ์ "centralinf"
 $has_centralinf_permission = false;
+$check_perm_sql = "SELECT p.permission_id 
+                   FROM permissions p
+                   JOIN role_permissions rp ON p.permission_id = rp.permissions_permission_id
+                   JOIN user_roles ur ON rp.roles_role_id = ur.roles_role_id
+                   WHERE ur.users_user_id = ? 
+                   AND p.permission_name = 'centralinf' 
+                   LIMIT 1";
 
-$check_user_sql = "SELECT r.role_name, p.permission_name 
-                   FROM users u
-                   JOIN user_roles ur ON u.user_id = ur.users_user_id
-                   JOIN roles r ON ur.roles_role_id = r.role_id
-                   LEFT JOIN role_permissions rp ON r.role_id = rp.roles_role_id
-                   LEFT JOIN permissions p ON rp.permissions_permission_id = p.permission_id
-                   WHERE u.user_id = ?";
-
-if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
-  mysqli_stmt_bind_param($stmt_user, "i", $current_user_id);
-  mysqli_stmt_execute($stmt_user);
-  $res_user = mysqli_stmt_get_result($stmt_user);
-  while ($row = mysqli_fetch_assoc($res_user)) {
-    // แก้ไข: เปลี่ยนจาก 'SystemOwner' เป็น 'Admin' ให้ตรงกับฐานข้อมูล
-    if ($row['role_name'] === 'Admin') {
-      $is_super_admin = true;
-    }
-    // เช็คสิทธิ์จัดการข้อมูลส่วนกลาง (Permission 'centralinf')
-    if ($row['permission_name'] === 'centralinf') {
-      $has_centralinf_permission = true;
-    }
+if ($stmt_perm = mysqli_prepare($conn, $check_perm_sql)) {
+  mysqli_stmt_bind_param($stmt_perm, "i", $current_user_id);
+  mysqli_stmt_execute($stmt_perm);
+  mysqli_stmt_store_result($stmt_perm);
+  if (mysqli_stmt_num_rows($stmt_perm) > 0) {
+    $has_centralinf_permission = true;
   }
-  mysqli_stmt_close($stmt_user);
+  mysqli_stmt_close($stmt_perm);
 }
 
-// [3] การจัดการการลบ (Logic แยกตามระดับสิทธิ์)
+// [3] การจัดการการลบประเภท 
 if (isset($_GET['delete_id'])) {
   $delete_id = $_GET['delete_id'];
 
-  if ($is_super_admin) {
-    // 1. Super Admin: ลบยี่ห้อของร้านใดก็ได้ในระบบ
-    $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ?";
-  } elseif ($has_centralinf_permission) {
-    // 2. มีสิทธิ์ Central: ลบของร้านตัวเอง และข้อมูลส่วนกลาง (shop_id = 0)
-    $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ? AND (shop_info_shop_id = ? OR shop_info_shop_id = 0)";
+  // เตรียม SQL ตามสิทธิ์
+  if ($has_centralinf_permission) {
+    // มีสิทธิ์ centralinf -> ลบได้ทุกอย่าง
+    $delete_sql = "DELETE FROM prod_types WHERE type_id = ?";
   } else {
-    // 3. ทั่วไป: ลบได้เฉพาะยี่ห้อที่ร้านตัวเองสร้างขึ้นเท่านั้น
-    $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ? AND shop_info_shop_id = ?";
+    // ไม่มีสิทธิ์ -> ลบได้เฉพาะของร้านตัวเอง
+    $delete_sql = "DELETE FROM prod_types WHERE type_id = ? AND shop_info_shop_id = ?";
   }
 
   if ($stmt = mysqli_prepare($conn, $delete_sql)) {
-    if ($is_super_admin) {
+    if ($has_centralinf_permission) {
       mysqli_stmt_bind_param($stmt, "s", $delete_id);
     } else {
       mysqli_stmt_bind_param($stmt, "si", $delete_id, $shop_id);
@@ -63,61 +52,71 @@ if (isset($_GET['delete_id'])) {
 
     if (mysqli_stmt_execute($stmt)) {
       if (mysqli_stmt_affected_rows($stmt) > 0) {
-        $_SESSION['success'] = "ลบยี่ห้อสินค้าสำเร็จ";
+        $_SESSION['success'] = "ลบประเภทสินค้าสำเร็จ";
       } else {
-        $_SESSION['error'] = "ไม่พบข้อมูล หรือคุณไม่มีสิทธิ์จัดการรายการนี้";
+        $_SESSION['error'] = "คุณไม่สามารถลบประเภทสินค้านี้ได้ (อาจเป็นประเภทส่วนกลางหรือไม่มีสิทธิ์)";
       }
     } else {
+      // ตรวจจับ Foreign Key Error
       if (mysqli_errno($conn) == 1451) {
-        $_SESSION['error'] = "ลบไม่สำเร็จ: ยี่ห้อนี้ถูกนำไปใช้งานในข้อมูลอื่นแล้ว";
+        $_SESSION['error'] = "ลบไม่สำเร็จ: ประเภทนี้ถูกใช้งานโดยสินค้าในระบบแล้ว";
       } else {
-        $_SESSION['error'] = "เกิดข้อผิดพลาด: " . mysqli_error($conn);
+        $_SESSION['error'] = "เกิดข้อผิดพลาดในการลบ: " . mysqli_error($conn);
       }
     }
     mysqli_stmt_close($stmt);
   }
+
+  // ล้าง output buffer และ redirect
   ob_end_clean();
-  header('Location: prodbrand.php');
+  header('Location: prodtype.php');
   exit();
 }
 
-// [4] การดึงข้อมูลและการกรอง (Data Isolation vs Super Admin View)
+// การค้นหา 
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
-$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'brand_id';
+$sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'type_id'; // default sort
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
+
+// Pagination
 $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 $items_per_page = 10;
 $offset = ($page - 1) * $items_per_page;
 
+// สร้าง WHERE clause แบบ Hybrid
 $where_conditions = [];
-
-// ส่วนสำคัญ: หากเป็น Super Admin จะไม่กรอง shop_id เพื่อให้เห็นข้อมูลทุกร้าน
-if (!$is_super_admin) {
-  // สำหรับ Partner หรือพนักงานทั่วไป: เห็นเฉพาะของร้านตัวเอง และข้อมูลส่วนกลาง (shop_id = 0)
-  $where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
-}
+$where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
 
 if (!empty($search)) {
-  $where_conditions[] = "(brand_name_th LIKE '%$search%' OR brand_name_en LIKE '%$search%')";
+  $where_conditions[] = "(type_name_th LIKE '%$search%' OR type_name_en LIKE '%$search%')";
 }
 
-$where_clause = !empty($where_conditions) ? 'WHERE ' . implode(' AND ', $where_conditions) : '';
+$where_clause = 'WHERE ' . implode(' AND ', $where_conditions);
 
-// คำนวณจำนวนหน้าและดึงข้อมูลตามเงื่อนไขสิทธิ์ข้างต้น
-$count_sql = "SELECT COUNT(*) as total FROM prod_brands $where_clause";
+// นับจำนวน
+$count_sql = "SELECT COUNT(*) as total FROM prod_types $where_clause";
 $count_result = mysqli_query($conn, $count_sql);
-$total_brands = mysqli_fetch_assoc($count_result)['total'];
-$total_pages = ceil($total_brands / $items_per_page);
+$total_types = mysqli_fetch_assoc($count_result)['total'];
+$total_pages = ceil($total_types / $items_per_page);
 
-// ดึงข้อมูล พร้อมเชื่อมกับตาราง shop_info เพื่อเอาชื่อร้าน
-$sql = "SELECT pb.*, si.shop_name 
-        FROM prod_brands pb
-        LEFT JOIN shop_info si ON pb.shop_info_shop_id = si.shop_id 
+// ดึงข้อมูล (เพิ่ม shop_info_shop_id มาเช็คที่หน้า HTML)
+$sql = "SELECT type_id, type_name_th, type_name_en, shop_info_shop_id 
+        FROM prod_types 
         $where_clause 
-        ORDER BY pb.$sort_by $order 
+        ORDER BY $sort_by $order 
         LIMIT $items_per_page OFFSET $offset";
 $result = mysqli_query($conn, $sql);
-//
+
+// ฟังก์ชันช่วยสร้าง query string
+function build_query_string($exclude = [])
+{
+  $params = $_GET;
+  foreach ($exclude as $key) {
+    unset($params[$key]);
+  }
+  return !empty($params) ? '&' . http_build_query($params) : '';
+}
+
 ob_end_flush();
 ?>
 
@@ -127,21 +126,21 @@ ob_end_flush();
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>จัดการยี่ห้อสินค้า - Mobile Shop</title>
+  <title>จัดการประเภทสินค้า - Mobile Shop</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-
   <style>
     body {
       background-color: <?= $background_color ?>;
       color: <?= $text_color ?>;
-      font-family: '<?= $font_style ?>';
+      font-family: '<?= $font_style ?>', sans-serif;
       min-height: 100vh;
     }
 
     .main-header {
       background-color: <?= $theme_color ?>;
+      /* Theme */
       color: white;
       padding: 1.5rem 0;
       margin-bottom: 1.5rem;
@@ -167,31 +166,12 @@ ob_end_flush();
       margin-bottom: 0;
     }
 
-    .header-controls {
-      background: rgba(255, 255, 255, 0.15);
-      backdrop-filter: blur(10px);
-      border-radius: 15px;
-      padding: 1rem;
-      position: relative;
-      z-index: 2;
-    }
-
     .table-card {
-      background: rgba(255, 255, 255, 0.95);
-      backdrop-filter: blur(10px);
+      background: white;
       border: none;
       border-radius: 15px;
       box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
       overflow: hidden;
-    }
-
-    .table-responsive {
-      border-radius: 15px;
-    }
-
-    .table {
-      border-collapse: separate;
-      border-spacing: 0;
     }
 
     .table th {
@@ -218,11 +198,7 @@ ob_end_flush();
     }
 
     .table tbody tr:hover {
-      background-color: rgba(25, 135, 84, 0.05);
-    }
-
-    .table tbody tr:hover td {
-      background-color: rgba(25, 135, 84, 0.05);
+      background-color: #f8f9fa;
     }
 
     .btn {
@@ -236,7 +212,7 @@ ob_end_flush();
       background: <?= $btn_add_color ?>;
       border: none;
       color: white !important;
-      box-shadow: 0 4px 15px rgba(25, 135, 84, 0.2);
+      box-shadow: 0 4px 15px <?= $btn_add_color ?>40;
     }
 
     .btn-success:hover {
@@ -246,37 +222,20 @@ ob_end_flush();
     .btn-warning {
       background-color: <?= $btn_edit_color ?>;
       border: none;
-      border-radius: 8px;
       color: #000 !important;
-      font-weight: 500;
-      transition: all 0.3s ease;
     }
 
     .btn-warning:hover {
       filter: brightness(90%);
-      transform: translateY(-1px);
-      box-shadow: 0 5px 15px rgba(255, 193, 7, 0.4);
     }
 
     .btn-danger {
       background-color: <?= $btn_delete_color ?>;
       border: none;
-      border-radius: 8px;
-      font-weight: 500;
-      transition: all 0.3s ease;
     }
 
     .btn-danger:hover {
       filter: brightness(90%);
-      transform: translateY(-1px);
-      box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
-    }
-
-    .form-control {
-      border-radius: 8px;
-      border: 1px solid #e9ecef;
-      padding: 0.6rem 0.75rem;
-      transition: all 0.3s ease;
     }
 
     .form-control:focus {
@@ -284,25 +243,9 @@ ob_end_flush();
       box-shadow: 0 0 0 0.15rem <?= $theme_color ?>40;
     }
 
-    .alert {
-      border-radius: 8px;
-      border: none;
-      padding: 0.75rem 1rem;
-      margin-bottom: 1rem;
-    }
-
-    .badge {
-      padding: 0.4rem 0.8rem;
-      border-radius: 6px;
-      font-weight: 500;
-    }
-
     .pagination .page-link {
       color: <?= $theme_color ?>;
       border-color: <?= $theme_color ?>;
-      border-radius: 8px;
-      margin: 0 2px;
-      font-weight: 500;
     }
 
     .pagination .page-link:hover {
@@ -320,51 +263,16 @@ ob_end_flush();
     .sort-link {
       color: white;
       text-decoration: none;
-      transition: all 0.3s ease;
     }
 
     .sort-link:hover {
       color: #f8f9fa;
-      text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
     }
 
     .empty-state {
       text-align: center;
       padding: 3rem;
       color: #6c757d;
-    }
-
-    .empty-state i {
-      font-size: 4rem;
-      margin-bottom: 1rem;
-      color: #dee2e6;
-    }
-
-    @media (max-width: 768px) {
-      .main-header {
-        padding: 1rem 0;
-      }
-
-      .header-controls {
-        padding: 0.75rem;
-      }
-
-      .header-controls .row {
-        flex-direction: column;
-      }
-
-      .header-controls .col-md-8 {
-        margin-bottom: 1rem;
-      }
-
-      .btn {
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
-      }
-
-      .table {
-        font-size: 0.875rem;
-      }
     }
   </style>
 </head>
@@ -380,9 +288,9 @@ ob_end_flush();
             <div class="row align-items-center gy-2">
               <div class="col-md-4">
                 <h1 class="h4 mb-0 text-light">
-                  <i class="bi bi-tags-fill me-2"></i> จัดการยี่ห้อสินค้า
+                  <i class="bi bi-diagram-3 me-2"></i> จัดการประเภทสินค้า
                   <small class="fs-6 d-block opacity-75">
-                    (<?php echo number_format($total_brands); ?> รายการ)
+                    (<?php echo number_format($total_types); ?> รายการ)
                   </small>
                 </h1>
               </div>
@@ -398,22 +306,22 @@ ob_end_flush();
 
                     <div class="input-group" style="max-width: 300px;">
                       <input type="text" name="search" class="form-control"
-                        placeholder="ค้นหายี่ห้อ (ไทย/อังกฤษ)..."
+                        placeholder="ค้นหาประเภท (ไทย/อังกฤษ)..."
                         value="<?php echo htmlspecialchars($search); ?>"
                         autocomplete="off">
                       <button class="btn btn-light" type="submit">
                         <i class="bi bi-search"></i>
                       </button>
                       <?php if (!empty($search)): ?>
-                        <a href="prodbrand.php" class="btn btn-outline-light" title="ล้างการค้นหา">
+                        <a href="prodtype.php" class="btn btn-outline-light" title="ล้างการค้นหา">
                           <i class="bi bi-x-lg"></i>
                         </a>
                       <?php endif; ?>
                     </div>
                   </form>
 
-                  <a href="add_prodbrand.php" class="btn btn-warning text-dark" style="z-index: 1;">
-                    <i class="bi bi-plus-circle me-1"></i> เพิ่มยี่ห้อ
+                  <a href="add_prodtype.php" class="btn btn-warning text-dark" style="z-index: 1;">
+                    <i class="bi bi-plus-circle me-1"></i> เพิ่มประเภท
                   </a>
                 </div>
               </div>
@@ -430,7 +338,6 @@ ob_end_flush();
               <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
           <?php endif; ?>
-
           <?php if (isset($_SESSION['error'])): ?>
             <div class="alert alert-danger alert-dismissible fade show">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -439,7 +346,6 @@ ob_end_flush();
               <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
           <?php endif; ?>
-
           <?php if (isset($_SESSION['warning'])): ?>
             <div class="alert alert-warning alert-dismissible fade show">
               <i class="bi bi-exclamation-triangle-fill me-2"></i>
@@ -466,21 +372,20 @@ ob_end_flush();
                       <tr class="small">
                         <th class="text-center" width="10%">ลำดับ</th>
                         <th width="15%">
-                          <a href="?sort=brand_id&order=<?php echo ($sort_by == 'brand_id' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
+                          <a href="?sort=type_id&order=<?php echo ($sort_by == 'type_id' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
                             รหัส <i class="bi bi-arrow-down-up"></i>
                           </a>
                         </th>
                         <th width="30%">
-                          <a href="?sort=brand_name_th&order=<?php echo ($sort_by == 'brand_name_th' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
-                            ชื่อยี่ห้อ (ไทย) <i class="bi bi-arrow-down-up"></i>
+                          <a href="?sort=type_name_th&order=<?php echo ($sort_by == 'type_name_th' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
+                            ชื่อประเภท (ไทย) <i class="bi bi-arrow-down-up"></i>
                           </a>
                         </th>
                         <th width="30%">
-                          <a href="?sort=brand_name_en&order=<?php echo ($sort_by == 'brand_name_en' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
-                            ชื่อยี่ห้อ (อังกฤษ) <i class="bi bi-arrow-down-up"></i>
+                          <a href="?sort=type_name_en&order=<?php echo ($sort_by == 'type_name_en' && $order == 'ASC') ? 'desc' : 'asc'; ?><?php echo $search ? '&search=' . urlencode($search) : ''; ?>&page=<?php echo $page; ?>" class="sort-link">
+                            ชื่อประเภท (อังกฤษ) <i class="bi bi-arrow-down-up"></i>
                           </a>
                         </th>
-                        <th width="20%" class="text-center">ผู้เพิ่ม</th>
                         <th class="text-center" width="15%">จัดการ</th>
                       </tr>
                     </thead>
@@ -494,44 +399,31 @@ ob_end_flush();
                             <span class="badge bg-secondary"><?php echo $index++; ?></span>
                           </td>
                           <td class="text-center">
-                            <span class="badge bg-info">#<?php echo $row['brand_id']; ?></span>
+                            <span class="badge bg-info">#<?php echo $row['type_id']; ?></span>
                           </td>
                           <td>
-                            <div class="fw-bold"><?php echo htmlspecialchars($row['brand_name_th']); ?></div>
+                            <div class="fw-bold"><?php echo htmlspecialchars($row['type_name_th']); ?></div>
                           </td>
                           <td>
-                            <?php echo htmlspecialchars($row['brand_name_en']); ?>
-                          </td>
-                          <td class="text-center">
-                            <?php if ($row['shop_info_shop_id'] == 0): ?>
-                              <span class="badge bg-secondary opacity-75">
-                                <i class="bi bi-globe2 me-1"></i> Admin
-                              </span>
-                            <?php else: ?>
-                              <span class="text-dark fw-bold">
-                                <i class="bi bi-shop me-1"></i>
-                                <?php echo htmlspecialchars($row['shop_name'] ?? 'ไม่ทราบชื่อร้าน'); ?>
-                              </span>
-                            <?php endif; ?>
+                            <?php echo htmlspecialchars($row['type_name_en']); ?>
                           </td>
                           <td class="text-center">
 
                             <?php
-                            // เงื่อนไข: เป็นของร้านเรา หรือ มีสิทธิ์ "AAA"
+                            // [เช็คเงื่อนไขแสดงปุ่ม] เป็นของร้านเรา หรือ มีสิทธิ์ "centralinf"
                             if ($row['shop_info_shop_id'] != 0 || $has_centralinf_permission):
                             ?>
                               <div class="d-flex justify-content-center gap-1">
-                                <a href="edit_prodbrand.php?id=<?php echo $row['brand_id']; ?>"
+                                <a href="edit_prodtype.php?id=<?php echo $row['type_id']; ?>"
                                   class="btn btn-warning btn-sm text-dark" title="แก้ไข">
                                   <i class="bi bi-pencil-square"></i>
                                 </a>
                                 <button type="button" class="btn btn-danger btn-sm"
-                                  onclick="confirmDelete('<?php echo $row['brand_id']; ?>', '<?php echo addslashes($row['brand_name_th']); ?>')"
+                                  onclick="confirmDelete('<?php echo $row['type_id']; ?>', '<?php echo addslashes($row['type_name_th']); ?>')"
                                   title="ลบ">
                                   <i class="bi bi-trash3-fill"></i>
                                 </button>
                               </div>
-
                             <?php else: ?>
                               <span class="badge bg-secondary bg-opacity-75 text-white" style="cursor: default;" title="ข้อมูลส่วนกลาง">
                                 <i class="bi bi-globe2 me-1"></i>ส่วนกลาง
@@ -547,10 +439,10 @@ ob_end_flush();
               <?php else: ?>
                 <div class="empty-state text-center py-5 text-muted small">
                   <i class="bi bi-inbox-fill fa-2x mb-2"></i>
-                  <h5>ไม่พบข้อมูลยี่ห้อสินค้า</h5>
-                  <p class="mb-3">ไม่มียี่ห้อที่ตรงกับเงื่อนไขการค้นหา</p>
-                  <a href="add_prodbrand.php" class="btn btn-success btn-sm">
-                    <i class="bi bi-plus-circle me-1"></i>เพิ่มยี่ห้อ
+                  <h5>ไม่พบข้อมูลประเภทสินค้า</h5>
+                  <p class="mb-3">ไม่มีประเภทที่ตรงกับเงื่อนไขการค้นหา</p>
+                  <a href="add_prodtype.php" class="btn btn-success btn-sm">
+                    <i class="bi bi-plus-circle me-1"></i>เพิ่มประเภท
                   </a>
                 </div>
               <?php endif; ?>
@@ -583,16 +475,9 @@ ob_end_flush();
                       echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
                     }
                   }
-
-                  for ($i = $start; $i <= $end; $i++):
-                  ?>
-                    <li class="page-item <?php echo $i == $page ? 'active' : ''; ?>">
-                      <a class="page-link" href="?page=<?php echo $i; ?><?php echo build_query_string(['page']); ?>">
-                        <?php echo $i; ?>
-                      </a>
-                    </li>
-                  <?php endfor;
-
+                  for ($i = $start; $i <= $end; $i++) {
+                    echo '<li class="page-item ' . ($i == $page ? 'active' : '') . '"><a class="page-link" href="?page=' . $i . build_query_string(['page']) . '">' . $i . '</a></li>';
+                  }
                   if ($end < $total_pages) {
                     if ($end < $total_pages - 1) {
                       echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
@@ -600,7 +485,6 @@ ob_end_flush();
                     echo '<li class="page-item"><a class="page-link" href="?page=' . $total_pages . build_query_string(['page']) . '">' . $total_pages . '</a></li>';
                   }
                   ?>
-
                   <?php if ($page < $total_pages): ?>
                     <li class="page-item">
                       <a class="page-link" href="?page=<?php echo ($page + 1); ?><?php echo build_query_string(['page']); ?>">
@@ -618,8 +502,8 @@ ob_end_flush();
 
             <div class="text-center mt-2 text-muted small">
               แสดง <?php echo (($page - 1) * $items_per_page) + 1; ?> -
-              <?php echo min($page * $items_per_page, $total_brands); ?>
-              จาก <?php echo number_format($total_brands); ?> รายการ
+              <?php echo min($page * $items_per_page, $total_types); ?>
+              จาก <?php echo number_format($total_types); ?> รายการ
             </div>
           <?php endif; ?>
         </div>
@@ -634,15 +518,14 @@ ob_end_flush();
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
               <div class="modal-body">
-                <p>คุณต้องการลบยี่ห้อ <strong id="brandName"></strong> ใช่หรือไม่?</p>
-                <small class="text-danger">การกระทำนี้ไม่สามารถย้อนกลับได้</small>
+                <p>คุณต้องการลบประเภท <strong id="typeName"></strong> ใช่หรือไม่?</p>
               </div>
               <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                   <i class="bi bi-x-lg me-1"></i>ยกเลิก
                 </button>
                 <a href="#" id="confirmDeleteBtn" class="btn btn-delete">
-                  <i class="bi bi-trash3-fill me-1"></i>ลบยี่ห้อ
+                  <i class="bi bi-trash3-fill me-1"></i>ลบประเภท
                 </a>
               </div>
             </div>
@@ -651,12 +534,13 @@ ob_end_flush();
       </div>
     </div>
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // ฟังก์ชันยืนยันการลบ
     function confirmDelete(id, name) {
-      document.getElementById('brandName').textContent = name;
-      document.getElementById('confirmDeleteBtn').href = 'prodbrand.php?delete_id=' + id;
+      document.getElementById('typeName').textContent = name;
+      document.getElementById('confirmDeleteBtn').href = 'prodtype.php?delete_id=' + id;
       new bootstrap.Modal(document.getElementById('deleteModal')).show();
     }
   </script>

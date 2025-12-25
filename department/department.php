@@ -3,279 +3,284 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'department');
 
-// [แก้ไข 1] รับค่า Shop ID จาก Session
+// [1] รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
 
-// ค่าเริ่มต้น
-$search_term = '';
-$sort_column = 'dept_id';
-$sort_order = 'ASC';
-$page = 1;
-$limit = 10; // จำนวนรายการต่อหน้า
+// [2] ตรวจสอบสิทธิ์ Admin และ Permission 'centralinf'
+$is_super_admin = false;
+$has_central_perm = false;
 
-// การค้นหา
-if (isset($_GET['search']) && !empty($_GET['search'])) {
-  $search_term = $_GET['search'];
+$check_user_sql = "SELECT r.role_name, p.permission_name 
+                   FROM users u
+                   JOIN user_roles ur ON u.user_id = ur.users_user_id
+                   JOIN roles r ON ur.roles_role_id = r.role_id
+                   LEFT JOIN role_permissions rp ON r.role_id = rp.roles_role_id
+                   LEFT JOIN permissions p ON rp.permissions_permission_id = p.permission_id
+                   WHERE u.user_id = ?";
+
+if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
+    mysqli_stmt_bind_param($stmt_user, "i", $current_user_id);
+    mysqli_stmt_execute($stmt_user);
+    $res_user = mysqli_stmt_get_result($stmt_user);
+    while ($row = mysqli_fetch_assoc($res_user)) {
+        if ($row['role_name'] === 'Admin') $is_super_admin = true;
+        if ($row['permission_name'] === 'centralinf') $has_central_perm = true;
+    }
+    mysqli_stmt_close($stmt_user);
 }
 
-// การจัดเรียง
-if (isset($_GET['sort'])) {
-  $sort_column = $_GET['sort'];
-  $sort_order = $_GET['order'] ?? 'ASC';
+// ==========================================
+// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อมีการเรียกผ่าน Fetch API)
+// ==========================================
+if (isset($_GET['ajax'])) {
+    $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
+    $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+    $limit = 20; // แสดง 20 รายการต่อหน้าตามสั่ง
+    $offset = ($page - 1) * $limit;
+
+    // สร้างเงื่อนไข WHERE แบบ Hybrid (ส่วนกลาง + ร้านค้า)
+    $conditions = [];
+    if (!$is_super_admin) {
+        $conditions[] = "(d.shop_info_shop_id = 0 OR d.shop_info_shop_id = '$shop_id')";
+    }
+    if (!empty($search)) {
+        $conditions[] = "(d.dept_name LIKE '%$search%' OR d.dept_desc LIKE '%$search%')";
+    }
+    $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
+
+    // นับจำนวนทั้งหมดเพื่อคำนวณหน้า
+    $count_res = $conn->query("SELECT COUNT(*) as total FROM departments d $where_sql");
+    $total_items = $count_res->fetch_assoc()['total'];
+    $total_pages = ceil($total_items / $limit);
+
+    // ดึงข้อมูลพร้อมชื่อร้าน/สาขาที่เพิ่ม
+    $sql = "SELECT d.*, sh.shop_name 
+            FROM departments d 
+            LEFT JOIN shop_info sh ON d.shop_info_shop_id = sh.shop_id 
+            $where_sql 
+            ORDER BY d.shop_info_shop_id ASC, d.dept_name ASC 
+            LIMIT $limit OFFSET $offset";
+    $result = $conn->query($sql);
+    ?>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th class="text-center" width="5%">#</th>
+                    <th width="10%">รหัส</th>
+                    <th width="25%">ชื่อแผนก</th>
+                    <th width="30%">คำอธิบาย</th>
+                    <th width="15%" class="text-center">ผู้เพิ่ม (สาขา)</th>
+                    <th width="15%" class="text-center">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if ($result->num_rows > 0): 
+                    $idx = $offset + 1;
+                    while ($row = $result->fetch_assoc()): 
+                ?>
+                <tr>
+                    <td class="text-center fw-bold text-muted small"><?= $idx++ ?></td>
+                    <td class="text-center small"><span class="badge bg-light text-dark border">#<?= $row['dept_id'] ?></span></td>
+                    <td class="fw-bold text-dark"><?= htmlspecialchars($row['dept_name']) ?></td>
+                    <td class="small text-muted"><?= htmlspecialchars($row['dept_desc'] ?: '—') ?></td>
+                    <td class="text-center">
+                        <?php if ($row['shop_info_shop_id'] == 0): ?>
+                            <span class="badge bg-secondary opacity-75"><i class="bi bi-globe2 me-1"></i> ส่วนกลาง</span>
+                        <?php else: ?>
+                            <span class="text-primary small fw-bold"><i class="bi bi-shop me-1"></i> <?= htmlspecialchars($row['shop_name'] ?? 'ไม่ทราบร้าน') ?></span>
+                        <?php endif; ?>
+                    </td>
+                    <td class="text-center">
+                        <?php 
+                        // เงื่อนไขการจัดการ: เป็นแอดมินระบบ หรือเป็นข้อมูลของร้านตนเอง
+                        if ($is_super_admin || ($row['shop_info_shop_id'] != 0 && $row['shop_info_shop_id'] == $shop_id)): ?>
+                            <div class="d-flex justify-content-center gap-2">
+                                <a href="edit_department.php?id=<?= $row['dept_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
+                                <button onclick="confirmDelete(<?= $row['dept_id'] ?>, '<?= addslashes($row['dept_name']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash3-fill fs-5"></i></button>
+                            </div>
+                        <?php else: ?>
+                            <i class="bi bi-lock-fill text-muted" title="สิทธิ์การอ่านเท่านั้น"></i>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endwhile; ?>
+                <?php else: ?>
+                <tr><td colspan="6" class="text-center py-5 text-muted italic">-- ไม่พบข้อมูลแผนก --</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if ($total_pages > 1): ?>
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center pagination-sm">
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="1" title="หน้าแรกสุด"><i class="bi bi-chevron-double-left"></i></a>
+            </li>
+            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="<?= $page - 1 ?>" title="ย้อนกลับ"><i class="bi bi-chevron-left"></i></a>
+            </li>
+
+            <?php
+            $range = 2;
+            for ($i = 1; $i <= $total_pages; $i++):
+                if ($i == 1 || $i == $total_pages || ($i >= $page - $range && $i <= $page + $range)):
+            ?>
+                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+                </li>
+            <?php
+                elseif (($i == $page - $range - 1) || ($i == $page + $range + 1)):
+                    echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                endif;
+            endfor;
+            ?>
+
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="<?= $page + 1 ?>" title="ถัดไป"><i class="bi bi-chevron-right"></i></a>
+            </li>
+            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                <a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>" title="หน้าสุดท้าย"><i class="bi bi-chevron-double-right"></i></a>
+            </li>
+        </ul>
+    </nav>
+
+    <?php if ($total_pages > 5): ?>
+    <div class="d-flex justify-content-center mt-2 mb-3">
+        <div class="input-group input-group-sm" style="max-width: 180px;">
+            <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปที่หน้า..." min="1" max="<?= $total_pages ?>">
+            <button class="btn btn-success text-white" type="button" id="btnJumpPage">ไป</button>
+        </div>
+    </div>
+    <?php endif; ?>
+    
+    <div class="text-center small text-muted">
+        หน้า <?= number_format($page) ?> / <?= number_format($total_pages) ?> (รวม <?= number_format($total_items) ?> รายการ)
+    </div>
+    <?php endif; ?>
+    <?php
+    exit(); 
 }
-
-// การแบ่งหน้า
-if (isset($_GET['page'])) {
-  $page = (int)$_GET['page'];
-}
-$offset = ($page - 1) * $limit;
-
-// [แก้ไข 2] ตั้งค่า WHERE หลักให้กรอง Shop ID เสมอ
-$sql_where = " WHERE shop_info_shop_id = ?";
-$types = "i"; // i = integer
-$params = [$shop_id];
-
-if (!empty($search_term)) {
-  // เพิ่มเงื่อนไขค้นหาต่อท้าย
-  $sql_where .= " AND (dept_id LIKE ? OR dept_name LIKE ?)";
-  $search_like = "%{$search_term}%";
-  $types .= "ss"; // เพิ่ม string 2 ตัว
-  $params[] = $search_like;
-  $params[] = $search_like;
-}
-
-$sql_order = " ORDER BY $sort_column $sort_order";
-$sql_limit = " LIMIT $limit OFFSET $offset";
-
-// Query หลักสำหรับดึงข้อมูล
-$sql_data = "SELECT * FROM departments $sql_where $sql_order $sql_limit";
-
-// Query สำหรับนับจำนวนทั้งหมด
-$sql_count = "SELECT COUNT(*) as total FROM departments $sql_where";
-
-// เตรียม Statement
-$stmt_data = $conn->prepare($sql_data);
-$stmt_count = $conn->prepare($sql_count);
-
-// Bind params แบบ Dynamic
-$stmt_data->bind_param($types, ...$params);
-$stmt_count->bind_param($types, ...$params);
-
-// Execute และดึงข้อมูล
-$stmt_data->execute();
-$result = $stmt_data->get_result();
-
-$stmt_count->execute();
-$total_rows = $stmt_count->get_result()->fetch_assoc()['total'];
-$total_pages = ceil($total_rows / $limit);
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>จัดการแผนก</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-  <?php include '../config/load_theme.php'; ?>
+    <meta charset="UTF-8">
+    <title>จัดการแผนก - Mobile Shop</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <?php require '../config/load_theme.php'; ?>
+    <style>
+        body { background-color: #f8fafc; font-family: 'Prompt', sans-serif; }
+        .main-card { background: white; border-radius: 15px; box-shadow: 0 4px 25px rgba(0,0,0,0.08); border: none; overflow: hidden; }
+        /* หัวข้อสีขาว */
+        .card-header-custom { background: linear-gradient(135deg, #198754 0%, #14532d 100%); padding: 1.5rem; }
+        .card-header-custom h4 { color: #ffffff !important; font-weight: 600; margin: 0; }
+        .search-box { border-radius: 10px; border: 1px solid #ddd; padding: 10px 15px; }
+        .pagination .page-link { border-radius: 8px; margin: 0 3px; color: #198754; font-weight: 600; }
+        .pagination .page-item.active .page-link { background-color: #198754; border-color: #198754; color: white; }
+    </style>
 </head>
-
 <body>
-  <div class="d-flex" id="wrapper">
-    <?php include '../global/sidebar.php'; ?>
-    <div class="main-content w-100">
-      <div class="container-fluid py-4">
-        <div class="container py-5">
-          <div class="card shadow-lg rounded-4 p-4">
+    <div class="d-flex" id="wrapper">
+        <?php include '../global/sidebar.php'; ?>
+        <div class="main-content w-100">
+            <div class="container-fluid py-4">
+                <div class="container py-2" style="max-width: 1100px;">
+                    
+                    <div class="main-card card">
+                        <div class="card-header-custom d-flex justify-content-between align-items-center">
+                            <h4><i class="bi bi-diagram-3-fill me-2"></i>รายการข้อมูลแผนก</h4>
+                            <a href="add_department.php" class="btn btn-light btn-sm fw-bold">
+                                <i class="bi bi-plus-circle me-1"></i> เพิ่มแผนกใหม่
+                            </a>
+                        </div>
 
-            <div class="d-flex justify-content-between align-items-center mb-4">
-              <h4 class="mb-0"><i class="bi bi-diagram-3-fill me-2"></i>จัดการข้อมูลแผนก</h4>
-              <a href="add_department.php" class="btn btn-add">
-                <i class="bi bi-plus-circle-fill me-1"></i> เพิ่มแผนก
-              </a>
+                        <div class="card-body p-4">
+                            <div class="row mb-4">
+                                <div class="col-md-6 col-lg-5">
+                                    <div class="input-group shadow-sm">
+                                        <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                                        <input type="text" id="searchInput" class="form-control border-start-0" placeholder="ค้นหาชื่อแผนก หรือ คำอธิบาย...">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div id="tableContainer">
+                                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
-
-            <?php if (isset($_GET['success'])): ?>
-              <div class="alert alert-success alert-dismissible fade show" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i>
-                <?php
-                if ($_GET['success'] == 'add') echo 'เพิ่มข้อมูลแผนกเรียบร้อย';
-                if ($_GET['success'] == 'edit') echo 'แก้ไขข้อมูลแผนกเรียบร้อย';
-                if ($_GET['success'] == 'delete') echo 'ลบข้อมูลแผนกเรียบร้อย';
-                ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-              </div>
-            <?php elseif (isset($_GET['error'])): ?>
-              <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                <?php
-                if ($_GET['error'] == 'delete_failed') echo 'ลบแผนกล้มเหลว';
-                if ($_GET['error'] == 'has_employees') echo 'ไม่สามารถลบแผนกได้ เนื่องจากยังมีพนักงานในแผนกนี้';
-                ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-              </div>
-            <?php endif; ?>
-
-
-            <div class="row g-3 mb-3">
-              <div class="col-md-12">
-                <form method="GET" action="department.php">
-                  <div class="input-group">
-                    <input type="text" name="search" class="form-control"
-                      placeholder="ค้นหารหัส หรือ ชื่อแผนก..."
-                      value="<?= htmlspecialchars($search_term) ?>">
-
-                    <input type="hidden" name="sort" value="<?= htmlspecialchars($sort_column) ?>">
-                    <input type="hidden" name="order" value="<?= htmlspecialchars($sort_order) ?>">
-
-                    <button class="btn btn-outline-secondary" type="submit">
-                      <i class="bi bi-search"></i> ค้นหา
-                    </button>
-                    <?php if (!empty($search_term)): ?>
-                      <a href="department.php" class="btn btn-outline-danger">
-                        <i class="bi bi-x-lg"></i> ล้าง
-                      </a>
-                    <?php endif; ?>
-                  </div>
-                </form>
-              </div>
-            </div>
-
-            <div class="table-responsive">
-              <table class="table table-bordered table-hover align-middle text-center">
-                <thead class="table-light">
-                  <tr>
-                    <th>#</th>
-                    <th>รหัสแผนก</th>
-                    <th>ชื่อแผนก</th>
-                    <th>รายละเอียด</th>
-                    <th style="width: 150px;">จัดการ</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <?php if ($result->num_rows > 0): ?>
-                    <?php $index = $offset + 1;
-                    while ($row = $result->fetch_assoc()): ?>
-                      <tr>
-                        <td><?= $index++ ?></td>
-                        <td><?= htmlspecialchars($row['dept_id']) ?></td>
-                        <td class="text-start"><?= htmlspecialchars($row['dept_name']) ?></td>
-                        <td class="text-start"><?= htmlspecialchars($row['dept_desc'] ?? '-') ?></td>
-                        <td>
-                          <a href="edit_department.php?id=<?= $row['dept_id'] ?>"
-                            class="btn btn-edit btn-sm" title="แก้ไข">
-                            <i class="bi bi-pencil-fill"></i>
-                          </a>
-                          <button class="btn btn-delete btn-sm delete-btn"
-                            data-id="<?= $row['dept_id'] ?>"
-                            data-name="<?= htmlspecialchars($row['dept_name']) ?>"
-                            title="ลบ">
-                            <i class="bi bi-trash3-fill"></i>
-                          </button>
-                        </td>
-                      </tr>
-                    <?php endwhile; ?>
-                  <?php else: ?>
-                    <tr>
-                      <td colspan="5" class="text-center text-muted py-3">
-                        <i class="bi bi-info-circle me-1"></i> ไม่พบข้อมูล
-                        <?php if (!empty($search_term)): ?>
-                          (สำหรับคำค้นหา "<?= htmlspecialchars($search_term) ?>")
-                        <?php endif; ?>
-                      </td>
-                    </tr>
-                  <?php endif; ?>
-                </tbody>
-              </table>
-            </div>
-
-            <?php if ($total_pages > 1): ?>
-              <nav aria-label="Page navigation" class="mt-4">
-                <ul class="pagination justify-content-center">
-                  <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                    <a class="page-link" href="?page=<?= $page - 1 ?>&search=<?= $search_term ?>&sort=<?= $sort_column ?>&order=<?= $sort_order ?>">
-                      <i class="bi bi-chevron-left"></i>
-                    </a>
-                  </li>
-
-                  <?php for ($i = 1; $i <= $total_pages; $i++): ?>
-                    <li class="page-item <?= ($i == $page) ? 'active' : '' ?>">
-                      <a class="page-link" href="?page=<?= $i ?>&search=<?= $search_term ?>&sort=<?= $sort_column ?>&order=<?= $sort_order ?>">
-                        <?= $i ?>
-                      </a>
-                    </li>
-                  <?php endfor; ?>
-
-                  <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                    <a class="page-link" href="?page=<?= $page + 1 ?>&search=<?= $search_term ?>&sort=<?= $sort_column ?>&order=<?= $sort_order ?>">
-                      <i class="bi bi-chevron-right"></i>
-                    </a>
-                  </li>
-                </ul>
-              </nav>
-            <?php endif; ?>
-
-          </div>
         </div>
-
-        <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
-          <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h5 class="modal-title text-danger">
-                  <i class="bi bi-exclamation-triangle-fill me-2"></i> ยืนยันการลบ
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-              </div>
-              <div class="modal-body">
-                <p id="deleteMessage" class="mb-0">คุณแน่ใจหรือไม่ว่าต้องการลบแผนกนี้?</p>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-                  <i class="bi bi-x-circle me-1"></i> ยกเลิก
-                </button>
-                <a id="confirmDeleteBtn" href="#" class="btn btn-delete">
-                  <i class="bi bi-trash3-fill me-1"></i> ยืนยันการลบ
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const modal = new bootstrap.Modal(document.getElementById('confirmDeleteModal'));
-      const deleteButtons = document.querySelectorAll('.delete-btn');
-      const deleteMessage = document.getElementById('deleteMessage');
-      const confirmBtn = document.getElementById('confirmDeleteBtn');
 
-      deleteButtons.forEach(button => {
-        button.addEventListener('click', () => {
-          const id = button.getAttribute('data-id');
-          const name = button.getAttribute('data-name');
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-danger text-white border-0">
+                    <h5 class="modal-title"><i class="bi bi-exclamation-triangle-fill me-2"></i>ยืนยันการลบ</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="fs-5 mb-1">คุณต้องการลบแผนก <strong id="delName"></strong> ?</p>
+                    <p class="text-danger small mb-0"><i class="bi bi-info-circle me-1"></i>โปรดตรวจสอบว่าไม่มีพนักงานสังกัดแผนกนี้อยู่ก่อนทำการลบ</p>
+                </div>
+                <div class="modal-footer border-0 justify-content-center">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                    <a id="confirmDelBtn" href="#" class="btn btn-danger px-4 shadow-sm">ยืนยันการลบ</a>
+                </div>
+            </div>
+        </div>
+    </div>
 
-          deleteMessage.innerHTML = `คุณต้องการลบแผนก <strong>"${name}"</strong> (รหัส ${id}) ใช่หรือไม่?`;
-          confirmBtn.href = `delete_department.php?id=${encodeURIComponent(id)}`;
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // ฟังก์ชันโหลดข้อมูลตารางผ่าน AJAX
+        function fetchDepartmentData(page = 1, search = '') {
+            const container = document.getElementById('tableContainer');
+            fetch(`department.php?ajax=1&page=${page}&search=${encodeURIComponent(search)}`)
+                .then(res => res.text())
+                .then(data => container.innerHTML = data);
+        }
 
-          modal.show();
+        document.getElementById('searchInput').addEventListener('input', e => fetchDepartmentData(1, e.target.value));
+
+        // จัดการคลิก Pagination และปุ่ม Jump
+        document.addEventListener('click', e => {
+            if (e.target.classList.contains('ajax-page-link') || e.target.closest('.ajax-page-link')) {
+                e.preventDefault();
+                const link = e.target.classList.contains('ajax-page-link') ? e.target : e.target.closest('.ajax-page-link');
+                fetchDepartmentData(link.dataset.page, document.getElementById('searchInput').value);
+            }
+            if (e.target.id === 'btnJumpPage' || e.target.closest('#btnJumpPage')) {
+                const jumpInput = document.getElementById('jumpPageInput');
+                const targetPage = parseInt(jumpInput.value);
+                const maxPage = parseInt(jumpInput.getAttribute('max'));
+                if (targetPage >= 1 && targetPage <= maxPage) {
+                    fetchDepartmentData(targetPage, document.getElementById('searchInput').value);
+                } else {
+                    alert('กรุณากรอกหน้าให้ถูกต้อง');
+                }
+            }
         });
-      });
 
-      // ปิด Alert อัตโนมัติ
-      setTimeout(() => {
-        const alerts = document.querySelectorAll('.alert-dismissible');
-        alerts.forEach(alert => {
-          new bootstrap.Alert(alert).close();
-        });
-      }, 4000);
-    });
-  </script>
+        // ฟังก์ชันแสดง Modal ยืนยันการลบ
+        function confirmDelete(id, name) {
+            document.getElementById('delName').innerText = name;
+            document.getElementById('confirmDelBtn').href = `delete_department.php?id=${id}`;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        window.onload = () => fetchDepartmentData();
+    </script>
 </body>
-
 </html>
