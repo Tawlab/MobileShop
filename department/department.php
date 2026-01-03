@@ -62,7 +62,7 @@ if (isset($_GET['ajax'])) {
             ORDER BY d.shop_info_shop_id ASC, d.dept_name ASC 
             LIMIT $limit OFFSET $offset";
     $result = $conn->query($sql);
-    ?>
+?>
 
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -77,97 +77,100 @@ if (isset($_GET['ajax'])) {
                 </tr>
             </thead>
             <tbody>
-                <?php if ($result->num_rows > 0): 
+                <?php if ($result->num_rows > 0):
                     $idx = $offset + 1;
-                    while ($row = $result->fetch_assoc()): 
+                    while ($row = $result->fetch_assoc()):
                 ?>
-                <tr>
-                    <td class="text-center fw-bold text-muted small"><?= $idx++ ?></td>
-                    <td class="text-center small"><span class="badge bg-light text-dark border">#<?= $row['dept_id'] ?></span></td>
-                    <td class="fw-bold text-dark"><?= htmlspecialchars($row['dept_name']) ?></td>
-                    <td class="small text-muted"><?= htmlspecialchars($row['dept_desc'] ?: '—') ?></td>
-                    <td class="text-center">
-                        <?php if ($row['shop_info_shop_id'] == 0): ?>
-                            <span class="badge bg-secondary opacity-75"><i class="bi bi-globe2 me-1"></i> ส่วนกลาง</span>
-                        <?php else: ?>
-                            <span class="text-primary small fw-bold"><i class="bi bi-shop me-1"></i> <?= htmlspecialchars($row['shop_name'] ?? 'ไม่ทราบร้าน') ?></span>
-                        <?php endif; ?>
-                    </td>
-                    <td class="text-center">
-                        <?php 
-                        // เงื่อนไขการจัดการ: เป็นแอดมินระบบ หรือเป็นข้อมูลของร้านตนเอง
-                        if ($is_super_admin || ($row['shop_info_shop_id'] != 0 && $row['shop_info_shop_id'] == $shop_id)): ?>
-                            <div class="d-flex justify-content-center gap-2">
-                                <a href="edit_department.php?id=<?= $row['dept_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
-                                <button onclick="confirmDelete(<?= $row['dept_id'] ?>, '<?= addslashes($row['dept_name']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash3-fill fs-5"></i></button>
-                            </div>
-                        <?php else: ?>
-                            <i class="bi bi-lock-fill text-muted" title="สิทธิ์การอ่านเท่านั้น"></i>
-                        <?php endif; ?>
-                    </td>
-                </tr>
-                <?php endwhile; ?>
+                        <tr>
+                            <td class="text-center fw-bold text-muted small"><?= $idx++ ?></td>
+                            <td class="text-center small"><span class="badge bg-light text-dark border">#<?= $row['dept_id'] ?></span></td>
+                            <td class="fw-bold text-dark"><?= htmlspecialchars($row['dept_name']) ?></td>
+                            <td class="small text-muted"><?= htmlspecialchars($row['dept_desc'] ?: '—') ?></td>
+                            <td class="text-center">
+                                <?php if ($row['shop_info_shop_id'] == 0): ?>
+                                    <span class="badge bg-secondary opacity-75"><i class="bi bi-globe2 me-1"></i> ส่วนกลาง</span>
+                                <?php else: ?>
+                                    <span class="text-primary small fw-bold"><i class="bi bi-shop me-1"></i> <?= htmlspecialchars($row['shop_name'] ?? 'ไม่ทราบร้าน') ?></span>
+                                <?php endif; ?>
+                            </td>
+                            <td class="text-center">
+                                <?php
+                                // เงื่อนไขการจัดการ: เป็นแอดมินระบบ หรือเป็นข้อมูลของร้านตนเอง
+                                if ($is_super_admin || ($row['shop_info_shop_id'] != 0 && $row['shop_info_shop_id'] == $shop_id)): ?>
+                                    <div class="d-flex justify-content-center gap-2">
+                                        <a href="edit_department.php?id=<?= $row['dept_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
+                                        <button onclick="confirmDelete(<?= $row['dept_id'] ?>, '<?= addslashes($row['dept_name']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash3-fill fs-5"></i></button>
+                                    </div>
+                                <?php else: ?>
+                                    <i class="bi bi-lock-fill text-muted" title="สิทธิ์การอ่านเท่านั้น"></i>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endwhile; ?>
                 <?php else: ?>
-                <tr><td colspan="6" class="text-center py-5 text-muted italic">-- ไม่พบข้อมูลแผนก --</td></tr>
+                    <tr>
+                        <td colspan="6" class="text-center py-5 text-muted italic">-- ไม่พบข้อมูลแผนก --</td>
+                    </tr>
                 <?php endif; ?>
             </tbody>
         </table>
     </div>
 
     <?php if ($total_pages > 1): ?>
-    <nav class="mt-4">
-        <ul class="pagination justify-content-center pagination-sm">
-            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                <a class="page-link ajax-page-link" href="#" data-page="1" title="หน้าแรกสุด"><i class="bi bi-chevron-double-left"></i></a>
-            </li>
-            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                <a class="page-link ajax-page-link" href="#" data-page="<?= $page - 1 ?>" title="ย้อนกลับ"><i class="bi bi-chevron-left"></i></a>
-            </li>
-
-            <?php
-            $range = 2;
-            for ($i = 1; $i <= $total_pages; $i++):
-                if ($i == 1 || $i == $total_pages || ($i >= $page - $range && $i <= $page + $range)):
-            ?>
-                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
-                    <a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center pagination-sm">
+                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="1" title="หน้าแรกสุด"><i class="bi bi-chevron-double-left"></i></a>
                 </li>
-            <?php
-                elseif (($i == $page - $range - 1) || ($i == $page + $range + 1)):
-                    echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
-                endif;
-            endfor;
-            ?>
+                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="<?= $page - 1 ?>" title="ย้อนกลับ"><i class="bi bi-chevron-left"></i></a>
+                </li>
 
-            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                <a class="page-link ajax-page-link" href="#" data-page="<?= $page + 1 ?>" title="ถัดไป"><i class="bi bi-chevron-right"></i></a>
-            </li>
-            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                <a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>" title="หน้าสุดท้าย"><i class="bi bi-chevron-double-right"></i></a>
-            </li>
-        </ul>
-    </nav>
+                <?php
+                $range = 2;
+                for ($i = 1; $i <= $total_pages; $i++):
+                    if ($i == 1 || $i == $total_pages || ($i >= $page - $range && $i <= $page + $range)):
+                ?>
+                        <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                            <a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+                        </li>
+                <?php
+                    elseif (($i == $page - $range - 1) || ($i == $page + $range + 1)):
+                        echo '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                    endif;
+                endfor;
+                ?>
 
-    <?php if ($total_pages > 5): ?>
-    <div class="d-flex justify-content-center mt-2 mb-3">
-        <div class="input-group input-group-sm" style="max-width: 180px;">
-            <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปที่หน้า..." min="1" max="<?= $total_pages ?>">
-            <button class="btn btn-success text-white" type="button" id="btnJumpPage">ไป</button>
+                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="<?= $page + 1 ?>" title="ถัดไป"><i class="bi bi-chevron-right"></i></a>
+                </li>
+                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>" title="หน้าสุดท้าย"><i class="bi bi-chevron-double-right"></i></a>
+                </li>
+            </ul>
+        </nav>
+
+        <?php if ($total_pages > 5): ?>
+            <div class="d-flex justify-content-center mt-2 mb-3">
+                <div class="input-group input-group-sm" style="max-width: 180px;">
+                    <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปที่หน้า..." min="1" max="<?= $total_pages ?>">
+                    <button class="btn btn-success text-white" type="button" id="btnJumpPage">ไป</button>
+                </div>
+            </div>
+        <?php endif; ?>
+
+        <div class="text-center small text-muted">
+            หน้า <?= number_format($page) ?> / <?= number_format($total_pages) ?> (รวม <?= number_format($total_items) ?> รายการ)
         </div>
-    </div>
     <?php endif; ?>
-    
-    <div class="text-center small text-muted">
-        หน้า <?= number_format($page) ?> / <?= number_format($total_pages) ?> (รวม <?= number_format($total_items) ?> รายการ)
-    </div>
-    <?php endif; ?>
-    <?php
-    exit(); 
+<?php
+    exit();
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <title>จัดการแผนก - Mobile Shop</title>
@@ -177,29 +180,72 @@ if (isset($_GET['ajax'])) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body { background-color: #f8fafc; font-family: 'Prompt', sans-serif; }
-        .main-card { background: white; border-radius: 15px; box-shadow: 0 4px 25px rgba(0,0,0,0.08); border: none; overflow: hidden; }
+        body {
+            background-color: #f8fafc;
+            font-family: 'Prompt', sans-serif;
+        }
+
+        .main-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 25px rgba(0, 0, 0, 0.08);
+            border: none;
+            overflow: hidden;
+        }
+
         /* หัวข้อสีขาว */
-        .card-header-custom { background: linear-gradient(135deg, #198754 0%, #14532d 100%); padding: 1.5rem; }
-        .card-header-custom h4 { color: #ffffff !important; font-weight: 600; margin: 0; }
-        .search-box { border-radius: 10px; border: 1px solid #ddd; padding: 10px 15px; }
-        .pagination .page-link { border-radius: 8px; margin: 0 3px; color: #198754; font-weight: 600; }
-        .pagination .page-item.active .page-link { background-color: #198754; border-color: #198754; color: white; }
+        .card-header-custom {
+            background: linear-gradient(135deg, #198754 0%, #14532d 100%);
+            padding: 1.5rem;
+        }
+
+        .card-header-custom h4 {
+            color: #ffffff !important;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .search-box {
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            padding: 10px 15px;
+        }
+
+        .pagination .page-link {
+            border-radius: 8px;
+            margin: 0 3px;
+            color: #198754;
+            font-weight: 600;
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: #198754;
+            border-color: #198754;
+            color: white;
+        }
     </style>
 </head>
+
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
                 <div class="container py-2" style="max-width: 1100px;">
-                    
+
                     <div class="main-card card">
                         <div class="card-header-custom d-flex justify-content-between align-items-center">
-                            <h4><i class="bi bi-diagram-3-fill me-2"></i>รายการข้อมูลแผนก</h4>
-                            <a href="add_department.php" class="btn btn-light btn-sm fw-bold">
-                                <i class="bi bi-plus-circle me-1"></i> เพิ่มแผนกใหม่
-                            </a>
+                            <h4 class="mb-0"><i class="bi bi-diagram-3-fill me-2"></i>รายการข้อมูลแผนก</h4>
+
+                            <div class="d-flex gap-2">
+                                <a href="dept_permissions.php" class="btn btn-outline-light btn-sm fw-bold">
+                                    <i class="bi bi-shield-lock-fill me-1"></i> จัดการสิทธิ์ (Permissions)
+                                </a>
+
+                                <a href="add_department.php" class="btn btn-light btn-sm fw-bold text-success">
+                                    <i class="bi bi-plus-circle me-1"></i> เพิ่มแผนกใหม่
+                                </a>
+                            </div>
                         </div>
 
                         <div class="card-body p-4">
@@ -213,7 +259,9 @@ if (isset($_GET['ajax'])) {
                             </div>
 
                             <div id="tableContainer">
-                                <div class="text-center py-5"><div class="spinner-border text-success"></div></div>
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-success"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -283,4 +331,5 @@ if (isset($_GET['ajax'])) {
         window.onload = () => fetchDepartmentData();
     </script>
 </body>
+
 </html>

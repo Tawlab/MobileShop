@@ -250,7 +250,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-container">
                     <div class="card">
                         <div class="card-header">
-                            <h4 class="mb-0"><i class="fas fa-pencil-alt me-2"></i>แก้ไขสิทธิ์ (ID: <?= $permission_id ?>)</h4>
+                            <h4 class="mb-0 text-white"><i class="fas fa-pencil-alt me-2"></i>แก้ไขสิทธิ์ (ID: <?= $permission_id ?>)</h4>
                         </div>
 
                         <form method="POST" action="edit_permission.php?id=<?= $permission_id ?>" id="editPermissionForm" novalidate>

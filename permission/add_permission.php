@@ -186,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-container">
                     <div class="card">
                         <div class="card-header">
-                            <h4 class="mb-0"><i class="fas fa-plus-circle me-2"></i>เพิ่มสิทธิ์ใหม่ (Permission)</h4>
+                            <h4 class="mb-0 text-white"><i class="fas fa-plus-circle me-2"></i>เพิ่มสิทธิ์ใหม่ (Permission)</h4>
                         </div>
 
                         <form method="POST" action="add_permission.php" id="addPermissionForm" novalidate>

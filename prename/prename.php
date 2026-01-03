@@ -92,7 +92,7 @@ if (isset($_GET['ajax'])) {
                     <td class="text-center fw-bold text-muted small"><?= $idx++ ?></td>
                     <td class="text-center small"><span class="badge bg-light text-dark border">#<?= $row['prefix_id'] ?></span></td>
                     <td>
-                        <div class="fw-bold text-dark"><?= htmlspecialchars($row['prefix_th']) ?> <small class="text-muted">(<?= htmlspecialchars($row['prefix_th_abbr']) ?>)</small></div>
+                        <div class="fw-bold text-dark"><?= htmlspecialchars($row['prefix_th']) ?> <small class="text-muted"><?= htmlspecialchars($row['prefix_th_abbr']) ?></small></div>
                         <div class="small text-muted"><?= htmlspecialchars($row['prefix_en'] ?? '-') ?></div>
                     </td>
                     <td class="text-center">
@@ -151,6 +151,7 @@ if (isset($_GET['ajax'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
         body { background-color: <?= $background_color ?>; font-family: 'Prompt', sans-serif; }
@@ -202,7 +203,7 @@ if (isset($_GET['ajax'])) {
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content">
                 <div class="modal-header bg-danger text-white">
-                    <h5 class="modal-title">ยืนยันการลบ</h5>
+                    <h5 class="modal-title text-white">ยืนยันการลบ</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body text-center py-4">

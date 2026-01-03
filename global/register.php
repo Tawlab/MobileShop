@@ -86,7 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $res_role_max = mysqli_query($conn, "SELECT MAX(role_id) as max_id FROM roles");
             $role_id = (mysqli_fetch_assoc($res_role_max)['max_id'] ?? 0) + 1;
-            mysqli_query($conn, "INSERT INTO roles (role_id, role_name, role_desc) VALUES ($role_id, 'Partner', 'เจ้าของร้าน')");
+            mysqli_query($conn, "INSERT INTO roles (role_id, role_name, role_desc) VALUES ($role_id, 'User', 'User')");
         }
         mysqli_query($conn, "INSERT INTO user_roles (roles_role_id, users_user_id) VALUES ($role_id, $new_user_id)");
 

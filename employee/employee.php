@@ -162,6 +162,7 @@ if ($is_super_admin) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
         body {
@@ -368,7 +369,7 @@ if ($is_super_admin) {
                         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom-0">
                             <h4 class="mb-0 text-success fw-bold"><i class="bi bi-people-fill me-2"></i>ระบบจัดการรายชื่อพนักงาน</h4>
                             <div class="d-flex gap-2">
-                                <button type="button" class="btn btn-outline-success btn-sm fw-bold px-3" onclick="toggleFilter()">
+                                <button type="button" class="btn btn-outline-success btn-sm fw-bold px-3 text-white" onclick="toggleFilter()">
                                     <i class="bi bi-filter me-1"></i> <span id="filterBtnText">กรองพนักงาน</span>
                                 </button>
                                 <a href="add_employee.php" class="btn btn-success btn-sm fw-bold px-3">

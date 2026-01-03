@@ -17,6 +17,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tax_id = mysqli_real_escape_string($conn, trim($_POST['tax_id']));
     $shop_phone = mysqli_real_escape_string($conn, trim($_POST['shop_phone'])) ?: NULL;
     $shop_email = mysqli_real_escape_string($conn, trim($_POST['shop_email'])) ?: NULL;
+    $shop_app_password = mysqli_real_escape_string($conn, trim($_POST['shop_app_password'])) ?: NULL;
+    $promptpay_number = mysqli_real_escape_string($conn, trim($_POST['promptpay_number'])) ?: NULL;
 
     // ข้อมูล addresses
     $home_no = mysqli_real_escape_string($conn, trim($_POST['home_no'])) ?: NULL;
@@ -88,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 address_id, home_no, moo, soi, road, village, subdistricts_subdistrict_id
             ) VALUES (?, ?, ?, ?, ?, ?, ?)");
             $stmt_addr->bind_param(
-                "isssssi", 
+                "isssssi",
                 $new_address_id,
                 $home_no,
                 $moo,
@@ -104,17 +106,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // สร้าง Shop Info 
             $stmt_shop = $conn->prepare("INSERT INTO shop_info (
                 shop_id, shop_name, tax_id, shop_phone, shop_email, logo, 
+                shop_app_password, promptpay_number,
                 Addresses_address_id, create_at, update_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())");
 
             $stmt_shop->bind_param(
-                "isssssi",
+                "isssssssi",
                 $new_shop_id,
                 $shop_name,
                 $tax_id,
                 $shop_phone,
                 $shop_email,
                 $logo_db_string,
+                $shop_app_password, 
+                $promptpay_number, 
                 $new_address_id
             );
             $stmt_shop->execute();
@@ -534,7 +539,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="form-section">
-                            <h5><i class="fas fa-images me-2"></i>รูปภาพร้านค้า (สูงสุด 4 รูป)</h5>
+                            <h5><i class="fas fa-cogs me-2"></i>การตั้งค่าระบบและการเงิน</h5>
+                            <div class="form-grid">
+                                <div>
+                                    <label class="form-label">เบอร์พร้อมเพย์ (PromptPay)</label>
+                                    <input type="text" name="promptpay_number" id="promptpay_number" class="form-control"
+                                        maxlength="15" placeholder="เบอร์โทรศัพท์ หรือ เลขบัตรประชาชน"
+                                        value="<?= htmlspecialchars($_POST['promptpay_number'] ?? '') ?>">
+                                    <div class="text-muted small mt-1">สำหรับแสดงใน QR Code รับเงินท้ายใบเสร็จ</div>
+                                </div>
+                                <div>
+                                    <label class="form-label">รหัสผ่านแอป (App Password)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                        <input type="text" name="shop_app_password" id="shop_app_password" class="form-control"
+                                            maxlength="50" placeholder="xxxx xxxx xxxx xxxx"
+                                            value="<?= htmlspecialchars($_POST['shop_app_password'] ?? '') ?>">
+                                    </div>
+                                    <div class="text-muted small mt-1">
+                                        <i class="fas fa-info-circle text-info"></i> รหัสความปลอดภัย 16 หลักจาก Google Account สำหรับตั้งค่าระบบส่งอีเมลแจ้งเตือน (ไม่ใช่รหัสผ่าน Login ปกติ)
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h5><i class="fas fa-images me-2"></i>โลโก้ร้านค้า และรูปภาพเพิ่มเติม (สูงสุด 4 รูป)</h5>
+                            
+                            <div class="alert alert-info py-2 small mb-3">
+                                <i class="fas fa-info-circle me-1"></i> รูปภาพแรกที่อัปโหลดจะถูกใช้เป็น <strong>โลโก้ (Logo)</strong> ของร้านค้าบนหัวบิลและเอกสารต่างๆ
+                            </div>
+
                             <div class="image-upload-container" onclick="document.getElementById('shop_images').click();">
                                 <i class="fas fa-cloud-upload-alt fa-3x mb-3" style="color: #cbd5e0;"></i>
                                 <p class="mb-2">คลิกเพื่อเลือกรูปภาพ หรือลากไฟล์มาวางที่นี่</p>

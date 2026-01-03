@@ -179,6 +179,7 @@ if ($is_super_admin) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
         body {
@@ -472,7 +473,7 @@ if ($is_super_admin) {
             <div class="modal-content border-0 shadow-lg">
                 <form id="cancelForm" method="POST" action="cancel_purchase_order.php">
                     <div class="modal-header bg-warning border-0">
-                        <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-octagon me-2"></i>ยกเลิกใบสั่งซื้อ</h5>
+                        <h5 class="modal-title fw-bold text-white"><i class="bi bi-exclamation-octagon me-2"></i>ยกเลิกใบสั่งซื้อ</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body p-4">

@@ -1,499 +1,126 @@
 <?php
-session_start();
-require '../config/config.php';
-checkPageAccess($conn, 'receive_po');
+// Include Logic File
+require 'receive_po_process.php';
 
 // -----------------------------------------------------------------------------
-//  INITIALIZE MODE & VALIDATE PO
+//  GET PO DATA FOR DISPLAY
 // -----------------------------------------------------------------------------
-
-$po_id = null;
+$po_id = isset($_GET['po_id']) ? (int)$_GET['po_id'] : 0;
 $po_data = null;
 $po_items = [];
-$page_title = "รับสินค้าเข้าจาก PO";
-$page_icon = "fa-truck-loading";
-
-// JS-Shared Data
 $js_pending_data = [];
 
-if (isset($_GET['po_id']) && (int)$_GET['po_id'] > 0) {
-    $po_id = (int)$_GET['po_id'];
+// ตรวจสอบ Admin
+$current_user_id = $_SESSION['user_id'] ?? 0;
+$is_admin = false;
+$chk_sql = "SELECT r.role_name FROM roles r JOIN user_roles ur ON r.role_id = ur.roles_role_id WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if($stmt=$conn->prepare($chk_sql)){ $stmt->bind_param("i",$current_user_id); $stmt->execute(); if($stmt->get_result()->num_rows>0)$is_admin=true; $stmt->close();}
 
-    // -----------------------------------------------------------------------------
-    // ดึงข้อมูล PO และรายการสินค้าที่ "ค้างรับ"
-    // -----------------------------------------------------------------------------
+if ($po_id > 0) {
+    // 1. ดึงข้อมูล Header
+    $sql = "SELECT po.*, s.co_name, b.branch_name, sh.shop_name 
+            FROM purchase_orders po
+            LEFT JOIN suppliers s ON po.suppliers_supplier_id = s.supplier_id
+            LEFT JOIN branches b ON po.branches_branch_id = b.branch_id
+            LEFT JOIN shop_info sh ON b.shop_info_shop_id = sh.shop_id
+            WHERE po.purchase_id = ?";
+    
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("i", $po_id);
+    $stmt->execute();
+    $po_data = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
 
-    // ดึงข้อมูลใบสั่งซื้อ (PO Header)
-    $po_sql = "SELECT po.*, s.co_name as supplier_name 
-               FROM purchase_orders po
-               LEFT JOIN suppliers s ON po.suppliers_supplier_id = s.supplier_id
-               WHERE po.purchase_id = $po_id";
-    $po_result = mysqli_query($conn, $po_sql);
-    $po_data = mysqli_fetch_assoc($po_result);
-
-    if (!$po_data) {
-        $_SESSION['error'] = "ไม่พบใบสั่งซื้อ (PO) ที่ระบุ";
-        header('Location: purchase_order.php'); 
-        exit;
-    }
-
-    // ดึงรายการสินค้าใน PO (PO Details)
-    $items_sql = "SELECT 
-                    od.order_id, 
-                    od.products_prod_id, 
-                    od.amount AS amount_ordered, 
-                    od.price AS po_cost_price,
-                    p.prod_name, 
-                    p.model_name, 
-                    p.prod_price as default_selling_price,
-                    pb.brand_name_th as brand_name,
-                    (SELECT COUNT(*) FROM stock_movements sm WHERE sm.ref_table = 'order_details' AND sm.ref_id = od.order_id) as amount_received
-                  FROM order_details od
-                  LEFT JOIN products p ON od.products_prod_id = p.prod_id
-                  LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id
-                  WHERE od.purchase_orders_purchase_id = $po_id";
-
-    $items_result = mysqli_query($conn, $items_sql);
-    while ($item = mysqli_fetch_assoc($items_result)) {
-        // คำนวณยอดค้างรับ
-        $item['amount_pending'] = $item['amount_ordered'] - $item['amount_received'];
-        // เฉพาะสินค้าที่ยังรับไม่ครบเท่านั้น
-        if ($item['amount_pending'] > 0) {
-            $po_items[] = $item;
-            $js_pending_data[$item['order_id']] = $item['amount_pending'];
+    if ($po_data) {
+        // Security Check
+        if (!$is_admin && $po_data['branches_branch_id'] != $_SESSION['branch_id']) {
+            $_SESSION['error'] = "คุณไม่มีสิทธิ์เข้าถึงใบสั่งซื้อของสาขาอื่น";
+            header("Location: purchase_order.php"); exit;
         }
-    }
 
-    // ถ้าไม่มีรายการค้างรับ (รับครบหมดแล้ว)
-    if (empty($po_items)) {
-        $_SESSION['success'] = "ใบสั่งซื้อ (PO ID: $po_id) นี้ รับสินค้าเข้าครบแล้ว";
-        header('Location: purchase_order.php');
-        exit;
+        // 2. ดึงรายการสินค้าค้างรับ
+        $items_sql = "SELECT od.order_id, od.products_prod_id, od.amount, 
+                             p.prod_name, p.model_name, p.prod_price, pb.brand_name_th,
+                             (SELECT COUNT(*) FROM stock_movements sm WHERE sm.ref_table='order_details' AND sm.ref_id=od.order_id) as received
+                      FROM order_details od
+                      JOIN products p ON od.products_prod_id = p.prod_id
+                      LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id
+                      WHERE od.purchase_orders_purchase_id = ?";
+        
+        $stmt_i = $conn->prepare($items_sql);
+        $stmt_i->bind_param("i", $po_id);
+        $stmt_i->execute();
+        $res_i = $stmt_i->get_result();
+        
+        while ($row = $res_i->fetch_assoc()) {
+            $pending = $row['amount'] - $row['received'];
+            if ($pending > 0) {
+                $row['amount_pending'] = $pending;
+                $po_items[] = $row;
+                $js_pending_data[$row['order_id']] = $pending;
+            }
+        }
+        $stmt_i->close();
+
+        if (empty($po_items)) {
+            $_SESSION['success'] = "PO นี้รับสินค้าครบแล้ว";
+            header("Location: purchase_order.php"); exit;
+        }
+    } else {
+        $_SESSION['error'] = "ไม่พบ PO ID: $po_id";
+        header("Location: purchase_order.php"); exit;
     }
 } else {
-    // ถ้าเข้าหน้านี้โดยไม่มี po_id
-    $_SESSION['error'] = "กรุณาระบุรหัสใบสั่งซื้อ (PO ID) ที่ต้องการรับเข้า";
-    header('Location: purchase_order.php');
-    exit;
-}
-
-// -----------------------------------------------------------------------------
-//  SHARED FUNCTIONS (Helper)
-// -----------------------------------------------------------------------------
-
-function getNextStockId($conn)
-{
-    $sql = "SELECT IFNULL(MAX(stock_id), 100000) + 1 as next_id FROM prod_stocks";
-    $result = mysqli_query($conn, $sql);
-    $row = mysqli_fetch_assoc($result);
-    return $row['next_id'];
-}
-
-function checkSerialExists($conn, $serial)
-{
-    $sql = "SELECT stock_id FROM prod_stocks WHERE serial_no = '" . mysqli_real_escape_string($conn, $serial) . "'";
-    $result = mysqli_query($conn, $sql);
-    return mysqli_num_rows($result) > 0;
-}
-
-function getNextMovementId($conn)
-{
-    $move_sql = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_move_id FROM stock_movements";
-    $move_result = mysqli_query($conn, $move_sql);
-    return mysqli_fetch_assoc($move_result)['next_move_id'];
-}
-
-// ฟังก์ชันสำหรับจัดการอัปโหลดรูปภาพของ Batch
-function handleBatchImageUpload($file_key_name)
-{
-    if (isset($_FILES[$file_key_name]) && $_FILES[$file_key_name]['error'] === UPLOAD_ERR_OK) {
-        $upload_dir = '../uploads/products/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0777, true);
-        }
-
-        $tmp_name = $_FILES[$file_key_name]['tmp_name'];
-        $file_extension = pathinfo($_FILES[$file_key_name]['name'], PATHINFO_EXTENSION);
-        $new_filename = uniqid('stock_', true) . '.' . $file_extension;
-        $upload_path = $upload_dir . $new_filename;
-
-        if (move_uploaded_file($tmp_name, $upload_path)) {
-            return $new_filename; 
-        }
-    }
-    return NULL; // ถ้าไม่มีไฟล์ หรืออัปโหลดไม่สำเร็จ
-}
-
-
-// -----------------------------------------------------------------------------
-// AJAX HANDLER (เช็ค Serial ซ้ำ)
-// -----------------------------------------------------------------------------
-if (isset($_POST['action'])) {
-    header('Content-Type: application/json');
-
-    switch ($_POST['action']) {
-        case 'check_serial':
-            $serial = mysqli_real_escape_string($conn, $_POST['serial_no']);
-            echo json_encode([
-                'success' => true,
-                'exists' => checkSerialExists($conn, $serial)
-            ]);
-            exit;
-    }
-}
-
-// -----------------------------------------------------------------------------
-// POST HANDLER (จัดการการบันทึกข้อมูล)
-// -----------------------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
-
-    $po_id = (int)$_POST['po_id'];
-    $date_in = !empty($_POST['date_in']) ? mysqli_real_escape_string($conn, $_POST['date_in']) : date('Y-m-d');
-
-    mysqli_autocommit($conn, false);
-    $success_count = 0;
-    $stock_ids = [];
-
-    try {
-
-        // ตรวจสอบยอดรวมก่อน
-        $total_receiving_by_item = [];
-        if (!isset($_POST['items'])) {
-            throw new Exception('ไม่พบรายการสินค้าที่ต้องการรับเข้า (No items posted)');
-        }
-
-        $items_posted = $_POST['items'];
-
-        // (วนลูปนับยอดรวมที่กรอกมา
-        foreach ($items_posted as $order_detail_id => $batches) {
-            $total_receiving_by_item[$order_detail_id] = 0;
-            if (is_array($batches)) {
-                foreach ($batches as $batch_id => $batch_data) {
-                    $total_receiving_by_item[$order_detail_id] += (int)$batch_data['quantity'];
-                }
-            }
-        }
-
-        //  ดึงยอดค้างรับจริงจาก DB
-        $ids_to_check_str = implode(',', array_keys($total_receiving_by_item));
-        if (empty($ids_to_check_str)) {
-            throw new Exception('ไม่พบรายการสินค้าที่ต้องการรับ (Empty selection)');
-        }
-
-        $check_sql = "SELECT order_id, (od.amount - (SELECT COUNT(*) FROM stock_movements sm WHERE sm.ref_table = 'order_details' AND sm.ref_id = od.order_id)) as pending 
-                      FROM order_details od WHERE od.order_id IN ($ids_to_check_str)";
-        $check_result = mysqli_query($conn, $check_sql);
-
-        while ($row = mysqli_fetch_assoc($check_result)) {
-            $order_id = $row['order_id'];
-            $pending_qty = (int)$row['pending'];
-
-            // (A.3 - เปรียบเทียบ)
-            if ($total_receiving_by_item[$order_id] > $pending_qty) {
-                throw new Exception("รับสินค้า (Item ID: $order_id) เกินจำนวนที่สั่ง (ค้างรับ $pending_qty, พยายามรับ $total_receiving_by_item[$order_id])");
-            }
-        }
-
-        // วนลูปตาม POSTed data
-        foreach ($items_posted as $order_detail_id => $batches) {
-
-            if (!is_array($batches)) continue; 
-
-            foreach ($batches as $batch_id => $batch_data) { 
-
-                $quantity_to_receive = (int)$batch_data['quantity'];
-                if ($quantity_to_receive == 0) continue; 
-
-                $products_prod_id = (int)$batch_data['product_id'];
-                $selling_price = floatval($batch_data['selling_price']);
-
-                // (B.1 - Validate Serials)
-                if (!isset($batch_data['serial_no']) || count($batch_data['serial_no']) != $quantity_to_receive) {
-                    throw new Exception("จำนวน Serial Number (Batch: $batch_id) ไม่ตรงกับจำนวนที่รับ");
-                }
-
-                $serial_list = $batch_data['serial_no'];
-                $unique_serials_in_batch = [];
-
-                foreach ($serial_list as $serial) {
-                    if (empty(trim($serial))) throw new Exception('กรุณากรอก Serial Number ให้ครบทุกชิ้น');
-                    if (checkSerialExists($conn, $serial)) throw new Exception("Serial Number: $serial มีอยู่ในระบบแล้ว");
-                    if (in_array($serial, $unique_serials_in_batch)) throw new Exception("Serial Number: $serial ซ้ำกันใน Batch เดียว");
-                    $unique_serials_in_batch[] = $serial;
-                }
-
-                // Handle Image Upload for THIS batch
-                $image_file_key = "batch_image_{$batch_id}";
-                $image_path_for_this_batch = handleBatchImageUpload($image_file_key);
-
-                // Loop Insert Serials for this batch
-                foreach ($serial_list as $serial) {
-                    $stock_id = getNextStockId($conn);
-                    $serial_escaped = mysqli_real_escape_string($conn, trim($serial));
-
-                    // INSERT Stock
-                    $sql = "INSERT INTO prod_stocks (
-                                stock_id, serial_no, price, stock_status, warranty_start_date, 
-                                image_path, create_at, update_at, products_prod_id
-                            ) VALUES (
-                                ?, ?, ?, 'In Stock', NULL, 
-                                ?, NOW(), NOW(), ?
-                            )";
-                    $stmt = $conn->prepare($sql);
-                    $stmt->bind_param(
-                        "isdsi",
-                        $stock_id,
-                        $serial_escaped,
-                        $selling_price,
-                        $image_path_for_this_batch, 
-                        $products_prod_id
-                    );
-                    if (!$stmt->execute()) throw new Exception('ไม่สามารถเพิ่มสต็อกได้: ' . $stmt->error);
-                    $stmt->close();
-
-                    // (INSERT Movement 
-                    $move_id = getNextMovementId($conn);
-                    $ref_table = 'order_details';
-                    $move_stmt = $conn->prepare(
-                        "INSERT INTO stock_movements 
-                            (movement_id, movement_type, ref_table, ref_id, prod_stocks_stock_id, prodout_types_outtype_id, create_at) 
-                         VALUES (?, 'IN', ?, ?, ?, NULL, NOW())"
-                    );
-                    $move_stmt->bind_param(
-                        "isii",
-                        $move_id,
-                        $ref_table,
-                        $order_detail_id,
-                        $stock_id
-                    );
-                    if (!$move_stmt->execute()) throw new Exception('ไม่สามารถบันทึก Movement ได้: ' . $move_stmt->error);
-                    $move_stmt->close();
-
-                    $success_count++;
-                    $stock_ids[] = $stock_id;
-                }
-            }
-        }
-
-        // Commit และ Redirect
-        mysqli_commit($conn);
-        mysqli_autocommit($conn, true);
-
-        $stock_range = count($stock_ids) > 1 ? $stock_ids[0] . '-' . $stock_ids[count($stock_ids) - 1] : (isset($stock_ids[0]) ? $stock_ids[0] : 'N/A');
-
-        $_SESSION['success'] = "รับสินค้าเข้าสต็อกสำเร็จ จำนวน $success_count ชิ้น (รหัส: $stock_range)";
-        header('Location: ../prod_stock/prod_stock.php'); 
-        exit;
-    } catch (Exception $e) {
-        mysqli_rollback($conn);
-        mysqli_autocommit($conn, true);
-        $_SESSION['error'] = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
-        header("Location: receive_po.php?po_id=$po_id");
-        exit;
-    }
+    header("Location: purchase_order.php"); exit;
 }
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?= $page_title ?> - ระบบจัดการร้านค้ามือถือ</title>
+    <title>รับสินค้าเข้า - PO #<?= $po_id ?></title>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <?php require '../config/load_theme.php'; ?>
-    <style>
-        body {
-            background-color: <?= $background_color ?>;
-            font-family: '<?= $font_style ?>', sans-serif;
-            color: <?= $text_color ?>;
-        }
-
-        .container {
-            max-width: 1200px;
-        }
-
-        h4 {
-            font-weight: 700;
-            color: <?= $theme_color ?>;
-        }
-
-        h5 {
-            font-weight: 600;
-            color: <?= $theme_color ?>;
-        }
-
-        .form-section {
-            background: #fff;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-            margin-bottom: 25px;
-        }
-
-        .form-control,
-        .form-select {
-            font-size: 14px;
-            padding: 8px 12px;
-            border-radius: 6px;
-        }
-
-        .form-control[readonly] {
-            background-color: #e9ecef;
-        }
-
-        .btn-success {
-            background-color: <?= $btn_add_color ?>;
-            border-color: <?= $btn_add_color ?>;
-        }
-
-        .btn-add-batch {
-            background-color: <?= $theme_color ?>;
-            color: white;
-        }
-
-        /* (CSS สำหรับ Batch) */
-        .batch-box {
-            background: #f8f9fa;
-            border: 1px solid #e9ecef;
-            border-radius: 10px;
-            padding: 20px;
-            margin-top: 15px;
-            position: relative;
-        }
-
-        .batch-header {
-            font-weight: 600;
-            color: <?= $theme_color ?>;
-            margin-bottom: 10px;
-        }
-
-        .batch-remove-btn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-        }
-
-        .serial-row {
-            background-color: #fff;
-            border-radius: 6px;
-            padding: 10px;
-            margin-bottom: 8px;
-            border: 1px solid #dee2e6;
-        }
-
-        .item-number {
-            background: #6c757d;
-            color: white;
-            padding: 3px 12px;
-            border-radius: 20px;
-            font-weight: 500;
-            display: inline-block;
-            margin-bottom: 10px;
-            font-size: 0.8rem;
-        }
-
-        .image-preview {
-            border: 2px dashed #dee2e6;
-            border-radius: 10px;
-            padding: 20px;
-            text-align: center;
-            cursor: pointer;
-            min-height: 150px;
-        }
-
-        .batch-image-preview {
-            max-width: 100px;
-            max-height: 100px;
-            border-radius: 10px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-            margin-top: 10px;
-            cursor: pointer;
-        }
-
-        .error-feedback {
-            color: #dc3545;
-            font-size: 0.875em;
-            margin-top: 5px;
-            display: none;
-        }
-
-        .is-invalid+.error-feedback,
-        .is-invalid~.error-feedback {
-            display: block;
-        }
-
-        .po-item-card {
-            border: 2px solid #dee2e6;
-            background: #fdfdfd;
-        }
-
-        .po-item-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-        }
-
-        .po-item-title {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #333;
-        }
-
-        .po-item-pending {
-            font-size: 1rem;
-            font-weight: 600;
-            color: <?= $theme_color ?>;
-        }
-    </style>
+    <?php include 'receive_po_css.php'; ?>
 </head>
-
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
-
                 <div class="container my-4">
 
-                    <?php if (isset($_SESSION['success'])): ?>
-                        <div class="alert alert-success alert-dismissible fade show">
-                            <?= $_SESSION['success'];
-                            unset($_SESSION['success']); ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (isset($_SESSION['error'])): ?>
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            <?= $_SESSION['error'];
-                            unset($_SESSION['error']); ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="mb-0"><i class="fas fa-truck-loading me-2"></i>รับสินค้าเข้า (Receive PO)</h4>
+                        <span class="badge bg-secondary fs-6">PO #<?= $po_id ?></span>
+                    </div>
 
-                    <h4 class="mb-4"><i class="fas <?= $page_icon ?> me-2"></i><?= $page_title ?></h4>
-
-                    <form method="POST" enctype="multipart/form-data" id="addStockForm" novalidate>
+                    <form method="POST" enctype="multipart/form-data" id="receiveForm">
                         <input type="hidden" name="po_id" value="<?= $po_id ?>">
 
                         <div class="form-section">
-                            <h5>ข้อมูลใบสั่งซื้อ (PO)</h5>
-                            <table class="table table-sm table-borderless">
-                                <tr>
-                                    <td style="width: 120px;"><strong>PO ID:</strong></td>
-                                    <td><?= htmlspecialchars($po_data['purchase_id']) ?></td>
-                                    <td style="width: 120px;"><strong>วันที่สั่ง:</strong></td>
-                                    <td><?= date('d/m/Y', strtotime($po_data['purchase_date'])) ?></td>
-                                </tr>
-                                <tr>
-                                    <td><strong>ผู้จำหน่าย:</strong></td>
-                                    <td colspan="3"><?= htmlspecialchars($po_data['supplier_name']) ?></td>
-                                </tr>
-                            </table>
+                            <h5>ข้อมูลใบสั่งซื้อ</h5>
+                            <div class="row g-3 mt-1">
+                                <div class="col-md-6">
+                                    <strong>ร้านค้า/สาขาที่สั่ง:</strong><br>
+                                    <?= htmlspecialchars($po_data['shop_name']) ?> / <?= htmlspecialchars($po_data['branch_name']) ?>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>ผู้จำหน่าย:</strong><br>
+                                    <?= htmlspecialchars($po_data['co_name']) ?>
+                                </div>
+                                <div class="col-md-6">
+                                    <strong>วันที่สั่งซื้อ:</strong><br>
+                                    <?= date('d/m/Y H:i', strtotime($po_data['purchase_date'])) ?>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="form-section">
@@ -501,10 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
                             <?php foreach ($po_items as $i => $item): ?>
                                 <div class="form-section po-item-card" id="item-card-<?= $item['order_id'] ?>">
-
+                                    
                                     <div class="po-item-header">
                                         <div>
-                                            <div class="po-item-title"><?= htmlspecialchars($item['prod_name']) ?> (<?= htmlspecialchars($item['brand_name']) ?>)</div>
+                                            <div class="po-item-title"><?= htmlspecialchars($item['prod_name']) ?> (<?= htmlspecialchars($item['brand_name_th']) ?>)</div>
                                             <small class="text-muted">Item ID: <?= $item['order_id'] ?></small>
                                         </div>
                                         <div class="po-item-pending">
@@ -512,341 +139,226 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                                         </div>
                                     </div>
 
-                                    <div id="batches-container-<?= $item['order_id'] ?>">
-                                    </div>
+                                    <div id="batches-container-<?= $item['order_id'] ?>"></div>
 
                                     <button type="button" class="btn btn-sm btn-add-batch mt-2"
-                                        onclick="addBatch(<?= $item['order_id'] ?>, <?= $item['products_prod_id'] ?>, '<?= number_format($item['default_selling_price'], 2, '.', '') ?>')">
+                                            onclick="addBatch(<?= $item['order_id'] ?>, <?= $item['products_prod_id'] ?>, '<?= number_format($item['prod_price'], 2, '.', '') ?>')">
                                         <i class="fas fa-plus me-1"></i> เพิ่มชุดรับเข้า (Batch)
                                     </button>
                                 </div>
                             <?php endforeach; ?>
                         </div>
 
-                        <div class="form-section">
-                            <h5><i class="fas fa-calendar-alt me-2"></i>ข้อมูลวันที่</h5>
-                            <label class="form-label">วันที่เข้าสต็อก</label>
-                            <input type="date" class="form-control" name="date_in" id="date_in" style="width: 200px;">
-                            <small class="text-muted">หากไม่เลือก จะใช้วันที่ปัจจุบันอัตโนมัติ</small>
-                        </div>
-
                         <div class="text-end">
-                            <button type="submit" class="btn btn-success" id="submitBtn">
-                                <i class="fas fa-save me-2"></i> บันทึกการรับสินค้า
+                            <a href="purchase_order.php" class="btn btn-secondary me-2">ยกเลิก</a>
+                            <button type="submit" class="btn btn-success px-4" id="btnSubmit">
+                                <i class="fas fa-save me-2"></i> บันทึกรับเข้า
                             </button>
-                            <a href="purchase_order.php" class="btn btn-secondary">
-                                <i class="fas fa-arrow-left me-2"></i> ย้อนกลับ
-                            </a>
                         </div>
                     </form>
+
                 </div>
             </div>
         </div>
     </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-
+    
     <script>
-        // ส่งข้อมูลยอดค้างรับ
-        const g_pending_data = <?= json_encode($js_pending_data) ?>;
+        const pendingData = <?= json_encode($js_pending_data) ?>;
+        let batchCounters = {};
 
-        //  สำหรับนับยอดที่ "กำลังจะรับ" ในฟอร์ม
-        let g_allocated_data = {};
-        <?php foreach ($js_pending_data as $order_id => $pending_qty): ?>
-            g_allocated_data[<?= $order_id ?>] = 0;
-        <?php endforeach; ?>
+        // [แก้ไข Logic ตรงนี้] รวมยอดทุก Batch เพื่อเช็ค
+        function checkAndCapQty(input, orderId, batchKey) {
+            // 1. ดึง input ทั้งหมดที่เป็นของ Order ID นี้มาเพื่อรวมยอด
+            const allInputs = document.querySelectorAll(`input[data-order-id="${orderId}"]`);
+            let totalAllocated = 0;
+            
+            allInputs.forEach(el => {
+                totalAllocated += parseInt(el.value) || 0;
+            });
 
-        // ตัวนับ Batch แยกตาม Order ID
-        let g_batch_counters = {};
-        <?php foreach ($js_pending_data as $order_id => $pending_qty): ?>
-            g_batch_counters[<?= $order_id ?>] = 0; // (เริ่มต้นที่ 0)
-        <?php endforeach; ?>
+            // 2. เช็คกับยอด Max
+            const max = pendingData[orderId];
+            
+            if (totalAllocated > max) {
+                // คำนวณว่าเกินไปเท่าไหร่
+                const currentVal = parseInt(input.value) || 0;
+                const otherTotal = totalAllocated - currentVal;
+                
+                // คำนวณค่าที่ยอมรับได้สำหรับช่องนี้ (Max - ยอดของช่องอื่น)
+                let allowedVal = max - otherTotal;
+                if(allowedVal < 0) allowedVal = 0; // กันพลาด
 
-
-        document.addEventListener('DOMContentLoaded', function() {
-            setTodayDate();
-
-            // เมื่อโหลดหน้า ให้สร้าง Batch แรกให้ทุก Item อัตโนมัติ
-            <?php foreach ($po_items as $item): ?>
-                addBatch(<?= $item['order_id'] ?>, <?= $item['products_prod_id'] ?>, '<?= number_format($item['default_selling_price'], 2, '.', '') ?>');
-            <?php endforeach; ?>
-        });
-
-        function setTodayDate() {
-            const dateInput = document.getElementById('date_in');
-            if (!dateInput.value) {
-                dateInput.value = new Date().toISOString().split('T')[0];
+                input.value = allowedVal; // ปรับค่าลง
+                
+                // แจ้งเตือน
+                Swal.fire({
+                    toast: true,
+                    position: 'top-end',
+                    icon: 'warning',
+                    title: 'ยอดรวมเกินจำนวนค้างรับ',
+                    text: `รับได้รวม ${max} ชิ้น (เหลือโควต้าให้กรอก ${allowedVal} ชิ้น)`,
+                    showConfirmButton: false,
+                    timer: 2500
+                });
+                
+                // ส่งค่าที่ปรับแล้วไป render
+                renderSerials(batchKey, orderId, allowedVal);
+            } else {
+                // ถ้ายอดรวมไม่เกิน ก็ใช้ค่าปัจจุบัน
+                renderSerials(batchKey, orderId, parseInt(input.value) || 0);
             }
         }
 
-        // BATCH MANAGEMENT
-
-        function addBatch(order_detail_id, product_id, default_price) {
-
-            const max_pending = g_pending_data[order_detail_id];
-            const allocated = g_allocated_data[order_detail_id];
-
-            if (allocated >= max_pending) {
-                alert('คุณได้จัดสรรจำนวนรับเข้าครบตามยอดค้างรับของสินค้านี้แล้ว');
-                return;
-            }
-
-            //  ใช้ตัวนับที่แยกกัน
-            g_batch_counters[order_detail_id]++;
-            const batch_count = g_batch_counters[order_detail_id];
-            const batch_id = `${order_detail_id}_${batch_count}`; 
-
-            const container = document.getElementById(`batches-container-${order_detail_id}`);
-
-            const batchDiv = document.createElement('div');
-            batchDiv.className = 'batch-box';
-            batchDiv.id = `batch-${batch_id}`; 
-
-            const remaining_for_this_batch = max_pending - allocated;
-
-            // (สร้าง HTML สำหรับ Batch)
-            batchDiv.innerHTML = `
-                <button type="button" class="btn-close batch-remove-btn" title="ลบชุดนี้" onclick="removeBatch(this, ${order_detail_id})"></button>
-                <div class="batch-header">ชุดรับเข้า (Batch) #${batch_count}</div>
-                
-                <input type="hidden" name="items[${order_detail_id}][${batch_id}][product_id]" value="${product_id}">
-                
-                <div class="row gy-3">
-                    <div class="col-md-4">
-                        <label class="form-label">จำนวนที่รับ (ชุดนี้) <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control batch-quantity" 
-                               name="items[${order_detail_id}][${batch_id}][quantity]" 
-                               min="0" max="${remaining_for_this_batch}" value="0" required
-                               data-order-id="${order_detail_id}" 
-                               data-batch-id="${batch_id}"> 
-                        <div class="error-feedback">กรอกจำนวนไม่เกิน ${remaining_for_this_batch}</div>
-                    </div>
+        function addBatch(orderId, prodId, price) {
+            if (!batchCounters[orderId]) batchCounters[orderId] = 0;
+            const batchIdx = ++batchCounters[orderId];
+            const batchKey = `${orderId}_${batchIdx}`;
+            
+            const container = document.getElementById(`batches-container-${orderId}`);
+            
+            const html = `
+                <div class="batch-box" id="batch-${batchKey}">
+                    <button type="button" class="btn-close batch-remove-btn" onclick="removeBatch(this, '${orderId}', '${batchKey}')"></button>
+                    <h6 class="text-primary mb-3">ชุดที่ ${batchIdx}</h6>
+                    <input type="hidden" name="items[${orderId}][${batchKey}][product_id]" value="${prodId}">
                     
-                    <div class="col-md-4">
-                        <label class="form-label">ราคาขาย (หน้าร้าน) <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text">฿</span>
-                            <input type="number" class="form-control" 
-                                   name="items[${order_detail_id}][${batch_id}][selling_price]" 
-                                   value="${default_price}" step="0.01" min="0.01" required>
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <label class="small text-muted">จำนวนรับ</label>
+                            <input type="number" class="form-control form-control-sm qty-input" 
+                                   name="items[${orderId}][${batchKey}][quantity]" 
+                                   data-order-id="${orderId}" 
+                                   min="1" max="${pendingData[orderId]}" required
+                                   oninput="checkAndCapQty(this, '${orderId}', '${batchKey}')">
                         </div>
-                        <div class="error-feedback">กรุณากรอกราคาขาย</div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">ราคาขายจริง</label>
+                            <input type="number" class="form-control form-control-sm" 
+                                   name="items[${orderId}][${batchKey}][selling_price]" 
+                                   value="${price}" step="0.01" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">รูปภาพ</label>
+                            <input type="file" class="form-control form-control-sm" 
+                                   name="batch_image_${batchKey}" accept="image/*"
+                                   onchange="previewImg(this)">
+                            <img class="batch-image-preview" style="display:none">
+                        </div>
                     </div>
-                    
-                    <div class="col-md-4">
-                        <label class="form-label">รูปภาพ (สำหรับชุดนี้)</label>
-                        <input type="file" class="form-control batch-image" 
-                               name="batch_image_${batch_id}" 
-                               accept="image/*" onchange="previewImageInBatch(this)">
-                        <img src="" alt="Preview" class="batch-image-preview" style="display:none;" onclick="this.previousElementSibling.click()">
-                    </div>
-                </div>
-                
-                <div id="serials-container-${batch_id}" class="mt-3">
-                    </div>
-            `;
-
-            container.appendChild(batchDiv);
-
-            //  Event Listener
-            const newQuantityInput = batchDiv.querySelector('.batch-quantity');
-            newQuantityInput.addEventListener('input', function() {
-                // ปัดค่าช่องนี้ และสร้าง Serial
-                generateSerialFields(this);
-                //  อัปเดตยอดรวม และอัปเดต 'max' ของช่องอื่น
-                updateAllocatedQty(this.dataset.orderId);
-            });
-
-            updateAllocatedQty(order_detail_id);
-        }
-
-        function removeBatch(button, order_detail_id) {
-            button.closest('.batch-box').remove();
-            updateAllocatedQty(order_detail_id); 
-        }
-
-        function updateAllocatedQty(order_detail_id) {
-            let total_allocated = 0;
-            const batch_inputs = document.querySelectorAll(`#batches-container-${order_detail_id} .batch-quantity`);
-
-            batch_inputs.forEach(input => {
-                total_allocated += parseInt(input.value) || 0;
-            });
-
-            g_allocated_data[order_detail_id] = total_allocated;
-
-            // Max ของทุก Batch ใน Item นี้
-            const max_pending = g_pending_data[order_detail_id];
-            batch_inputs.forEach(input => {
-                const current_val = parseInt(input.value) || 0;
-                const new_max = (max_pending - total_allocated) + current_val;
-                input.max = new_max;
-                input.nextElementSibling.textContent = `กรอกจำนวนไม่เกิน ${new_max}`; 
-            });
-        }
-
-        //  ฟังก์ชันนี้จะทำหน้าที่ปัดค่า
-        function generateSerialFields(quantityInput) {
-            const batch_id = quantityInput.dataset.batchId;
-            const order_detail_id = quantityInput.dataset.orderId;
-            let quantity = parseInt(quantityInput.value) || 0;
-            const max = parseInt(quantityInput.max);
-
-            // จุดที่ต้องปัดค่า
-            if (quantity > max) {
-                quantityInput.value = max; // บังคับค่าสูงสุดในช่องนี้
-                quantity = max;
-            }
-
-            const container = document.getElementById(`serials-container-${batch_id}`);
-            container.innerHTML = ''; // ล้างของเก่า
-
-            for (let i = 1; i <= quantity; i++) {
-                const fieldName = `items[${order_detail_id}][${batch_id}][serial_no][]`;
-                container.appendChild(createSerialField(fieldName, i));
-            }
-        }
-
-        function createSerialField(name, itemNumber) {
-            const row = document.createElement('div');
-            row.className = 'serial-row';
-            row.innerHTML = `
-                <div class="item-number">ชิ้นที่ ${itemNumber}</div>
-                <div class="row">
-                    <div class="col-md-8">
-                        <label class="form-label">Serial Number (S/N) <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control serial-input" name="${name}" placeholder="กรอก S/N หรือ IMEI" maxlength="50" required>
-                        <div class="error-feedback">กรุณากรอก Serial Number</div>
-                    </div>
+                    <div id="serials-${batchKey}" class="mt-3"></div>
                 </div>
             `;
-            row.querySelector('.serial-input').addEventListener('input', function() {
-                checkSerial(this);
-            });
-            return row;
+            container.insertAdjacentHTML('beforeend', html);
         }
 
-        //  SHARED UTILITIES
+        // เพิ่มฟังก์ชันลบ Batch (เผื่อผู้ใช้ต้องการลบ แล้วคำนวณยอดใหม่)
+        function removeBatch(btn, orderId, batchKey) {
+            btn.parentElement.remove();
+            // อาจจะ trigger checkAndCapQty ของ input อื่นๆ เพื่อ update state 
+            // แต่ใน case นี้แค่ลบออก ยอดรวมลดลง ก็ไม่มีปัญหาเรื่องเกิน Max
+        }
 
-        async function checkSerial(inputElement) {
-            const value = inputElement.value.trim();
-            const errorElement = inputElement.parentElement.querySelector('.error-feedback');
+        function renderSerials(batchKey, orderId, qty) {
+            const container = document.getElementById(`serials-${batchKey}`);
+            container.innerHTML = '';
+            qty = parseInt(qty);
+            
+            if (qty <= 0) return;
 
-            if (value.length >= 5) {
-                try {
-                    const formData = new FormData();
-                    formData.append('action', 'check_serial');
-                    formData.append('serial_no', value);
-
-                    const response = await fetch('', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-
-                    if (data.success && data.exists) {
-                        inputElement.classList.add('is-invalid');
-                        errorElement.textContent = 'Serial Number นี้มีอยู่ในระบบแล้ว';
-                    } else {
-                        inputElement.classList.remove('is-invalid');
-                        errorElement.textContent = 'กรุณากรอก Serial Number';
-                    }
-                } catch (error) {
-                    console.error('Error checking Serial:', error);
-                }
-            } else if (value.length > 0) {
-                inputElement.classList.remove('is-invalid');
-                errorElement.textContent = 'กรุณากรอก Serial Number';
+            for(let i=1; i<=qty; i++) {
+                container.insertAdjacentHTML('beforeend', `
+                    <div class="serial-row">
+                        <div class="d-flex align-items-center">
+                            <span class="item-number me-2">#${i}</span>
+                            <input type="text" class="form-control form-control-sm" 
+                                   name="items[${orderId}][${batchKey}][serial_no][]" 
+                                   placeholder="Serial Number / IMEI" required onblur="checkSerial(this)">
+                        </div>
+                        <div class="error-feedback">Serial นี้มีในระบบแล้ว</div>
+                    </div>
+                `);
             }
         }
 
-        function previewImageInBatch(input) {
-            const preview = input.nextElementSibling; 
+        function previewImg(input) {
+            const img = input.nextElementSibling;
             if (input.files && input.files[0]) {
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    preview.style.display = 'block';
+                    img.src = e.target.result;
+                    img.style.display = 'block';
                 }
                 reader.readAsDataURL(input.files[0]);
-            } else {
-                preview.src = '';
-                preview.style.display = 'none';
             }
         }
 
-        // FORM VALIDATION
-        document.getElementById('addStockForm').addEventListener('submit', function(e) {
-            let isValid = true;
-
-            // Validate Fields
-            document.querySelectorAll('input[name*="[selling_price]"]').forEach(field => {
-                if (parseFloat(field.value) <= 0) {
-                    field.classList.add('is-invalid');
-                    isValid = false;
-                } else {
-                    field.classList.remove('is-invalid');
-                }
-            });
-
-            document.querySelectorAll('.batch-quantity').forEach(field => {
-                if (parseInt(field.value) < 0) { // อนุญาต 0, แต่ห้ามติดลบ
-                    field.classList.add('is-invalid');
-                    isValid = false;
-                } else {
-                    field.classList.remove('is-invalid');
-                }
-            });
-
-            // Validate Serials
-            const serialInputs = document.querySelectorAll('.serial-input');
-            const serialValues = [];
-
-            serialInputs.forEach(input => {
-                const value = input.value.trim();
-                if (!value) {
+        async function checkSerial(input) {
+            const val = input.value.trim();
+            if(val.length < 3) return;
+            
+            const fd = new FormData();
+            fd.append('action', 'check_serial');
+            fd.append('serial_no', val);
+            
+            try {
+                const res = await fetch('receive_po_process.php', { method: 'POST', body: fd });
+                const data = await res.json();
+                if(data.exists) {
                     input.classList.add('is-invalid');
-                    isValid = false;
-                } else if (input.classList.contains('is-invalid')) {
-                    isValid = false;
                 } else {
                     input.classList.remove('is-invalid');
-                    serialValues.push(value);
                 }
-            });
+            } catch(e) { console.error(e); }
+        }
 
-            const uniqueSerial = [...new Set(serialValues)];
-            if (uniqueSerial.length !== serialValues.length && serialValues.length > 0) {
-                alert('Serial Number ต้องไม่ซ้ำกัน (ทั้งในฟอร์มและในระบบ)');
-                isValid = false;
-            }
+        document.getElementById('receiveForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
 
-            // Validate Total Qty vs Pending
-            for (const order_id in g_allocated_data) {
-                // ตรวจสอบอีกครั้งก่อนส่ง
-                if (g_allocated_data[order_id] > g_pending_data[order_id]) {
-                    alert(`ยอดรับของ Item ID ${order_id} เกินจำนวนค้างรับ! (ยอดรวม ${g_allocated_data[order_id]} > ค้างรับ ${g_pending_data[order_id]})`);
-                    isValid = false;
-                }
-            }
-
-            if (!isValid) {
-                e.preventDefault();
-                const firstError = document.querySelector('.is-invalid');
-                if (firstError) {
-                    firstError.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center'
-                    });
-                    firstError.focus();
-                }
+            if (document.querySelectorAll('.is-invalid').length > 0) {
+                Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาตรวจสอบ Serial Number ที่ซ้ำกัน', 'error');
                 return;
             }
 
-            const submitBtn = document.getElementById('submitBtn');
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>กำลังบันทึก...';
-            submitBtn.disabled = true;
+            const btn = document.getElementById('btnSubmit');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
+
+            const formData = new FormData(this);
+
+            try {
+                const response = await fetch('receive_po_process.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+
+                if (result.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'บันทึกสำเร็จ',
+                        text: result.message,
+                        showConfirmButton: false,
+                        timer: 2000
+                    }).then(() => {
+                        window.location.href = 'purchase_order.php';
+                    });
+                } else {
+                    Swal.fire('เกิดข้อผิดพลาด', result.message, 'error');
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+
+            } catch (error) {
+                console.error('Error:', error);
+                Swal.fire('Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
         });
     </script>
 </body>
-
 </html>

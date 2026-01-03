@@ -99,7 +99,7 @@ function build_query($exclude = []) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body { background-color: #f0fdf4; font-family: 'Sarabun', sans-serif; }
+        body { background-color: #f0fdf4;}
         .card { border-radius: 15px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08); border: none; }
         .card-header { background: linear-gradient(135deg, #2dd4bf 0%, #15803d 100%); color: white; border-radius: 15px 15px 0 0 !important; }
         .pagination .page-link { border-radius: 8px; margin: 0 3px; color: #15803d; font-weight: 600; }
@@ -123,7 +123,7 @@ function build_query($exclude = []) {
                 <div class="container-lg mt-4">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h4 class="mb-0"><i class="fas fa-shield-alt me-2"></i>จัดการสิทธิ์ (Permissions)</h4>
+                            <h4 class="mb-0 text-white"><i class="fas fa-shield-alt me-2"></i>จัดการสิทธิ์ (Permissions)</h4>
                             <a href="add_permission.php" class="btn btn-light"><i class="fas fa-plus me-2"></i>เพิ่มสิทธิ์ใหม่</a>
                         </div>
                         <div class="card-body p-4">

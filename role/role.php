@@ -8,7 +8,7 @@ $message = $_SESSION['message'] ?? null;
 $message_type = $_SESSION['message_type'] ?? null;
 unset($_SESSION['message'], $_SESSION['message_type']);
 
-//ส่วนจัดการการค้นห
+//ส่วนจัดการการค้นหา
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 $roles = [];
 
@@ -141,6 +141,7 @@ if ($stmt) {
             text-decoration: none;
             opacity: 0.7;
             transition: opacity 0.2s ease;
+            cursor: pointer;
         }
 
         .action-icons a:hover {
@@ -220,7 +221,7 @@ if ($stmt) {
                 <div class="container-lg mt-4">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <h4 class="mb-0"><i class="fas fa-users-cog me-2"></i>จัดการบทบาท (Roles)</h4>
+                            <h4 class="mb-0 text-white"><i class="fas fa-users-cog me-2"></i>จัดการบทบาท (Roles)</h4>
                             <a href="add_role.php" class="btn btn-light"><i class="fas fa-plus me-2"></i>เพิ่มบทบาทใหม่</a>
                         </div>
                         <div class="card-body p-4">
@@ -262,8 +263,7 @@ if ($stmt) {
 
                                                         <a href="edit_role.php?id=<?= $role['role_id'] ?>" title="แก้ไข"><i class="fas fa-pencil"></i></a>
 
-                                                        <a href="delete_role.php?id=<?= $role['role_id'] ?>" title="ลบ"
-                                                            onclick="return confirm('คำเตือน!\nคุณต้องการลบบทบาท \'<?= htmlspecialchars($role['role_name']) ?>\' ใช่หรือไม่?')">
+                                                        <a href="#" title="ลบ" onclick="openDeleteModal(<?= $role['role_id'] ?>, '<?= htmlspecialchars($role['role_name'], ENT_QUOTES) ?>'); return false;">
                                                             <i class="fas fa-trash-can"></i>
                                                         </a>
                                                     </td>
@@ -291,6 +291,27 @@ if ($stmt) {
             </div>
         </div>
     </div>
+
+    <div class="modal fade" id="deleteRoleModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title text-white"><i class="fas fa-exclamation-triangle me-2"></i>ยืนยันการลบข้อมูล</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <p class="mb-1 text-muted">คุณต้องการลบบทบาทนี้ใช่หรือไม่?</p>
+                    <h4 class="fw-bold text-danger mb-3" id="modalRoleName"></h4>
+                    <small class="text-secondary">การกระทำนี้ไม่สามารถเรียกคืนข้อมูลได้</small>
+                </div>
+                <div class="modal-footer justify-content-center border-0 pb-4">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                    <a href="#" id="confirmDeleteBtn" class="btn btn-danger px-4">ยืนยันลบ</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // สำหรับซ่อน Alert
@@ -306,6 +327,20 @@ if ($stmt) {
                 }
             });
         }, 5000);
+
+        // [เพิ่ม] ฟังก์ชันสำหรับเปิด Modal ลบ
+        function openDeleteModal(roleId, roleName) {
+            // เซ็ตชื่อบทบาทใน Modal
+            document.getElementById('modalRoleName').innerText = roleName;
+            
+            // เซ็ตลิงก์สำหรับปุ่มยืนยัน
+            const deleteUrl = `delete_role.php?id=${roleId}`;
+            document.getElementById('confirmDeleteBtn').setAttribute('href', deleteUrl);
+            
+            // เปิด Modal
+            const deleteModal = new bootstrap.Modal(document.getElementById('deleteRoleModal'));
+            deleteModal.show();
+        }
     </script>
 
     <?php

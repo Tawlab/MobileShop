@@ -167,7 +167,7 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
         @media print {
             @page {
                 size: A4;
-                margin: 10mm;
+                margin: 0;
             }
 
             body {
@@ -185,6 +185,7 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
                 padding: 0;
                 width: 100%;
                 max-width: 100%;
+                border-radius: 0;
             }
 
             .table th,
@@ -279,6 +280,19 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
                             </div>
                         </div>
                     </div>
+
+                    <?php if ($bill['bill_status'] == 'Canceled' || $bill['bill_status'] == 'Cancelled'): ?>
+                        <div class="alert alert-danger border-danger d-flex align-items-center" role="alert">
+                            <i class="fas fa-exclamation-triangle fs-4 me-3"></i>
+                            <div>
+                                <strong class="d-block">บิลนี้ถูกยกเลิกแล้ว</strong>
+                                <span class="small">
+                                    สาเหตุ: <?= htmlspecialchars($bill['comment'] ?? 'ไม่ระบุ') ?> 
+                                    (เมื่อ: <?= date('d/m/Y H:i', strtotime($bill['update_at'])) ?>)
+                                </span>
+                            </div>
+                        </div>
+                    <?php endif; ?>
 
                     <table class="table table-bordered mb-4">
                         <thead class="bg-light">

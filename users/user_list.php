@@ -1,7 +1,6 @@
 <?php
 session_start();
 require '../config/config.php';
-require '../config/load_theme.php'; // โหลดธีมสี
 
 // ตรวจสอบสิทธิ์การเข้าถึง (ใช้ Permission 'menu_manage_users' หรือ 'user_list')
 checkPageAccess($conn, 'menu_manage_users');
@@ -203,6 +202,8 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <?php require '../config/load_theme.php'; ?>
     <style>
         body {
             background-color: <?= $background_color ?>;
@@ -374,7 +375,6 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
             }).then((result) => {
                 if (result.isConfirmed) {
                     // ส่ง Request ไปยังไฟล์ PHP เพื่ออัปเดต (ต้องสร้างไฟล์ update_user_status.php รองรับ)
-                    // ในตัวอย่างนี้แสดง Alert สำเร็จจำลอง
                     fetch('update_user_status.php', { // คุณต้องสร้างไฟล์นี้
                             method: 'POST',
                             headers: {
@@ -438,7 +438,8 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
                 }
             });
         }
-        // ฟังก์ชันลบผู้ใช้งาน
+        
+        // 3. ฟังก์ชันลบผู้ใช้งาน (ปรับปรุงให้ Redirect ไป delete_user.php)
         function deleteUser(userId, username) {
             Swal.fire({
                 title: `ยืนยันการลบ?`,
@@ -451,23 +452,12 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
                 cancelButtonText: 'ยกเลิก'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // ส่งค่าไปลบที่ไฟล์ backend (ต้องสร้างไฟล์ delete_user.php)
-                    fetch(`delete_user.php?id=${userId}`)
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.success) {
-                                Swal.fire('ลบสำเร็จ!', 'ข้อมูลผู้ใช้งานถูกลบแล้ว', 'success');
-                                fetchUserData(1); // โหลดตารางใหม่
-                            } else {
-                                Swal.fire('เกิดข้อผิดพลาด!', data.message, 'error');
-                            }
-                        })
-                        .catch(err => {
-                            Swal.fire('Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
-                        });
+                    // ส่งค่าไปลบที่หน้า delete_user.php โดยตรง
+                    window.location.href = `delete_user.php?id=${userId}`;
                 }
             });
         }
+
         // เริ่มต้นโหลดข้อมูล
         window.onload = () => fetchUserData();
     </script>

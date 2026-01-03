@@ -59,7 +59,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $tax_id = mysqli_real_escape_string($conn, trim($_POST['tax_id']));
     $shop_phone = mysqli_real_escape_string($conn, trim($_POST['shop_phone'])) ?: NULL;
     $shop_email = mysqli_real_escape_string($conn, trim($_POST['shop_email'])) ?: NULL;
-
+    $shop_app_password = mysqli_real_escape_string($conn, trim($_POST['shop_app_password'])) ?: NULL;
+    $promptpay_number = mysqli_real_escape_string($conn, trim($_POST['promptpay_number'])) ?: NULL;
     $home_no = mysqli_real_escape_string($conn, trim($_POST['home_no'])) ?: NULL;
     $moo = mysqli_real_escape_string($conn, trim($_POST['moo'])) ?: NULL;
     $soi = mysqli_real_escape_string($conn, trim($_POST['soi'])) ?: NULL;
@@ -109,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (empty($errors) && !isset($_SESSION['error_message'])) { 
+    if (empty($errors) && !isset($_SESSION['error_message'])) {
 
         $conn->begin_transaction();
         try {
@@ -134,15 +135,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // อัปเดต Shop Info
             $stmt_shop = $conn->prepare("UPDATE shop_info SET
                 shop_name = ?, tax_id = ?, shop_phone = ?, shop_email = ?, 
+                shop_app_password = ?, promptpay_number = ?, 
                 logo = ?, update_at = NOW()
                 WHERE shop_id = ?");
 
             $stmt_shop->bind_param(
-                "sssssi",
+                "sssssssi",
                 $shop_name,
                 $tax_id,
                 $shop_phone,
                 $shop_email,
+                $shop_app_password,
+                $promptpay_number,
                 $logo_db_string,
                 $shop_id
             );
@@ -573,7 +577,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <div class="form-section">
-                            <h5><i class="fas fa-images me-2"></i>รูปภาพร้านค้า (สูงสุด 4 รูป)</h5>
+                            <h5><i class="fas fa-cogs me-2"></i>การตั้งค่าระบบและการเงิน</h5>
+                            <div class="form-grid">
+                                <div>
+                                    <label class="form-label">เบอร์พร้อมเพย์ (PromptPay)</label>
+                                    <input type="text" name="promptpay_number" id="promptpay_number" class="form-control"
+                                        maxlength="15" placeholder="เบอร์โทรศัพท์ หรือ เลขบัตรประชาชน"
+                                        value="<?= htmlspecialchars($data['promptpay_number'] ?? '') ?>">
+                                    <div class="text-muted small mt-1">สำหรับแสดงใน QR Code รับเงินท้ายใบเสร็จ</div>
+                                </div>
+                                <div>
+                                    <label class="form-label">รหัสผ่านแอป (App Password)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text"><i class="fas fa-key"></i></span>
+                                        <input type="text" name="shop_app_password" id="shop_app_password" class="form-control"
+                                            maxlength="50" placeholder="xxxx xxxx xxxx xxxx"
+                                            value="<?= htmlspecialchars($data['shop_app_password'] ?? '') ?>">
+                                    </div>
+                                    <div class="text-muted small mt-1">
+                                        <i class="fas fa-info-circle text-info"></i> รหัสความปลอดภัย 16 หลักจาก Google Account
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-section">
+                            <h5><i class="fas fa-images me-2"></i>โลโก้ร้านค้า และรูปภาพเพิ่มเติม (สูงสุด 4 รูป)</h5>
+
+                            <div class="alert alert-info py-2 small mb-3">
+                                <i class="fas fa-info-circle me-1"></i> รูปภาพแรกที่อัปโหลดจะถูกใช้เป็น <strong>โลโก้ (Logo)</strong> ของร้านค้าบนหัวบิลและเอกสารต่างๆ
+                            </div>
 
                             <label class="form-label">รูปภาพปัจจุบัน:</label>
                             <div id="existingImagePreview" class="image-preview mb-3">
@@ -604,19 +637,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                             <div id="newImagePreview" class="image-preview"></div>
                         </div>
-
-                        <div class="text-end">
-                            <button type="submit" class="btn btn-success">
-                                <i class="fas fa-save me-2"></i>บันทึกการเปลี่ยนแปลง
-                            </button>
-                            <a href="shop.php" class="btn btn-secondary">
-                                <i class="fas fa-arrow-left me-2"></i>ยกเลิก
-                            </a>
-                        </div>
-                    </form>
+                        <hr>
+                        <div id="newImagePreview" class="image-preview"></div>
                 </div>
+
+                <div class="text-end">
+                    <button type="submit" class="btn btn-success">
+                        <i class="fas fa-save me-2"></i>บันทึกการเปลี่ยนแปลง
+                    </button>
+                    <a href="shop.php" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>ยกเลิก
+                    </a>
+                </div>
+                </form>
             </div>
         </div>
+    </div>
     </div>
     <script>
         // Address data
@@ -679,7 +715,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Event Listeners สำหรับ Dropdown
         provinceSelect.addEventListener('change', function() {
-            selected_district_id = ''; 
+            selected_district_id = '';
             selected_subdistrict_id = '';
             populateDistricts(this.value);
         });
@@ -708,7 +744,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // จัดการรูปภาพ
-        let newSelectedFiles = []; 
+        let newSelectedFiles = [];
         const maxFiles = 4;
 
         // ฟังก์ชันลบ "รูปเดิม" 

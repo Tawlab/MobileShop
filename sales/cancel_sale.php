@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         <div class="card">
             <div class="card-header bg-danger text-white py-3">
-                <h4 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>ยืนยันการยกเลิกบิล #<?= $bill_id ?></h4>
+                <h4 class="mb-0 text-white"><i class="fas fa-exclamation-triangle me-2"></i>ยืนยันการยกเลิกบิล #<?= $bill_id ?></h4>
             </div>
             <div class="card-body p-4">
 

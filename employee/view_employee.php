@@ -86,7 +86,7 @@ $full_address = implode(" ", $address_parts);
     <style>
         body {
             background-color: #f3f4f6;
-            font-family: 'Sarabun', sans-serif;
+            /* font-family: 'Sarabun', sans-serif; */
         }
 
         .view-container {
@@ -221,7 +221,7 @@ $full_address = implode(" ", $address_parts);
                         <div class="card-header-bg"></div>
 
                         <div class="profile-section">
-                            <div class="profile-img-container">
+                            <div class="profile-img-container mb-3">
                                 <?php if (!empty($emp['emp_image'])): ?>
                                     <img src="../uploads/employees/<?= htmlspecialchars($emp['emp_image']) ?>" alt="Profile" class="profile-image-lg">
                                 <?php else: ?>

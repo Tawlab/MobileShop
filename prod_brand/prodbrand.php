@@ -505,7 +505,7 @@ ob_end_flush();
                           <td class="text-center">
                             <?php if ($row['shop_info_shop_id'] == 0): ?>
                               <span class="badge bg-secondary opacity-75">
-                                <i class="bi bi-globe2 me-1"></i> Admin
+                                <i class="bi bi-globe2 me-1"></i> ส่วนกลาง
                               </span>
                             <?php else: ?>
                               <span class="text-dark fw-bold">

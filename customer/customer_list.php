@@ -152,9 +152,10 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body { background-color: #f8fafc; font-family: 'Prompt', sans-serif; }
+        body { background-color: #f8fafc;}
         .main-card { border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow: hidden; }
         .card-header-custom { background: linear-gradient(135deg, #198754 0%, #14532d 100%); padding: 1.5rem; }
         .card-header-custom h4 { color: #ffffff !important; font-weight: 600; margin-bottom: 0; }

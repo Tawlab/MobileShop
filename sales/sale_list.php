@@ -31,7 +31,7 @@ if (isset($_GET['ajax'])) {
     $date_end = isset($_GET['date_end']) ? $_GET['date_end'] : '';
     $shop_f = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
     $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
-    
+
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
     $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
     $offset = ($page - 1) * $limit;
@@ -74,7 +74,7 @@ if (isset($_GET['ajax'])) {
             ORDER BY bh.bill_date DESC 
             LIMIT $limit OFFSET $offset";
     $result = $conn->query($sql);
-    ?>
+?>
 
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -84,7 +84,8 @@ if (isset($_GET['ajax'])) {
                     <th width="15%">วันที่ขาย</th>
                     <th width="20%">ลูกค้า</th>
                     <th width="12%">การชำระเงิน</th>
-                    <?php if ($is_super_admin): // 3. เพิ่มคอลัมน์ระบุสาขา/ร้าน ?>
+                    <?php if ($is_super_admin): // 3. เพิ่มคอลัมน์ระบุสาขา/ร้าน 
+                    ?>
                         <th width="15%" class="text-center">สาขา/ร้าน</th>
                     <?php endif; ?>
                     <th width="12%" class="text-center">สถานะ</th>
@@ -92,78 +93,87 @@ if (isset($_GET['ajax'])) {
                 </tr>
             </thead>
             <tbody>
-                <?php if ($result->num_rows > 0): while ($row = $result->fetch_assoc()): 
-                    $status_badge = match($row['bill_status']) {
-                        'Pending' => 'bg-warning text-dark',
-                        'Completed' => 'bg-success',
-                        'Canceled' => 'bg-danger',
-                        default => 'bg-secondary'
-                    };
+                <?php if ($result->num_rows > 0): while ($row = $result->fetch_assoc()):
+                        $status_badge = match ($row['bill_status']) {
+                            'Pending' => 'bg-warning text-dark',
+                            'Completed' => 'bg-success',
+                            'Canceled' => 'bg-danger',
+                            default => 'bg-secondary'
+                        };
                 ?>
-                <tr>
-                    <td class="text-center fw-bold text-primary">#<?= $row['bill_id'] ?></td>
-                    <td class="small"><?= date('d/m/Y H:i', strtotime($row['bill_date'])) ?></td>
-                    <td>
-                        <div class="fw-bold"><?= htmlspecialchars($row['firstname_th'] . ' ' . $row['lastname_th']) ?></div>
-                        <div class="small text-muted"><?= $row['emp_fname'] ?> (พนักงาน)</div>
-                    </td>
-                    <td>
-                        <span class="badge bg-light text-dark border px-2">
-                            <i class="fas fa-wallet me-1"></i><?= $row['payment_method'] ?>
-                        </span>
-                    </td>
-                    <?php if ($is_super_admin): ?>
-                        <td class="text-center small">
-                            <div class="fw-bold text-dark"><?= htmlspecialchars($row['shop_name'] ?? '-') ?></div>
-                            <div class="text-muted"><?= htmlspecialchars($row['branch_name'] ?? '-') ?></div>
-                        </td>
-                    <?php endif; ?>
-                    <td class="text-center">
-                        <span class="badge <?= $status_badge ?> px-3 rounded-pill"><?= $row['bill_status'] ?></span>
-                    </td>
-                    <td class="text-center">
-                        <div class="d-flex justify-content-center gap-1">
-                            <a href="view_sale.php?id=<?= $row['bill_id'] ?>" class="btn btn-outline-primary btn-sm border-0" title="ดูรายละเอียด"><i class="fas fa-eye"></i></a>
-                            <?php if ($row['bill_status'] == 'Pending'): ?>
-                                <a href="payment_select.php?id=<?= $row['bill_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="ชำระเงิน"><i class="fas fa-wallet"></i></a>
+                        <tr>
+                            <td class="text-center fw-bold text-primary">#<?= $row['bill_id'] ?></td>
+                            <td class="small"><?= date('d/m/Y H:i', strtotime($row['bill_date'])) ?></td>
+                            <td>
+                                <div class="fw-bold"><?= htmlspecialchars($row['firstname_th'] . ' ' . $row['lastname_th']) ?></div>
+                                <div class="small text-muted"><?= $row['emp_fname'] ?> (พนักงาน)</div>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-dark border px-2">
+                                    <i class="fas fa-wallet me-1"></i><?= $row['payment_method'] ?>
+                                </span>
+                            </td>
+                            <?php if ($is_super_admin): ?>
+                                <td class="text-center small">
+                                    <div class="fw-bold text-dark"><?= htmlspecialchars($row['shop_name'] ?? '-') ?></div>
+                                    <div class="text-muted"><?= htmlspecialchars($row['branch_name'] ?? '-') ?></div>
+                                </td>
                             <?php endif; ?>
-                            <?php if ($row['bill_status'] != 'Canceled'): ?>
-                                <a href="cancel_sale.php?id=<?= $row['bill_id'] ?>" class="btn btn-outline-danger btn-sm border-0" onclick="return confirm('ยกเลิกบิล #<?= $row['bill_id'] ?> ?')" title="ยกเลิก"><i class="fas fa-ban"></i></a>
-                            <?php endif; ?>
-                        </div>
-                    </td>
-                </tr>
-                <?php endwhile; else: ?>
-                <tr><td colspan="<?= $is_super_admin ? 7 : 6 ?>" class="text-center py-5 text-muted">-- ไม่พบข้อมูลการขาย --</td></tr>
+                            <td class="text-center">
+                                <span class="badge <?= $status_badge ?> px-3 rounded-pill"><?= $row['bill_status'] ?></span>
+                            </td>
+                            <td class="text-center">
+                                <div class="d-flex justify-content-center gap-1">
+                                    <a href="view_sale.php?id=<?= $row['bill_id'] ?>" class="btn btn-outline-primary btn-sm border-0" title="ดูรายละเอียด"><i class="fas fa-eye"></i></a>
+                                    <?php if ($row['bill_status'] == 'Pending'): ?>
+                                        <a href="payment_select.php?id=<?= $row['bill_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="ชำระเงิน"><i class="fas fa-wallet"></i></a>
+                                    <?php endif; ?>
+                                    <?php if ($row['bill_status'] != 'Canceled' && $row['bill_status'] != 'Completed'): ?>
+                                        <button type="button" class="btn btn-outline-danger btn-sm border-0"
+                                            onclick="openCancelModal(<?= $row['bill_id'] ?>)"
+                                            title="ยกเลิก">
+                                            <i class="fas fa-ban"></i>
+                                        </button>
+                                    <?php endif; ?>
+                                </div>
+                            </td>
+                        </tr>
+                    <?php endwhile;
+                else: ?>
+                    <tr>
+                        <td colspan="<?= $is_super_admin ? 7 : 6 ?>" class="text-center py-5 text-muted">-- ไม่พบข้อมูลการขาย --</td>
+                    </tr>
                 <?php endif; ?>
             </tbody>
         </table>
     </div>
 
     <?php if ($total_pages > 1): ?>
-    <nav class="mt-4">
-        <ul class="pagination justify-content-center pagination-sm">
-            <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
-                <a class="page-link ajax-page-link" href="#" data-page="1" title="หน้าแรก"><i class="fas fa-angle-double-left"></i></a>
-            </li>
-            <?php for ($i = max(1, $page-2); $i <= min($total_pages, $page+2); $i++): ?>
-                <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
-                    <a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+        <nav class="mt-4">
+            <ul class="pagination justify-content-center pagination-sm">
+                <li class="page-item <?= ($page <= 1) ? 'disabled' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="1" title="หน้าแรก"><i class="fas fa-angle-double-left"></i></a>
                 </li>
-            <?php endfor; ?>
-            <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
-                <a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>" title="หน้าสุดท้าย"><i class="fas fa-angle-double-right"></i></a>
-            </li>
-        </ul>
-    </nav>
-    <div class="d-flex justify-content-center mt-2 gap-2 align-items-center">
-        <div class="input-group input-group-sm" style="max-width: 150px;">
-            <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปหน้า" min="1" max="<?= $total_pages ?>">
-            <button class="btn btn-success" type="button" id="btnJumpPage">ไป</button>
+                <?php for ($i = max(1, $page - 2); $i <= min($total_pages, $page + 2); $i++): ?>
+                    <li class="page-item <?= ($page == $i) ? 'active' : '' ?>">
+                        <a class="page-link ajax-page-link" href="#" data-page="<?= $i ?>"><?= $i ?></a>
+                    </li>
+                <?php endfor; ?>
+                <li class="page-item <?= ($page >= $total_pages) ? 'disabled' : '' ?>">
+                    <a class="page-link ajax-page-link" href="#" data-page="<?= $total_pages ?>" title="หน้าสุดท้าย"><i class="fas fa-angle-double-right"></i></a>
+                </li>
+            </ul>
+        </nav>
+        <div class="d-flex justify-content-center mt-2 gap-2 align-items-center">
+            <div class="input-group input-group-sm" style="max-width: 150px;">
+                <input type="number" id="jumpPageInput" class="form-control text-center" placeholder="ไปหน้า" min="1" max="<?= $total_pages ?>">
+                <button class="btn btn-success" type="button" id="btnJumpPage">ไป</button>
+            </div>
+            <div class="small text-muted">หน้า <?= $page ?> / <?= $total_pages ?> (ทั้งหมด <?= number_format($total_items) ?> รายการ)</div>
         </div>
-        <div class="small text-muted">หน้า <?= $page ?> / <?= $total_pages ?> (ทั้งหมด <?= number_format($total_items) ?> รายการ)</div>
-    </div>
-    <?php endif; exit(); }
+<?php endif;
+    exit();
+}
 
 // [4] โหลดข้อมูลสำหรับตัวกรอง (สำหรับ Admin)
 if ($is_super_admin) {
@@ -174,6 +184,7 @@ if ($is_super_admin) {
 
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <title>รายการขายสินค้า - Mobile Shop</title>
@@ -217,37 +228,45 @@ if ($is_super_admin) {
             background-color: #f8d7da;
             color: #721c24;
         }
-        
+
         /* -------------------------------------------------------------------- */
         /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
         /* -------------------------------------------------------------------- */
         @media (max-width: 991.98px) {
+
             /* 1. จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex ใน card-body/header) */
             .card-body .d-flex,
             .card-header .d-flex {
-                flex-direction: column; /* เรียงเป็นแนวตั้ง */
+                flex-direction: column;
+                /* เรียงเป็นแนวตั้ง */
                 gap: 10px;
             }
 
-            .card-body .d-flex > *,
-            .card-header .d-flex > * {
-                 width: 100% !important; /* ทำให้ส่วนประกอบกินเต็มความกว้าง */
+            .card-body .d-flex>*,
+            .card-header .d-flex>* {
+                width: 100% !important;
+                /* ทำให้ส่วนประกอบกินเต็มความกว้าง */
             }
 
             /* 2. ปรับ Table Cell/Font */
-            .table th, .table td {
-                padding: 0.6rem 0.5rem; /* ลด Padding ด้านข้าง */
-                font-size: 0.8rem; /* ลดขนาด Font เล็กน้อย */
-                white-space: nowrap; /* ป้องกันไม่ให้ข้อความยาวๆ ขึ้นบรรทัดใหม่ในตาราง Responsive */
+            .table th,
+            .table td {
+                padding: 0.6rem 0.5rem;
+                /* ลด Padding ด้านข้าง */
+                font-size: 0.8rem;
+                /* ลดขนาด Font เล็กน้อย */
+                white-space: nowrap;
+                /* ป้องกันไม่ให้ข้อความยาวๆ ขึ้นบรรทัดใหม่ในตาราง Responsive */
             }
 
             /* 3. จัดการคอลัมน์ Action ในตาราง */
             .table td:last-child {
                 display: flex;
-                flex-direction: column; /* เรียงปุ่ม Action เป็นแนวตั้งบน Mobile */
+                flex-direction: column;
+                /* เรียงปุ่ม Action เป็นแนวตั้งบน Mobile */
                 gap: 5px;
             }
-            
+
             /* 4. ปรับขนาด Badge */
             .status-badge {
                 font-size: 0.75rem;
@@ -256,13 +275,14 @@ if ($is_super_admin) {
         }
     </style>
 </head>
+
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
                 <div class="container py-2" style="max-width: 1400px;">
-                    
+
                     <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
                         <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center border-bottom">
                             <h4 class="mb-0 fw-bold text-primary"><i class="fas fa-shopping-basket me-2"></i>รายการข้อมูลการขาย</h4>
@@ -307,26 +327,28 @@ if ($is_super_admin) {
                                                 <input type="date" id="dateEndFilter" class="form-control border-0 shadow-sm">
                                             </div>
                                         </div>
-                                        
-                                        <?php if ($is_super_admin): // แอดมินกรองดูแต่ละร้านได้ ?>
-                                        <div class="col-md-2">
-                                            <label class="small fw-bold text-primary mb-1">ร้านค้า (Shop)</label>
-                                            <select id="shopFilter" class="form-select border-primary border-opacity-10 shadow-sm">
-                                                <option value="">-- ทุกร้าน --</option>
-                                                <?php while($sh = $all_shops->fetch_assoc()): ?>
-                                                    <option value="<?= $sh['shop_id'] ?>"><?= htmlspecialchars($sh['shop_name']) ?></option>
-                                                <?php endwhile; ?>
-                                            </select>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <label class="small fw-bold text-primary mb-1">สาขา (Branch)</label>
-                                            <select id="branchFilter" class="form-select border-primary border-opacity-10 shadow-sm">
-                                                <option value="">-- ทุกสาขา --</option>
-                                                <?php mysqli_data_seek($all_branches, 0); while($br = $all_branches->fetch_assoc()): ?>
-                                                    <option value="<?= $br['branch_id'] ?>" data-shop="<?= $br['shop_info_shop_id'] ?>"><?= htmlspecialchars($br['branch_name']) ?></option>
-                                                <?php endwhile; ?>
-                                            </select>
-                                        </div>
+
+                                        <?php if ($is_super_admin): // แอดมินกรองดูแต่ละร้านได้ 
+                                        ?>
+                                            <div class="col-md-2">
+                                                <label class="small fw-bold text-primary mb-1">ร้านค้า (Shop)</label>
+                                                <select id="shopFilter" class="form-select border-primary border-opacity-10 shadow-sm">
+                                                    <option value="">-- ทุกร้าน --</option>
+                                                    <?php while ($sh = $all_shops->fetch_assoc()): ?>
+                                                        <option value="<?= $sh['shop_id'] ?>"><?= htmlspecialchars($sh['shop_name']) ?></option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-2">
+                                                <label class="small fw-bold text-primary mb-1">สาขา (Branch)</label>
+                                                <select id="branchFilter" class="form-select border-primary border-opacity-10 shadow-sm">
+                                                    <option value="">-- ทุกสาขา --</option>
+                                                    <?php mysqli_data_seek($all_branches, 0);
+                                                    while ($br = $all_branches->fetch_assoc()): ?>
+                                                        <option value="<?= $br['branch_id'] ?>" data-shop="<?= $br['shop_info_shop_id'] ?>"><?= htmlspecialchars($br['branch_name']) ?></option>
+                                                    <?php endwhile; ?>
+                                                </select>
+                                            </div>
                                         <?php endif; ?>
 
                                         <div class="col-12 text-end">
@@ -346,7 +368,9 @@ if ($is_super_admin) {
                             </div>
 
                             <div id="tableContainer">
-                                <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+                                <div class="text-center py-5">
+                                    <div class="spinner-border text-primary"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -356,11 +380,43 @@ if ($is_super_admin) {
         </div>
     </div>
 
+    <div class="modal fade" id="cancelModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title text-white"><i class="fas fa-exclamation-triangle me-2"></i>ยืนยันการยกเลิกบิล</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center py-4">
+                    <h4>ต้องการยกเลิกบิล <span id="modalBillId" class="text-danger fw-bold"></span> ใช่หรือไม่?</h4>
+                    <p class="text-muted mb-0">การกระทำนี้ไม่สามารถเรียกคืนข้อมูลได้</p>
+                </div>
+                <div class="modal-footer justify-content-center border-0 pb-4">
+                    <button type="button" class="btn btn-secondary px-4" data-bs-dismiss="modal">ปิด</button>
+                    <a href="#" id="btnConfirmCancel" class="btn btn-danger px-4">ยืนยันยกเลิก</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        function openCancelModal(billId) {
+            // 1. อัปเดตข้อความเลขที่บิลใน Modal
+            document.getElementById('modalBillId').innerText = '#' + billId;
+
+            // 2. อัปเดตลิงก์ปุ่มยืนยันให้ชี้ไปที่ cancel_sale.php ตาม ID นั้น
+            document.getElementById('btnConfirmCancel').href = 'cancel_sale.php?id=' + billId;
+
+            // 3. เรียกใช้งาน Bootstrap Modal
+            var myModal = new bootstrap.Modal(document.getElementById('cancelModal'));
+            myModal.show();
+        }
+
         function fetchSaleData(page = 1) {
             const params = new URLSearchParams({
-                ajax: 1, page,
+                ajax: 1,
+                page,
                 search: document.getElementById('searchInput').value,
                 status: document.getElementById('statusFilter').value,
                 payment: document.getElementById('paymentFilter').value,
@@ -383,7 +439,8 @@ if ($is_super_admin) {
 
         function clearFilters() {
             ['statusFilter', 'paymentFilter', 'dateStartFilter', 'dateEndFilter', 'shopFilter', 'branchFilter', 'searchInput'].forEach(id => {
-                const el = document.getElementById(id); if(el) el.value = '';
+                const el = document.getElementById(id);
+                if (el) el.value = '';
             });
             fetchSaleData(1);
         }
@@ -393,7 +450,10 @@ if ($is_super_admin) {
 
         document.addEventListener('click', e => {
             const link = e.target.closest('.ajax-page-link');
-            if (link) { e.preventDefault(); fetchSaleData(link.dataset.page); }
+            if (link) {
+                e.preventDefault();
+                fetchSaleData(link.dataset.page);
+            }
             if (e.target.id === 'btnJumpPage') {
                 const p = document.getElementById('jumpPageInput').value;
                 if (p > 0) fetchSaleData(p);
@@ -414,4 +474,5 @@ if ($is_super_admin) {
         window.onload = () => fetchSaleData();
     </script>
 </body>
+
 </html>

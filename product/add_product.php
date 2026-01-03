@@ -128,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <title>เพิ่มสินค้าใหม่ - Mobile Shop</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
         body { background-color: <?= $background_color ?>; font-family: '<?= $font_style ?>', sans-serif; color: <?= $text_color ?>; }
         .main-card { border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0,0,0,0.05); overflow: hidden; }
@@ -155,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
                         <div class="main-card card shadow-sm">
                             <div class="card-header-custom">
-                                <h4 class="mb-0"><i class="bi bi-plus-circle-fill me-2"></i>เพิ่มรายการสินค้าใหม่</h4>
+                                <h4 class="mb-0 text-white"><i class="bi bi-plus-circle-fill me-2"></i>เพิ่มรายการสินค้าใหม่</h4>
                             </div>
                             <div class="card-body p-4 p-md-5">
                                 

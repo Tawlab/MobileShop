@@ -117,7 +117,11 @@ if (isset($_GET['ajax'])) {
                             <td class="text-center">
                                 <div class="d-flex justify-content-center gap-1">
                                     <a href="view_repair.php?id=<?= $row['repair_id'] ?>" class="btn btn-outline-info btn-sm border-0" title="ดูรายละเอียด"><i class="bi bi-eye-fill fs-5"></i></a>
-                                    <a href="edit_repair.php?id=<?= $row['repair_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="อัปเดตสถานะ/แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
+
+                                    <?php if ($row['repair_status'] != 'ส่งมอบ'): ?>
+                                        <a href="update_repair_status.php?id=<?= $row['repair_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="อัปเดตสถานะ/แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
+                                    <?php endif; ?>
+
                                     <?php if ($row['repair_status'] == 'รับเครื่อง'): ?>
                                         <button onclick="confirmCancel(<?= $row['repair_id'] ?>)" class="btn btn-outline-danger btn-sm border-0" title="ยกเลิก"><i class="bi bi-x-circle-fill fs-5"></i></button>
                                     <?php endif; ?>
@@ -173,6 +177,7 @@ if ($is_super_admin) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
         body {

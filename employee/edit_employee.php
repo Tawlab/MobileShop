@@ -482,7 +482,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="form-container">
                     <div class="card fade-in">
                         <div class="card-header">
-                            <h4 class="mb-0"><i class="fas fa-user-edit me-2"></i>แก้ไขข้อมูลพนักงาน
+                            <h4 class="mb-0 text-white"><i class="fas fa-user-edit me-2"></i>แก้ไขข้อมูลพนักงาน
                                 <span class="fs-6 fw-normal">(ID: <?= $emp_id ?>)</span>
                             </h4>
                         </div>
@@ -495,7 +495,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <input type="hidden" name="address_id" value="<?= htmlspecialchars($form_data['Addresses_address_id'] ?? $form_data['address_id'] ?? '') ?>">
                                 <input type="hidden" name="existing_image" value="<?= htmlspecialchars($form_data['emp_image'] ?? '') ?>">
 
-                                <h5 class="section-title"><i class="fas fa-id-card-alt"></i>ข้อมูลพนักงาน</h5>
+                                <h5 class="section-title"><i class="fas fa-id-card-alt mx-2"></i>ข้อมูลพนักงาน</h5>
                                 <div class="row g-3 mb-3">
                                     <div class="col-md-6">
                                         <label for="emp_code" class="form-label"><i class="fas fa-hashtag"></i>รหัสพนักงาน<span class="required">*</span></label>
