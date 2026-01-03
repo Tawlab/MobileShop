@@ -445,7 +445,7 @@ $types_result = mysqli_query($conn, $types_sql);
                                                 <i class="bi bi-cash-coin me-1"></i>
                                                 ราคา (บาท) <span class="required">*</span>
                                             </label>
-                                            <div class="price-input">
+                                            <div class="price-input position-relative">
                                                 <input type="number" class="form-control border-secondary" id="prod_price" name="prod_price"
                                                     value="<?php echo $product['prod_price']; ?>"
                                                     placeholder="0.00" min="0.01" step="0.01" required>

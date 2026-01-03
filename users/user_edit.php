@@ -2,31 +2,11 @@
 session_start();
 require '../config/config.php';
 
-// ตรวจสอบสิทธิ์ (ต้องมีสิทธิ์จัดการ User)
+// ตรวจสอบสิทธิ์
 checkPageAccess($conn, 'menu_manage_users');
 
-$current_shop_id = $_SESSION['shop_id'];
-$current_user_id = $_SESSION['user_id'];
-
-// ตรวจสอบสิทธิ์ Admin
-$is_super_admin = false;
-$chk_sql = "SELECT r.role_name FROM roles r JOIN user_roles ur ON r.role_id = ur.roles_role_id WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
-if ($stmt = $conn->prepare($chk_sql)) {
-    $stmt->bind_param("i", $current_user_id);
-    $stmt->execute();
-    if ($stmt->get_result()->num_rows > 0) $is_super_admin = true;
-    $stmt->close();
-}
-
-// รับ ID ที่ต้องการแก้ไข
-if (!isset($_GET['id']) || empty($_GET['id'])) {
-    header("Location: user_list.php");
-    exit;
-}
-$edit_id = intval($_GET['id']);
-
 // ==========================================================================================
-// [1] AJAX HANDLER: สำหรับโหลด Dropdown (รวม Location ด้วย)
+// [1] AJAX HANDLER: (ต้องอยู่บนสุด ก่อนการเช็ค ID หรือ Query อื่นๆ)
 // ==========================================================================================
 if (isset($_GET['ajax_action'])) {
     ob_clean();
@@ -66,6 +46,26 @@ if (isset($_GET['ajax_action'])) {
     exit;
 }
 
+// รับ ID ที่ต้องการแก้ไข
+if (!isset($_GET['id']) || empty($_GET['id'])) {
+    header("Location: user_list.php");
+    exit;
+}
+$edit_id = intval($_GET['id']);
+
+$current_shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
+
+// ตรวจสอบสิทธิ์ Admin
+$is_super_admin = false;
+$chk_sql = "SELECT r.role_name FROM roles r JOIN user_roles ur ON r.role_id = ur.roles_role_id WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt = $conn->prepare($chk_sql)) {
+    $stmt->bind_param("i", $current_user_id);
+    $stmt->execute();
+    if ($stmt->get_result()->num_rows > 0) $is_super_admin = true;
+    $stmt->close();
+}
+
 // ==========================================================================================
 // [2] FORM SUBMISSION: บันทึกการแก้ไข
 // ==========================================================================================
@@ -73,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // รับค่าและ Sanitize
     $user_status = $_POST['user_status'];
     $role_id = intval($_POST['role_id']);
-    
+
     // ข้อมูลสังกัด
     $shop_id = isset($_POST['shop_id']) ? intval($_POST['shop_id']) : $current_shop_id;
     $branch_id = intval($_POST['branch_id']);
@@ -116,9 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $ext = pathinfo($_FILES['emp_image']['name'], PATHINFO_EXTENSION);
             $new_filename = "emp_" . time() . "_" . rand(100, 999) . "." . $ext;
             if (!is_dir("../uploads/employees/")) mkdir("../uploads/employees/", 0777, true);
-            
+
             if (move_uploaded_file($_FILES['emp_image']['tmp_name'], "../uploads/employees/" . $new_filename)) {
-                // ลบรูปเก่าถ้ามี
                 if (!empty($emp_image_filename) && file_exists("../uploads/employees/" . $emp_image_filename)) {
                     unlink("../uploads/employees/" . $emp_image_filename);
                 }
@@ -142,12 +141,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 $stmt->bind_param("sssssii", $home_no, $moo, $soi, $road, $village, $subdist_id, $address_id);
                 $stmt->execute();
                 $stmt->close();
-            } else {
-                // กรณีไม่มีที่อยู่เดิม (เผื่อไว้)
-                // ต้อง Insert ใหม่แล้วเอา ID ไปแปะ Employee (ละไว้ในฐานที่เข้าใจ หรือจะเขียนเพิ่มก็ได้)
             }
 
-            // 3. อัปเดต Users (Status)
+            // 3. อัปเดต Users
             $sql_user = "UPDATE users SET user_status = ?, update_at = NOW() WHERE user_id = ?";
             $stmt = $conn->prepare($sql_user);
             $stmt->bind_param("si", $user_status, $edit_id);
@@ -163,10 +159,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                         update_at = NOW()
                         WHERE users_user_id = ?";
             $stmt = $conn->prepare($sql_emp);
-            $stmt->bind_param("sssssssssssiiii", 
+            $stmt->bind_param(
+                "sssssssssssiiii",
                 $firstname_th, $lastname_th, $firstname_en, $lastname_en,
-                $national_id, $birthday, $gender,
-                $phone, $email, $line_id, $emp_image_filename,
+                $national_id, $birthday, $gender, $phone, $email, $line_id, $emp_image_filename,
                 $prefix_id, $branch_id, $dept_id, $edit_id
             );
             $stmt->execute();
@@ -191,7 +187,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $_SESSION['success'] = "บันทึกข้อมูลเรียบร้อยแล้ว";
             header("Location: user_list.php");
             exit();
-
         } catch (Exception $e) {
             $conn->rollback();
             $errors[] = "เกิดข้อผิดพลาด: " . $e->getMessage();
@@ -200,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // ==========================================================================================
-// [3] LOAD DATA: ดึงข้อมูลเดิมมาแสดง
+// [3] LOAD DATA: ดึงข้อมูลเดิมมาแสดง (ต้องทำก่อนกำหนดค่า JS)
 // ==========================================================================================
 $sql = "SELECT u.username, u.user_status, 
                e.*,
@@ -229,6 +224,14 @@ if (!$data) {
     exit;
 }
 
+// Initial Values for JS (กำหนดหลังจากมีค่า $data แล้ว)
+$js_province_id = $data['provinces_province_id'] ?? '';
+$js_district_id = $data['districts_district_id'] ?? '';
+$js_subdistrict_id = $data['subdistricts_subdistrict_id'] ?? '';
+$js_shop_id = $data['current_shop_id'] ?? ($is_super_admin ? '' : $current_shop_id);
+$js_branch_id = $data['branches_branch_id'] ?? '';
+$js_dept_id = $data['departments_dept_id'] ?? '';
+
 // Prepare Dropdown Data
 $chk_col = $conn->query("SHOW COLUMNS FROM prefixs LIKE 'prefix_en'");
 $has_prefix_en = ($chk_col->num_rows > 0);
@@ -237,14 +240,6 @@ $prefixes = $conn->query($sql_prefix);
 
 $roles = $conn->query("SELECT role_id, role_name FROM roles ORDER BY role_name");
 $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name") : null;
-
-// Initial Values for JS
-$js_province_id = $data['provinces_province_id'] ?? '';
-$js_district_id = $data['districts_district_id'] ?? '';
-$js_subdistrict_id = $data['subdistricts_subdistrict_id'] ?? '';
-$js_shop_id = $data['current_shop_id'] ?? ($is_super_admin ? '' : $current_shop_id);
-$js_branch_id = $data['branches_branch_id'] ?? '';
-$js_dept_id = $data['departments_dept_id'] ?? '';
 ?>
 
 <!DOCTYPE html>
@@ -407,7 +402,7 @@ $js_dept_id = $data['departments_dept_id'] ?? '';
                                                 <div class="mb-3">
                                                     <label class="form-label small fw-bold">ร้านค้า (Shop)</label>
                                                     <?php if ($is_super_admin): ?>
-                                                        <select class="form-select" name="shop_id" id="shopSelect" onchange="loadShopData(this.value)">
+                                                        <select class="form-select" name="shop_id" id="shopSelect">
                                                             <option value="">-- เลือกร้านค้า --</option>
                                                             <?php while ($s = $shops->fetch_assoc()): ?>
                                                                 <option value="<?= $s['shop_id'] ?>" <?= ($s['shop_id'] == $js_shop_id) ? 'selected' : '' ?>>
@@ -436,7 +431,7 @@ $js_dept_id = $data['departments_dept_id'] ?? '';
                                             <div class="row g-2 mb-3">
                                                 <div class="col-4">
                                                     <label class="form-label small fw-bold">คำนำหน้า <span class="text-danger">*</span></label>
-                                                    <select class="form-select" name="prefix_id" id="prefixSelect" onchange="updateEngPrefix()" required>
+                                                    <select class="form-select" name="prefix_id" id="prefixSelect" required>
                                                         <?php
                                                         mysqli_data_seek($prefixes, 0);
                                                         while ($p = $prefixes->fetch_assoc()):
@@ -512,19 +507,21 @@ $js_dept_id = $data['departments_dept_id'] ?? '';
 
                                         <div class="col-md-4">
                                             <label class="form-label small fw-bold">จังหวัด <span class="text-danger">*</span></label>
-                                            <select class="form-select select2" id="provinceSelect" onchange="loadDistricts(this.value)">
+                                            <select class="form-select select2" id="provinceSelect">
                                                 <option value="">-- เลือกจังหวัด --</option>
                                             </select>
                                         </div>
+
                                         <div class="col-md-4">
                                             <label class="form-label small fw-bold">อำเภอ <span class="text-danger">*</span></label>
-                                            <select class="form-select select2" id="districtSelect" onchange="loadSubdistricts(this.value)" disabled>
+                                            <select class="form-select select2" id="districtSelect" disabled>
                                                 <option value="">-- เลือกอำเภอ --</option>
                                             </select>
                                         </div>
+
                                         <div class="col-md-4">
                                             <label class="form-label small fw-bold">ตำบล <span class="text-danger">*</span></label>
-                                            <select class="form-select select2" name="subdistrict_id" id="subdistrictSelect" onchange="updateZipcode(this)" disabled required>
+                                            <select class="form-select select2" name="subdistrict_id" id="subdistrictSelect" disabled required>
                                                 <option value="">-- เลือกตำบล --</option>
                                             </select>
                                         </div>
@@ -555,156 +552,178 @@ $js_dept_id = $data['departments_dept_id'] ?? '';
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // Init Values from PHP
-        const savedProv = "<?= $js_province_id ?>";
-        const savedDist = "<?= $js_district_id ?>";
-        const savedSub = "<?= $js_subdistrict_id ?>";
-        const savedBranch = "<?= $js_branch_id ?>";
-        const savedDept = "<?= $js_dept_id ?>";
-        const shopId = document.getElementById('shopSelect').value;
+    // รับค่าจาก PHP
+    const savedProv = "<?= $js_province_id ?>";
+    const savedDist = "<?= $js_district_id ?>";
+    const savedSub = "<?= $js_subdistrict_id ?>";
+    const savedBranch = "<?= $js_branch_id ?>";
+    const savedDept = "<?= $js_dept_id ?>";
+    const shopId = "<?= $js_shop_id ?>";
 
-        $(document).ready(function() {
-            // Init Select2
-            $('.select2').select2({
-                theme: 'bootstrap-5',
-                width: '100%'
-            });
-
-            // Load Initial Data
-            loadProvinces();
-            updateEngPrefix();
-            if (shopId) loadShopData(shopId);
+    $(document).ready(function() {
+        // 1. เริ่มต้น Select2
+        $('.select2').select2({
+            theme: 'bootstrap-5',
+            width: '100%'
         });
 
-        // --- Image Preview ---
-        function previewFile() {
-            const preview = document.getElementById('previewImg');
-            const defaultIcon = document.getElementById('defaultIcon');
-            const file = document.getElementById('emp_image').files[0];
-            const reader = new FileReader();
+        // 2. ผูก Event Listeners (แทน onchange ใน HTML)
+        $('#provinceSelect').on('change', function() {
+            loadDistricts($(this).val());
+        });
 
-            reader.onloadend = function() {
-                preview.src = reader.result;
-                preview.style.display = 'block';
-                defaultIcon.style.display = 'none';
+        $('#districtSelect').on('change', function() {
+            loadSubdistricts($(this).val());
+        });
+
+        $('#subdistrictSelect').on('change', function() {
+            updateZipcode();
+        });
+        
+        // ผูก Event สำหรับ Prefix
+        $('#prefixSelect').on('change', function() {
+            updateEngPrefix();
+        });
+
+        // 3. โหลดข้อมูลเริ่มต้น
+        loadProvinces(); 
+        updateEngPrefix();
+        if (shopId) loadShopData(shopId);
+    });
+
+    // --- Location Logic (แก้ไขให้ดึงค่าเดิมได้) ---
+    function loadProvinces() {
+        $.getJSON('user_edit.php?ajax_action=get_provinces', function(data) {
+            const sel = $('#provinceSelect');
+            $.each(data, function(i, d) {
+                const isSel = (d.province_id == savedProv);
+                sel.append(new Option(d.province_name_th, d.province_id, false, isSel));
+            });
+            // ถ้ามีค่าเดิม ให้โหลดอำเภอต่อทันที
+            if (savedProv) {
+                sel.trigger('change.select2'); // อัปเดต UI
+                loadDistricts(savedProv, true); // true = โหลดครั้งแรก
             }
-            if (file) reader.readAsDataURL(file);
-        }
+        });
+    }
 
-        // --- Prefix EN Logic ---
-        function updateEngPrefix() {
-            const select = document.getElementById('prefixSelect');
-            const display = document.getElementById('prefix_en_display');
-            const selectedOpt = select.options[select.selectedIndex];
-            display.value = selectedOpt.getAttribute('data-en') || '';
-        }
-
-        // --- Location Logic ---
-        function loadProvinces() {
-            fetch('user_edit.php?ajax_action=get_provinces')
-                .then(r => r.json())
-                .then(data => {
-                    const sel = $('#provinceSelect');
-                    data.forEach(d => {
-                        const isSel = (d.province_id == savedProv);
-                        sel.append(new Option(d.province_name_th, d.province_id, false, isSel));
-                    });
-                    if (savedProv) loadDistricts(savedProv); // Trigger next
-                });
-        }
-
-        function loadDistricts(provId) {
-            const dist = $('#districtSelect');
-            const sub = $('#subdistrictSelect');
-            dist.empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', true);
+    function loadDistricts(provId, isInit = false) {
+        const dist = $('#districtSelect');
+        const sub = $('#subdistrictSelect');
+        
+        // เคลียร์ค่าเก่า
+        dist.empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', true);
+        if(!isInit) {
             sub.empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
-
-            if (provId) {
-                fetch(`user_edit.php?ajax_action=get_districts&id=${provId}`)
-                    .then(r => r.json())
-                    .then(data => {
-                        data.forEach(d => {
-                            const isSel = (d.district_id == savedDist);
-                            dist.append(new Option(d.district_name_th, d.district_id, false, isSel));
-                        });
-                        dist.prop('disabled', false);
-                        // Trigger next only if we are loading initial data
-                        if (provId == savedProv && savedDist) loadSubdistricts(savedDist);
-                    });
-            }
+            $('#zipcode').val('');
         }
 
-        function loadSubdistricts(distId) {
-            const sub = $('#subdistrictSelect');
-            sub.empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
-
-            if (distId) {
-                fetch(`user_edit.php?ajax_action=get_subdistricts&id=${distId}`)
-                    .then(r => r.json())
-                    .then(data => {
-                        data.forEach(d => {
-                            const isSel = (d.subdistrict_id == savedSub);
-                            let opt = new Option(d.subdistrict_name_th, d.subdistrict_id, false, isSel);
-                            $(opt).data('zip', d.zip_code);
-                            sub.append(opt);
-                        });
-                        sub.prop('disabled', false);
-                        // ถ้าเป็นค่าเดิม ให้ update zip ด้วย
-                        if (distId == savedDist && savedSub) {
-                            // หา option ที่เลือกแล้วดึง zip
-                            setTimeout(() => updateZipcode(document.getElementById('subdistrictSelect')), 100);
-                        }
-                    });
-            }
-        }
-
-        function updateZipcode(select) {
-            const zip = $(select).find(':selected').data('zip');
-            document.getElementById('zipcode').value = zip || '';
-        }
-
-        // --- Shop/Branch Logic ---
-        function loadShopData(shopId) {
-            if (!shopId) return;
-            // Load Branch
-            fetch(`user_edit.php?ajax_action=get_branches&shop_id=${shopId}`)
-                .then(r => r.json())
-                .then(data => {
-                    const sel = $('#branchSelect');
-                    sel.empty().append('<option value="">-- เลือกสาขา --</option>');
-                    data.forEach(d => {
-                        const isSel = (d.branch_id == savedBranch);
-                        sel.append(new Option(d.branch_name, d.branch_id, false, isSel));
-                    });
+        if (provId) {
+            $.getJSON(`user_edit.php?ajax_action=get_districts&id=${provId}`, function(data) {
+                $.each(data, function(i, d) {
+                    const isSel = (isInit && d.district_id == savedDist);
+                    dist.append(new Option(d.district_name_th, d.district_id, false, isSel));
                 });
-            // Load Dept
-            fetch(`user_edit.php?ajax_action=get_departments&shop_id=${shopId}`)
-                .then(r => r.json())
-                .then(data => {
-                    const sel = $('#deptSelect');
-                    sel.empty().append('<option value="">-- เลือกแผนก --</option>');
-                    data.forEach(d => {
-                        const isSel = (d.dept_id == savedDept);
-                        sel.append(new Option(d.dept_name, d.dept_id, false, isSel));
-                    });
-                });
-        }
+                dist.prop('disabled', false);
 
-        // Form Validation
-        (function() {
-            'use strict'
-            var forms = document.querySelectorAll('.needs-validation')
-            Array.prototype.slice.call(forms).forEach(function(form) {
-                form.addEventListener('submit', function(event) {
-                    if (!form.checkValidity()) {
-                        event.preventDefault()
-                        event.stopPropagation()
-                    }
-                    form.classList.add('was-validated')
-                }, false)
-            })
-        })()
-    </script>
+                if (isInit && savedDist) {
+                    dist.trigger('change.select2');
+                    loadSubdistricts(savedDist, true);
+                }
+            });
+        }
+    }
+
+    function loadSubdistricts(distId, isInit = false) {
+        const sub = $('#subdistrictSelect');
+        sub.empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
+
+        if (distId) {
+            $.getJSON(`user_edit.php?ajax_action=get_subdistricts&id=${distId}`, function(data) {
+                $.each(data, function(i, d) {
+                    const isSel = (isInit && d.subdistrict_id == savedSub);
+                    let opt = new Option(d.subdistrict_name_th, d.subdistrict_id, false, isSel);
+                    $(opt).data('zip', d.zip_code);
+                    sub.append(opt);
+                });
+                sub.prop('disabled', false);
+                
+                if (isInit && savedSub) {
+                    sub.trigger('change.select2');
+                    updateZipcode();
+                }
+            });
+        }
+    }
+
+    function updateZipcode() {
+        const zip = $('#subdistrictSelect').find(':selected').data('zip');
+        $('#zipcode').val(zip || '');
+    }
+
+    // --- Image Preview ---
+    function previewFile() {
+        const preview = document.getElementById('previewImg');
+        const defaultIcon = document.getElementById('defaultIcon');
+        const file = document.getElementById('emp_image').files[0];
+        const reader = new FileReader();
+
+        reader.onloadend = function() {
+            preview.src = reader.result;
+            preview.style.display = 'block';
+            defaultIcon.style.display = 'none';
+        }
+        if (file) reader.readAsDataURL(file);
+    }
+
+    // --- Prefix EN Logic ---
+    function updateEngPrefix() {
+        const select = document.getElementById('prefixSelect');
+        const display = document.getElementById('prefix_en_display');
+        const selectedOpt = select.options[select.selectedIndex];
+        display.value = selectedOpt.getAttribute('data-en') || '';
+    }
+
+    // --- Shop/Branch Logic ---
+    function loadShopData(shopId) {
+        if (!shopId) return;
+        
+        // Load Branch
+        $.getJSON(`user_edit.php?ajax_action=get_branches&shop_id=${shopId}`, function(data) {
+            const sel = $('#branchSelect');
+            sel.empty().append('<option value="">-- เลือกสาขา --</option>');
+            $.each(data, function(i, d) {
+                const isSel = (d.branch_id == savedBranch);
+                sel.append(new Option(d.branch_name, d.branch_id, false, isSel));
+            });
+        });
+
+        // Load Dept
+        $.getJSON(`user_edit.php?ajax_action=get_departments&shop_id=${shopId}`, function(data) {
+            const sel = $('#deptSelect');
+            sel.empty().append('<option value="">-- เลือกแผนก --</option>');
+            $.each(data, function(i, d) {
+                const isSel = (d.dept_id == savedDept);
+                sel.append(new Option(d.dept_name, d.dept_id, false, isSel));
+            });
+        });
+    }
+
+    // --- Form Validation ---
+    (function() {
+        'use strict'
+        var forms = document.querySelectorAll('.needs-validation')
+        Array.prototype.slice.call(forms).forEach(function(form) {
+            form.addEventListener('submit', function(event) {
+                if (!form.checkValidity()) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                }
+                form.classList.add('was-validated')
+            }, false)
+        })
+    })()
+</script>
 </body>
 
 </html>
