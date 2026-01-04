@@ -19,12 +19,21 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
+// 1.1 ถ้าไม่ใช่ Admin ให้ดึงชื่อสาขามาแสดง
+$current_branch_name = '';
+if (!$is_admin) {
+    $b_sql = "SELECT branch_name FROM branches WHERE branch_id = $current_branch_id";
+    $b_res = $conn->query($b_sql);
+    if ($b_row = $b_res->fetch_assoc()) {
+        $current_branch_name = $b_row['branch_name'];
+    }
+}
+
 // ฟังก์ชันหา ID ถัดไป (Backend Auto-Increment)
 function getNextPurchaseId($conn) {
     $sql = "SELECT MAX(purchase_id) as max_id FROM purchase_orders";
     $result = $conn->query($sql);
     $row = $result->fetch_assoc();
-    // ถ้ามีค่า ให้ +1 ถ้าไม่มี (เป็นบิลแรก) ให้เริ่มที่ 1
     return ($row['max_id']) ? $row['max_id'] + 1 : 1;
 }
 
@@ -33,7 +42,6 @@ function getMaxOrderId($conn) {
     $sql = "SELECT MAX(order_id) as max_id FROM order_details";
     $result = $conn->query($sql);
     $row = $result->fetch_assoc();
-    // คืนค่า max_id ปัจจุบัน ถ้าไม่มีให้เริ่มที่ 0 (เดี๋ยวจะไปบวกใน Loop)
     return ($row['max_id']) ? (int)$row['max_id'] : 0;
 }
 
@@ -57,11 +65,13 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
 
         $response = [];
 
-        // 1. Branches
+        // 1. Branches (โหลดเฉพาะถ้าเป็น Admin เอาไว้เลือก ถ้า User ไม่ต้องใช้ส่วนนี้ในการแสดงผล Dropdown)
         $branches = [];
-        $sql = "SELECT branch_id, branch_name FROM branches WHERE shop_info_shop_id = $target_shop_id ORDER BY branch_name";
-        $res = $conn->query($sql);
-        while ($row = $res->fetch_assoc()) $branches[] = $row;
+        if ($is_admin) {
+            $sql = "SELECT branch_id, branch_name FROM branches WHERE shop_info_shop_id = $target_shop_id ORDER BY branch_name";
+            $res = $conn->query($sql);
+            while ($row = $res->fetch_assoc()) $branches[] = $row;
+        }
         $response['branches'] = $branches;
 
         // 2. Suppliers
@@ -103,9 +113,18 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
         $response = ['success' => false, 'message' => ''];
 
         $purchase_date = $_POST['purchase_date'];
-        $suppliers_supplier_id = intval($_POST['suppliers_supplier_id']);
-        $employees_emp_id = intval($_POST['employees_emp_id']);
-        $branches_branch_id = intval($_POST['branches_branch_id']);
+        
+        // รับค่า ID และป้องกันการปลอมแปลงถ้าไม่ใช่ Admin
+        if ($is_admin) {
+            $suppliers_supplier_id = intval($_POST['suppliers_supplier_id']);
+            $employees_emp_id = intval($_POST['employees_emp_id']);
+            $branches_branch_id = intval($_POST['branches_branch_id']);
+        } else {
+            $suppliers_supplier_id = intval($_POST['suppliers_supplier_id']);
+            $employees_emp_id = intval($_POST['employees_emp_id']);
+            // บังคับใช้ Branch ID ของตัวเอง
+            $branches_branch_id = $current_branch_id;
+        }
         
         $product_ids = $_POST['product_ids'] ?? [];
         $amounts = $_POST['amounts'] ?? [];
@@ -122,10 +141,9 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
 
         mysqli_autocommit($conn, false);
         try {
-            // [แก้ไข 1] หา ID ถัดไป
             $new_po_id = getNextPurchaseId($conn);
 
-            // Insert Header (ระบุ purchase_id ลงไปเลย)
+            // Insert Header
             $sql_head = "INSERT INTO purchase_orders (purchase_id, purchase_date, create_at, update_at, suppliers_supplier_id, branches_branch_id, employees_emp_id, po_status) 
                          VALUES (?, ?, NOW(), NOW(), ?, ?, ?, 'Pending')";
             $stmt = $conn->prepare($sql_head);
@@ -137,7 +155,6 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
             // Insert Details
             $running_order_id = getMaxOrderId($conn);
 
-            // 2. ปรับ SQL ให้ Insert order_id ด้วย
             $sql_det = "INSERT INTO order_details (order_id, amount, price, create_at, update_at, purchase_orders_purchase_id, products_prod_id) 
                         VALUES (?, ?, ?, NOW(), NOW(), ?, ?)";
             $stmt = $conn->prepare($sql_det);
@@ -148,7 +165,7 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
                 $cost = floatval($prices[$idx]);
 
                 if ($qty > 0) {
-                    $running_order_id++; // เพิ่ม order_id ทีละ 1
+                    $running_order_id++;
                     $stmt->bind_param("iidii", $running_order_id, $qty, $cost, $new_po_id, $prod_id);
                     
                     if (!$stmt->execute()) throw new Exception("บันทึกรายการสินค้าไม่สำเร็จ (ID: $prod_id) Error: " . $stmt->error);
@@ -248,16 +265,25 @@ if ($is_admin) {
                                                 <?php endforeach; ?>
                                             </select>
                                         <?php else: ?>
-                                            <input type="text" class="form-control bg-light" value="<?= $_SESSION['shop_name'] ?? 'My Shop' ?>" readonly>
+                                            <input type="text" class="form-control bg-light" value="<?= $_SESSION['shop_name'] ?? 'ระบบเลือกร้านของคุณอัตโนมัติ' ?>" readonly>
                                             <input type="hidden" name="shop_id" id="shopSelect" value="<?= $current_shop_id ?>">
                                         <?php endif; ?>
                                     </div>
 
                                     <div class="col-md-6">
                                         <label class="form-label required-label">สาขา (Branch)</label>
-                                        <select class="form-select select2" name="branches_branch_id" id="branchSelect" required>
-                                            <option value="">-- กรุณาเลือกร้านค้าก่อน --</option>
-                                        </select>
+                                        <?php if ($is_admin): ?>
+                                            <select class="form-select select2" name="branches_branch_id" id="branchSelect" required>
+                                                <option value="">-- กรุณาเลือกร้านค้าก่อน --</option>
+                                            </select>
+                                        <?php else: ?>
+                                            <div class="input-group">
+                                                <span class="input-group-text bg-success text-white"><i class="fas fa-store"></i></span>
+                                                <input type="text" class="form-control bg-light fw-bold text-success" value="<?= htmlspecialchars($current_branch_name) ?> (ระบบเลือกสาขาของคุณอัตโนมัติ)" readonly>
+                                            </div>
+                                            <input type="hidden" name="branches_branch_id" value="<?= $current_branch_id ?>">
+                                            <div class="form-text text-success"><i class="fas fa-check-circle me-1"></i>ระบบจะเพิ่มข้อมูลไปยังสาขาของท่านอัตโนมัติ</div>
+                                        <?php endif; ?>
                                     </div>
 
                                     <div class="col-md-6">
@@ -341,6 +367,7 @@ if ($is_admin) {
         const userShopId = "<?= $is_admin ? '' : $current_shop_id ?>";
         const userBranchId = "<?= $current_branch_id ?>";
         const currentUserId = "<?= $current_user_id ?>";
+        const isAdmin = <?= $is_admin ? 'true' : 'false' ?>;
 
         $(document).ready(function() {
             $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
@@ -352,6 +379,55 @@ if ($is_admin) {
             // Bind Add Button
             $('#add-product-btn').click(function() {
                 addProductRow();
+            });
+
+            // Bind Form Submit
+            $('#poForm').on('submit', function(e) {
+                e.preventDefault();
+                
+                // Validate form
+                if (!this.checkValidity()) {
+                    e.stopPropagation();
+                    $(this).addClass('was-validated');
+                    return;
+                }
+
+                // Additional check for product count
+                if ($('#product-list-container tr').length === 0) {
+                    Swal.fire('แจ้งเตือน', 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ', 'warning');
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'กำลังบันทึก...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading() }
+                });
+
+                $.ajax({
+                    url: 'add_purchase_order.php',
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    dataType: 'json',
+                    success: function(res) {
+                        if (res.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'บันทึกสำเร็จ!',
+                                text: res.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            }).then(() => {
+                                window.location.href = `view_purchase_order.php?id=${res.po_id}`;
+                            });
+                        } else {
+                            Swal.fire('เกิดข้อผิดพลาด', res.message, 'error');
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Server Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+                    }
+                });
             });
         });
 
@@ -377,13 +453,15 @@ if ($is_admin) {
                         return;
                     }
 
-                    // Branches
-                    let branchOpts = '<option value="">-- เลือกสาขา --</option>';
-                    res.branches.forEach(b => {
-                        let selected = (userShopId && b.branch_id == userBranchId) ? 'selected' : '';
-                        branchOpts += `<option value="${b.branch_id}" ${selected}>${b.branch_name}</option>`;
-                    });
-                    $('#branchSelect').html(branchOpts).trigger('change');
+                    // Branches (เฉพาะ Admin เท่านั้นที่ต้อง Populate Dropdown)
+                    if (isAdmin) {
+                        let branchOpts = '<option value="">-- เลือกสาขา --</option>';
+                        res.branches.forEach(b => {
+                            let selected = (userShopId && b.branch_id == userBranchId) ? 'selected' : '';
+                            branchOpts += `<option value="${b.branch_id}" ${selected}>${b.branch_name}</option>`;
+                        });
+                        $('#branchSelect').html(branchOpts).trigger('change');
+                    }
 
                     // Suppliers
                     let supOpts = '<option value="">-- เลือก Supplier --</option>';
@@ -392,12 +470,9 @@ if ($is_admin) {
                     });
                     $('#supplierSelect').html(supOpts).trigger('change');
 
-                    // [แก้ไข 2] Employees (แสดงเฉพาะของร้านนั้นๆ จากที่ PHP กรองมาให้แล้ว)
+                    // Employees
                     let empOpts = '<option value="">-- เลือกพนักงาน --</option>';
                     res.employees.forEach(e => {
-                        // พยายามเลือกพนักงานที่เป็น user ปัจจุบัน ถ้าอยู่ในลิสต์
-                        // หมายเหตุ: ตรงนี้เช็คด้วย emp_id ถ้า user_id = emp_id จะทำงานได้
-                        // หรือถ้าต้องการความแม่นยำต้องส่ง user_id ของ employee มาด้วยจาก PHP
                         let selected = ''; 
                         empOpts += `<option value="${e.emp_id}" ${selected}>${e.firstname_th} ${e.lastname_th}</option>`;
                     });
@@ -482,17 +557,18 @@ if ($is_admin) {
             qtyInput.on('input', calcRowTotal);
             priceInput.on('input', calcRowTotal);
 
-            function calcRowTotal() {
-                const qty = parseFloat(qtyInput.val()) || 0;
-                const price = parseFloat(priceInput.val()) || 0;
-                totalInput.val((qty * price).toFixed(2));
-                calculateTotals();
-            }
-
             removeBtn.on('click', function() {
                 row.remove();
                 calculateTotals();
             });
+
+            function calcRowTotal() {
+                const qty = parseInt(qtyInput.val()) || 0;
+                const price = parseFloat(priceInput.val()) || 0;
+                const total = qty * price;
+                totalInput.val(total.toFixed(2));
+                calculateTotals();
+            }
         }
 
         function calculateTotals() {
@@ -500,77 +576,15 @@ if ($is_admin) {
             let totalPrice = 0;
 
             $('.product-row').each(function() {
-                const qty = parseFloat($(this).find('.amount-input').val()) || 0;
-                const rowTotal = parseFloat($(this).find('.total-input').val()) || 0;
+                const qty = parseInt($(this).find('.amount-input').val()) || 0;
+                const total = parseFloat($(this).find('.total-input').val()) || 0;
                 totalQty += qty;
-                totalPrice += rowTotal;
+                totalPrice += total;
             });
 
-            $('#total-quantity').text(totalQty.toLocaleString());
-            $('#total-price').text(totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            $('#total-quantity').text(totalQty);
+            $('#total-price').text(totalPrice.toFixed(2));
         }
-
-        document.getElementById('poForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-
-            if (!this.checkValidity()) {
-                Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลที่มีเครื่องหมาย * ให้ครบถ้วน', 'warning');
-                return;
-            }
-
-            if ($('.product-row').length === 0) {
-                Swal.fire('ไม่มีสินค้า', 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ', 'warning');
-                return;
-            }
-
-            const formData = new FormData(this);
-
-            Swal.fire({
-                title: 'ยืนยันการบันทึก?',
-                text: "ตรวจสอบความถูกต้องของข้อมูลแล้วใช่หรือไม่",
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#198754',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'ใช่, บันทึกเลย',
-                cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    Swal.fire({
-                        title: 'กำลังบันทึก...',
-                        allowOutsideClick: false,
-                        didOpen: () => { Swal.showLoading() }
-                    });
-
-                    $.ajax({
-                        url: 'add_purchase_order.php',
-                        type: 'POST',
-                        data: formData,
-                        processData: false,
-                        contentType: false,
-                        dataType: 'json',
-                        success: function(res) {
-                            if (res.success) {
-                                Swal.fire({
-                                    icon: 'success',
-                                    title: 'บันทึกสำเร็จ!',
-                                    text: res.message,
-                                    timer: 2000,
-                                    showConfirmButton: false
-                                }).then(() => {
-                                    window.location.href = `view_purchase_order.php?id=${res.po_id}`;
-                                });
-                            } else {
-                                Swal.fire('เกิดข้อผิดพลาด', res.message, 'error');
-                            }
-                        },
-                        error: function() {
-                            Swal.fire('Server Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
-                        }
-                    });
-                }
-            });
-        });
     </script>
 </body>
 </html>

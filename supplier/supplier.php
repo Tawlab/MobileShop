@@ -4,7 +4,7 @@ require '../config/config.php';
 checkPageAccess($conn, 'supplier');
 
 // [1] รับค่าพื้นฐานจาก Session
-$shop_id = $_SESSION['shop_id'];
+$current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
 // [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
@@ -19,6 +19,21 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
     $stmt_admin->close();
 }
 
+// [2.1] เพิ่มเติม: หา Branch ID ของพนักงานปัจจุบัน (เพื่อนำไปกรอง)
+$current_user_branch_id = 0;
+if (!$is_super_admin) {
+    $sql_emp_branch = "SELECT branches_branch_id FROM employees WHERE users_user_id = ? LIMIT 1";
+    if ($stmt_emp = $conn->prepare($sql_emp_branch)) {
+        $stmt_emp->bind_param("i", $current_user_id);
+        $stmt_emp->execute();
+        $res_emp = $stmt_emp->get_result();
+        if ($row_emp = $res_emp->fetch_assoc()) {
+            $current_user_branch_id = $row_emp['branches_branch_id'];
+        }
+        $stmt_emp->close();
+    }
+}
+
 // ==========================================
 // [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
 // ==========================================
@@ -29,11 +44,17 @@ if (isset($_GET['ajax'])) {
     $limit = 20; // แสดงรายการ 20 รายการต่อหน้า
     $offset = ($page - 1) * $limit;
 
-    // 3. กรองตามสิทธิ์ (เห็นแค่ร้านตัวเอง / แอดมินเห็นทั้งหมด)
+    // สร้างเงื่อนไข Query
     $conditions = [];
+
+    // --- จุดที่แก้ไข: กรองตามสิทธิ์ ---
     if (!$is_super_admin) {
-        $conditions[] = "s.shop_info_shop_id = '$shop_id'";
+        // User ทั่วไป: เห็นแค่สาขาตัวเอง
+        // (ตาราง suppliers ต้องมีคอลัมน์ branches_branch_id)
+        $conditions[] = "s.branches_branch_id = '$current_user_branch_id'";
     }
+    // กรณี Admin: ไม่ต้องเพิ่มเงื่อนไขนี้ (เห็นทั้งหมด)
+    // --------------------------------
 
     if (!empty($search)) {
         $conditions[] = "(s.supplier_id LIKE '%$search%' OR s.co_name LIKE '%$search%' OR s.contact_firstname LIKE '%$search%' OR s.supplier_phone_no LIKE '%$search%')";
@@ -46,16 +67,19 @@ if (isset($_GET['ajax'])) {
     $total_items = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_items / $limit);
 
-    // ดึงข้อมูลซัพพลายเออร์
-    $sql = "SELECT s.*, p.prefix_th, sh.shop_name 
+    // ดึงข้อมูลซัพพลายเออร์ (Join ตาราง branches เพิ่มเพื่อแสดงชื่อสาขาได้ถ้าต้องการ)
+    $sql = "SELECT s.*, p.prefix_th, sh.shop_name, b.branch_name
             FROM suppliers s
             LEFT JOIN prefixs p ON s.prefixs_prefix_id = p.prefix_id
             LEFT JOIN shop_info sh ON s.shop_info_shop_id = sh.shop_id
+            LEFT JOIN branches b ON s.branches_branch_id = b.branch_id
             $where_sql 
             ORDER BY s.supplier_id DESC 
             LIMIT $limit OFFSET $offset";
+            
     $result = $conn->query($sql);
-    ?>
+    
+?>
 
     <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">

@@ -552,22 +552,30 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-    // รับค่าจาก PHP
+    // --- 1. รับค่าจาก PHP (ค่าเดิมของผู้ใช้) ---
     const savedProv = "<?= $js_province_id ?>";
     const savedDist = "<?= $js_district_id ?>";
     const savedSub = "<?= $js_subdistrict_id ?>";
     const savedBranch = "<?= $js_branch_id ?>";
     const savedDept = "<?= $js_dept_id ?>";
-    const shopId = "<?= $js_shop_id ?>";
+    const currentShopId = "<?= $js_shop_id ?>"; // Shop ID เดิมของผู้ใช้
 
     $(document).ready(function() {
-        // 1. เริ่มต้น Select2
+        // --- 2. เริ่มต้น Select2 ---
         $('.select2').select2({
             theme: 'bootstrap-5',
             width: '100%'
         });
 
-        // 2. ผูก Event Listeners (แทน onchange ใน HTML)
+        // --- 3. ผูก Event Listeners (จัดการการเปลี่ยนค่า) ---
+        
+        // 3.1 เปลี่ยนร้านค้า (สำหรับ Admin)
+        $('#shopSelect').on('change', function() {
+            // ส่งค่า false ไปบอกว่า นี่ไม่ใช่การโหลดครั้งแรก (ไม่ต้องจำค่าสาขาเดิม)
+            loadShopData($(this).val(), false); 
+        });
+
+        // 3.2 เปลี่ยนที่อยู่
         $('#provinceSelect').on('change', function() {
             loadDistricts($(this).val());
         });
@@ -579,19 +587,65 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         $('#subdistrictSelect').on('change', function() {
             updateZipcode();
         });
-        
-        // ผูก Event สำหรับ Prefix
+
+        // 3.3 เปลี่ยนคำนำหน้า
         $('#prefixSelect').on('change', function() {
             updateEngPrefix();
         });
 
-        // 3. โหลดข้อมูลเริ่มต้น
-        loadProvinces(); 
+        // --- 4. โหลดข้อมูลเริ่มต้น (Initial Load) ---
+        loadProvinces();
         updateEngPrefix();
-        if (shopId) loadShopData(shopId);
+        
+        // โหลดข้อมูลร้านค้า/สาขาเริ่มต้น (ส่ง true เพื่อบอกว่าให้เลือกค่าเดิมที่เซฟไว้)
+        if (currentShopId) {
+            loadShopData(currentShopId, true); 
+        }
     });
 
-    // --- Location Logic (แก้ไขให้ดึงค่าเดิมได้) ---
+    // ==========================================
+    // SHOP / BRANCH / DEPARTMENT LOGIC (ส่วนที่แก้ไข)
+    // ==========================================
+    function loadShopData(shopId, isInit = false) {
+        const branchSelect = $('#branchSelect');
+        const deptSelect = $('#deptSelect');
+
+        // กรณีไม่ได้เลือกร้านค้า ให้เคลียร์ค่าและปิดการใช้งาน
+        if (!shopId) {
+            branchSelect.empty().append('<option value="">-- รอการเลือก --</option>').prop('disabled', true);
+            deptSelect.empty().append('<option value="">-- รอการเลือก --</option>').prop('disabled', true);
+            return;
+        }
+
+        // 1. โหลดสาขา (Branch)
+        $.getJSON(`user_edit.php?ajax_action=get_branches&shop_id=${shopId}`, function(data) {
+            branchSelect.empty().append('<option value="">-- เลือกสาขา --</option>');
+            
+            $.each(data, function(i, d) {
+                // เช็คเงื่อนไข: ต้องเป็นการโหลดครั้งแรก AND ID ตรงกับของเดิม ถึงจะ Selected
+                const isSel = (isInit && d.branch_id == savedBranch);
+                branchSelect.append(new Option(d.branch_name, d.branch_id, false, isSel));
+            });
+            
+            branchSelect.prop('disabled', false).trigger('change'); // รีเฟรช Select2
+        });
+
+        // 2. โหลดแผนก (Department)
+        $.getJSON(`user_edit.php?ajax_action=get_departments&shop_id=${shopId}`, function(data) {
+            deptSelect.empty().append('<option value="">-- เลือกแผนก --</option>');
+            
+            $.each(data, function(i, d) {
+                const isSel = (isInit && d.dept_id == savedDept);
+                deptSelect.append(new Option(d.dept_name, d.dept_id, false, isSel));
+            });
+            
+            deptSelect.prop('disabled', false).trigger('change'); // รีเฟรช Select2
+        });
+    }
+
+    // ==========================================
+    // LOCATION LOGIC (ที่อยู่)
+    // ==========================================
     function loadProvinces() {
         $.getJSON('user_edit.php?ajax_action=get_provinces', function(data) {
             const sel = $('#provinceSelect');
@@ -599,10 +653,10 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
                 const isSel = (d.province_id == savedProv);
                 sel.append(new Option(d.province_name_th, d.province_id, false, isSel));
             });
-            // ถ้ามีค่าเดิม ให้โหลดอำเภอต่อทันที
+            
             if (savedProv) {
-                sel.trigger('change.select2'); // อัปเดต UI
-                loadDistricts(savedProv, true); // true = โหลดครั้งแรก
+                sel.trigger('change.select2');
+                loadDistricts(savedProv, true);
             }
         });
     }
@@ -610,10 +664,11 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
     function loadDistricts(provId, isInit = false) {
         const dist = $('#districtSelect');
         const sub = $('#subdistrictSelect');
-        
-        // เคลียร์ค่าเก่า
+
         dist.empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', true);
-        if(!isInit) {
+        
+        // ถ้าเปลี่ยนจังหวัด ต้องเคลียร์ตำบลและรหัสไปรษณีย์ด้วย (ยกเว้นตอนโหลดครั้งแรก)
+        if (!isInit) {
             sub.empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
             $('#zipcode').val('');
         }
@@ -647,7 +702,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
                     sub.append(opt);
                 });
                 sub.prop('disabled', false);
-                
+
                 if (isInit && savedSub) {
                     sub.trigger('change.select2');
                     updateZipcode();
@@ -661,7 +716,9 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         $('#zipcode').val(zip || '');
     }
 
-    // --- Image Preview ---
+    // ==========================================
+    // UTILITIES (รูปภาพ / คำนำหน้า / Validation)
+    // ==========================================
     function previewFile() {
         const preview = document.getElementById('previewImg');
         const defaultIcon = document.getElementById('defaultIcon');
@@ -671,45 +728,21 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         reader.onloadend = function() {
             preview.src = reader.result;
             preview.style.display = 'block';
-            defaultIcon.style.display = 'none';
+            if(defaultIcon) defaultIcon.style.display = 'none';
         }
         if (file) reader.readAsDataURL(file);
     }
 
-    // --- Prefix EN Logic ---
     function updateEngPrefix() {
         const select = document.getElementById('prefixSelect');
         const display = document.getElementById('prefix_en_display');
-        const selectedOpt = select.options[select.selectedIndex];
-        display.value = selectedOpt.getAttribute('data-en') || '';
+        if(select && display) {
+            const selectedOpt = select.options[select.selectedIndex];
+            display.value = selectedOpt.getAttribute('data-en') || '';
+        }
     }
 
-    // --- Shop/Branch Logic ---
-    function loadShopData(shopId) {
-        if (!shopId) return;
-        
-        // Load Branch
-        $.getJSON(`user_edit.php?ajax_action=get_branches&shop_id=${shopId}`, function(data) {
-            const sel = $('#branchSelect');
-            sel.empty().append('<option value="">-- เลือกสาขา --</option>');
-            $.each(data, function(i, d) {
-                const isSel = (d.branch_id == savedBranch);
-                sel.append(new Option(d.branch_name, d.branch_id, false, isSel));
-            });
-        });
-
-        // Load Dept
-        $.getJSON(`user_edit.php?ajax_action=get_departments&shop_id=${shopId}`, function(data) {
-            const sel = $('#deptSelect');
-            sel.empty().append('<option value="">-- เลือกแผนก --</option>');
-            $.each(data, function(i, d) {
-                const isSel = (d.dept_id == savedDept);
-                sel.append(new Option(d.dept_name, d.dept_id, false, isSel));
-            });
-        });
-    }
-
-    // --- Form Validation ---
+    // Bootstrap Form Validation
     (function() {
         'use strict'
         var forms = document.querySelectorAll('.needs-validation')
