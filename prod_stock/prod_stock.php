@@ -11,7 +11,7 @@ $current_user_id = $_SESSION['user_id'];
 // [CHECK PERMISSION] ตรวจสอบสิทธิ์ต่างๆ
 // =========================================================
 
-// 1. ตรวจสอบว่าเป็น Super Admin หรือไม่
+// 1. ตรวจสอบว่าเป็น Admin (Super Admin) หรือไม่
 $is_super_admin = false;
 $chk_admin_sql = "SELECT r.role_name FROM roles r 
                   JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -23,7 +23,7 @@ if ($stmt = $conn->prepare($chk_admin_sql)) {
     $stmt->close();
 }
 
-// 2. [ใหม่] ตรวจสอบสิทธิ์ "centralinf" (สิทธิ์จัดการข้อมูลส่วนกลาง)
+// 2. ตรวจสอบสิทธิ์ "centralinf" (เผื่อใช้ในอนาคต)
 $has_central_perm = false;
 if ($is_super_admin) {
     $has_central_perm = true;
@@ -50,6 +50,8 @@ if (isset($_GET['ajax'])) {
     $status_f = isset($_GET['status']) ? $_GET['status'] : '';
     $p_min = isset($_GET['p_min']) && $_GET['p_min'] !== '' ? (float)$_GET['p_min'] : '';
     $p_max = isset($_GET['p_max']) && $_GET['p_max'] !== '' ? (float)$_GET['p_max'] : '';
+    
+    // รับค่าตัวกรองร้าน/สาขา (สำหรับ Admin)
     $shop_f = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
     $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
 
@@ -60,15 +62,20 @@ if (isset($_GET['ajax'])) {
     // --- สร้างเงื่อนไข WHERE ---
     $conditions = [];
     
-    if (!$is_super_admin) {
-        // [Logic ใหม่] 
-        // 1. เห็นสินค้าสาขาตัวเอง (ps.branches_branch_id = $branch_id)
-        // 2. OR เห็นสินค้าที่เป็นส่วนกลาง (ps.branches_branch_id = 0)
-        $conditions[] = "(ps.branches_branch_id = '$branch_id' OR ps.branches_branch_id = 0)";
+    if ($is_super_admin) {
+        // [Admin]
+        // 1. ถ้าเลือกสาขา -> กรองตามสาขา
+        // 2. ถ้าเลือกร้าน (แต่ไม่เลือกสาขา) -> กรองตามร้าน
+        // 3. ถ้าไม่เลือกอะไรเลย -> ไม่กรอง (เห็นทั้งหมด)
+        if (!empty($branch_f)) {
+            $conditions[] = "ps.branches_branch_id = '$branch_f'";
+        } elseif (!empty($shop_f)) {
+            $conditions[] = "b.shop_info_shop_id = '$shop_f'";
+        }
     } else {
-        // Admin: กรองตามที่เลือก
-        if (!empty($branch_f)) $conditions[] = "ps.branches_branch_id = '$branch_f'";
-        elseif (!empty($shop_f)) $conditions[] = "b.shop_info_shop_id = '$shop_f'";
+        // [User ทั่วไป] 
+        // แสดงเฉพาะสินค้าของสาขาตัวเองเท่านั้น (Strict Mode)
+        $conditions[] = "ps.branches_branch_id = '$branch_id'";
     }
 
     if (!empty($search)) $conditions[] = "(p.prod_name LIKE '%$search%' OR p.model_name LIKE '%$search%' OR ps.serial_no LIKE '%$search%' OR ps.stock_id LIKE '%$search%')";
@@ -92,7 +99,7 @@ if (isset($_GET['ajax'])) {
 
     // ดึงข้อมูล
     $sql = "SELECT ps.*, p.prod_name, p.model_name, pb.brand_name_th, pt.type_name_th, 
-                   b.branch_name, s.shop_name
+                   b.branch_name, s.shop_name, ps.branches_branch_id
             FROM prod_stocks ps 
             LEFT JOIN products p ON ps.products_prod_id = p.prod_id 
             LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
@@ -137,11 +144,9 @@ if (isset($_GET['ajax'])) {
                         if ($is_super_admin) {
                             $can_edit = true; // แอดมินทำได้หมด
                         } elseif ($is_central_stock) {
-                            // ถ้าเป็นของส่วนกลาง ต้องมีสิทธิ์ 'centralinf' ถึงแก้ได้
                             $can_edit = $has_central_perm; 
                         } elseif ($row['branches_branch_id'] == $branch_id) {
-                            // ถ้าเป็นของสาขาตัวเอง แก้ไขได้ปกติ
-                            $can_edit = true;
+                            $can_edit = true; // แก้ไขของตัวเองได้
                         }
                 ?>
                         <tr>
@@ -150,6 +155,7 @@ if (isset($_GET['ajax'])) {
                             <td>
                                 <div class="fw-bold text-dark"><?= htmlspecialchars($row['prod_name']) ?></div>
                                 <div class="small text-muted"><?= htmlspecialchars($row['model_name']) ?></div>
+                                <div class="small text-secondary">S/N: <?= htmlspecialchars($row['serial_no']) ?></div>
                             </td>
                             <td>
                                 <div class="small text-primary"><i class="bi bi-tag-fill me-1"></i><?= htmlspecialchars($row['brand_name_th'] ?? '-') ?></div>
@@ -175,7 +181,7 @@ if (isset($_GET['ajax'])) {
                                             <button onclick="confirmDelete(<?= $row['stock_id'] ?>, '<?= addslashes($row['prod_name']) ?>')" class="btn btn-outline-danger btn-sm border-0"><i class="bi bi-trash3-fill"></i></button>
                                         <?php endif; ?>
                                     <?php else: ?>
-                                        <button class="btn btn-outline-secondary btn-sm border-0" disabled title="รายการส่วนกลาง (ไม่มีสิทธิ์แก้ไข)">
+                                        <button class="btn btn-outline-secondary btn-sm border-0" disabled title="ไม่มีสิทธิ์แก้ไข">
                                             <i class="bi bi-lock-fill"></i>
                                         </button>
                                     <?php endif; ?>
@@ -209,14 +215,13 @@ if (isset($_GET['ajax'])) {
 }
 
 // [4] โหลดข้อมูล Dropdown สำหรับหน้าเว็บหลัก
-// ให้โหลดสินค้าของสาขาตัวเอง OR ของส่วนกลาง (branch_id = 0)
-// ในตารางสินค้า prod_stocks เราดูที่ shop_info_shop_id ไม่ได้โดยตรงใน query นี้ เพราะ prod_stocks ไม่ได้เก็บ shop_id
-// แต่เรากรองที่ product ได้
+// สำหรับตัวกรอง Brand/Type (ถ้าเป็นแอดมินเห็นหมด ถ้า User เห็นเฉพาะของร้านตัวเอง)
 $filter_shop_sql = $is_super_admin ? "1=1" : "(shop_info_shop_id = '{$_SESSION['shop_id']}' OR shop_info_shop_id = 0)";
 
 $brands_res = $conn->query("SELECT brand_id, brand_name_th FROM prod_brands WHERE $filter_shop_sql ORDER BY brand_name_th ASC");
 $types_res = $conn->query("SELECT type_id, type_name_th FROM prod_types WHERE $filter_shop_sql ORDER BY type_name_th ASC");
 
+// โหลดรายชื่อร้าน/สาขา สำหรับ Admin Filter
 if ($is_super_admin) {
     $all_shops = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name ASC");
     $all_branches = $conn->query("SELECT branch_id, branch_name, shop_info_shop_id FROM branches ORDER BY branch_name ASC");
@@ -240,6 +245,7 @@ if ($is_super_admin) {
         .card-header-custom h4 { color: #ffffff !important; font-weight: 600; margin-bottom: 0; }
         .pagination .page-link { border-radius: 8px; margin: 0 3px; color: #198754; font-weight: 600; border: none; }
         .pagination .page-item.active .page-link { background-color: #198754; color: white; }
+        .form-select-sm-custom { font-size: 0.9rem; padding: 0.4rem 2rem 0.4rem 0.75rem; }
     </style>
 </head>
 <body>
@@ -266,8 +272,10 @@ if ($is_super_admin) {
                             <div class="card bg-light border-0 mb-4" id="filterCard" style="display: none; border-radius: 12px;">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between mb-3">
-                                        <h6 class="fw-bold mb-0 text-dark">ตั้งค่าการกรอง</h6>
-                                        <button class="btn btn-link btn-sm text-danger p-0" onclick="clearFilters()">ล้างค่าทั้งหมด</button>
+                                        <h6 class="fw-bold mb-0 text-dark"><i class="bi bi-sliders me-2"></i>ตั้งค่าการกรองข้อมูล</h6>
+                                        <button class="btn btn-link btn-sm text-danger p-0 text-decoration-none" onclick="clearFilters()">
+                                            <i class="bi bi-arrow-counterclockwise"></i> ล้างค่าทั้งหมด
+                                        </button>
                                     </div>
                                     <div class="row g-3">
                                         <div class="col-md-3">
@@ -307,18 +315,19 @@ if ($is_super_admin) {
                                         </div>
 
                                         <?php if ($is_super_admin): ?>
-                                            <div class="col-md-6 pt-2">
-                                                <label class="small fw-bold text-primary mb-1">ร้านค้า (Shop)</label>
-                                                <select id="shopFilter" class="form-select border-primary border-opacity-10 shadow-sm">
-                                                    <option value="">-- แสดงทุกร้าน --</option>
+                                            <div class="col-12"><hr class="my-2 opacity-10"></div>
+                                            <div class="col-md-6">
+                                                <label class="small fw-bold text-primary mb-1"><i class="bi bi-shop me-1"></i> ร้านค้า (Shop)</label>
+                                                <select id="shopFilter" class="form-select border-primary border-opacity-25 shadow-sm bg-primary bg-opacity-10">
+                                                    <option value="">-- แสดงทุกร้านค้า --</option>
                                                     <?php while ($s = $all_shops->fetch_assoc()): ?>
                                                         <option value="<?= $s['shop_id'] ?>"><?= htmlspecialchars($s['shop_name']) ?></option>
                                                     <?php endwhile; ?>
                                                 </select>
                                             </div>
-                                            <div class="col-md-6 pt-2">
-                                                <label class="small fw-bold text-primary mb-1">สาขา (Branch)</label>
-                                                <select id="branchFilter" class="form-select border-primary border-opacity-10 shadow-sm">
+                                            <div class="col-md-6">
+                                                <label class="small fw-bold text-primary mb-1"><i class="bi bi-geo-alt me-1"></i> สาขา (Branch)</label>
+                                                <select id="branchFilter" class="form-select border-primary border-opacity-25 shadow-sm bg-primary bg-opacity-10">
                                                     <option value="">-- แสดงทุกสาขา --</option>
                                                     <?php mysqli_data_seek($all_branches, 0);
                                                     while ($br = $all_branches->fetch_assoc()): ?>
@@ -336,15 +345,17 @@ if ($is_super_admin) {
                             <div class="row mb-4">
                                 <div class="col-md-5">
                                     <div class="input-group shadow-sm" style="border-radius: 10px; overflow: hidden;">
-                                        <span class="input-group-text bg-white border-0"><i class="bi bi-search"></i></span>
-                                        <input type="text" id="searchInput" class="form-control border-0" placeholder="ค้นหาชื่อสินค้า, รุ่น, หรือ Serial Number...">
+                                        <span class="input-group-text bg-white border-0 ps-3"><i class="bi bi-search text-muted"></i></span>
+                                        <input type="text" id="searchInput" class="form-control border-0 py-2" placeholder="ค้นหาชื่อสินค้า, รุ่น, รหัสสต็อก หรือ S/N...">
                                     </div>
                                 </div>
                             </div>
 
                             <div id="tableContainer">
                                 <div class="text-center py-5">
-                                    <div class="spinner-border text-success"></div>
+                                    <div class="spinner-border text-success" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
                                     <p class="mt-2 text-muted">กำลังดึงข้อมูลสต็อก...</p>
                                 </div>
                             </div>
@@ -364,12 +375,12 @@ if ($is_super_admin) {
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body text-center py-4">
-                    <p class="fs-5 mb-1">ต้องการลบสต็อกสินค้า <strong id="delName"></strong> ?</p>
-                    <p class="text-danger small mb-0">การลบสต็อกจะส่งผลต่อจำนวนสินค้าคงเหลือในระบบ</p>
+                    <p class="fs-5 mb-1">ต้องการลบสต็อกสินค้า <strong id="delName" class="text-danger"></strong> ?</p>
+                    <p class="text-secondary small mb-0">การลบสต็อกจะทำให้ข้อมูลหายไปจากระบบทันที</p>
                 </div>
                 <div class="modal-footer border-0 justify-content-center">
-                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">ยกเลิก</button>
-                    <a id="confirmDelBtn" href="#" class="btn btn-danger px-4">ยืนยันการลบ</a>
+                    <button type="button" class="btn btn-light px-4 rounded-pill" data-bs-dismiss="modal">ยกเลิก</button>
+                    <a id="confirmDelBtn" href="#" class="btn btn-danger px-4 rounded-pill">ยืนยันการลบ</a>
                 </div>
             </div>
         </div>
@@ -377,6 +388,7 @@ if ($is_super_admin) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // ฟังก์ชันดึงข้อมูลผ่าน AJAX
         function fetchStockData(page = 1) {
             const search = document.getElementById('searchInput').value;
             const brand = document.getElementById('brandFilter').value;
@@ -384,6 +396,8 @@ if ($is_super_admin) {
             const status = document.getElementById('statusFilter').value;
             const pMin = document.getElementById('pMinInput').value;
             const pMax = document.getElementById('pMaxInput').value;
+            
+            // รับค่าจาก Shop/Branch Filter (ถ้ามี)
             const shop = document.getElementById('shopFilter')?.value || '';
             const branch = document.getElementById('branchFilter')?.value || '';
 
@@ -400,11 +414,18 @@ if ($is_super_admin) {
                 branch_filter: branch
             });
 
+            // แสดง Loading เล็กๆ (Optional)
+            // document.getElementById('tableContainer').style.opacity = '0.5';
+
             fetch(`prod_stock.php?${params.toString()}`)
                 .then(res => res.text())
-                .then(data => document.getElementById('tableContainer').innerHTML = data);
+                .then(data => {
+                    document.getElementById('tableContainer').innerHTML = data;
+                    // document.getElementById('tableContainer').style.opacity = '1';
+                });
         }
 
+        // Toggle Filter Box
         function toggleFilter() {
             const card = document.getElementById('filterCard');
             const btnText = document.getElementById('filterBtnText');
@@ -417,31 +438,49 @@ if ($is_super_admin) {
             }
         }
 
+        // Clear All Filters
         function clearFilters() {
             ['brandFilter', 'typeFilter', 'statusFilter', 'pMinInput', 'pMaxInput', 'shopFilter', 'branchFilter'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) el.value = '';
             });
+            // รีเซ็ตตัวเลือกสาขาให้แสดงทั้งหมดก่อน
+            const branchSelect = document.getElementById('branchFilter');
+            if(branchSelect) {
+                Array.from(branchSelect.options).forEach(opt => opt.style.display = 'block');
+            }
             fetchStockData(1);
         }
 
+        // Event Listeners สำหรับการเปลี่ยนแปลงค่าต่างๆ
         ['searchInput', 'pMinInput', 'pMaxInput'].forEach(id => {
-            document.getElementById(id).addEventListener('input', () => fetchStockData(1));
+            const el = document.getElementById(id);
+            if(el) el.addEventListener('input', () => fetchStockData(1));
         });
+        
         ['brandFilter', 'typeFilter', 'statusFilter', 'shopFilter', 'branchFilter'].forEach(id => {
-            document.getElementById(id)?.addEventListener('change', () => fetchStockData(1));
+            const el = document.getElementById(id);
+            if(el) el.addEventListener('change', () => fetchStockData(1));
         });
 
+        // Logic กรองสาขา เมื่อเลือกร้านค้า
         document.getElementById('shopFilter')?.addEventListener('change', function() {
             const shopId = this.value;
             const branchSelect = document.getElementById('branchFilter');
-            branchSelect.value = '';
+            branchSelect.value = ''; // รีเซ็ตค่าสาขาที่เลือก
+            
             Array.from(branchSelect.options).forEach(opt => {
-                if (opt.value === '') opt.style.display = 'block';
-                else opt.style.display = (shopId === '' || opt.dataset.shop === shopId) ? 'block' : 'none';
+                if (opt.value === '') {
+                    opt.style.display = 'block'; // แสดงตัวเลือก "ทั้งหมด" เสมอ
+                } else {
+                    // แสดงเฉพาะสาขาที่ shop_id ตรงกัน หรือแสดงทั้งหมดถ้าไม่ได้เลือกร้าน
+                    opt.style.display = (shopId === '' || opt.dataset.shop === shopId) ? 'block' : 'none';
+                }
             });
+            fetchStockData(1); // รีโหลดข้อมูลทันที
         });
 
+        // Handle Pagination Clicks
         document.addEventListener('click', e => {
             if (e.target.classList.contains('ajax-page-link') || e.target.closest('.ajax-page-link')) {
                 e.preventDefault();
@@ -456,6 +495,7 @@ if ($is_super_admin) {
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         }
 
+        // โหลดข้อมูลครั้งแรก
         window.onload = () => fetchStockData();
     </script>
 </body>

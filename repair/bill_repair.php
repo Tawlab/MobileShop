@@ -3,6 +3,14 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'bill_repair');
 
+// ฟังก์ชันหา ID ถัดไป
+function getNextId($conn, $table, $column) {
+    $sql = "SELECT MAX($column) as max_id FROM $table";
+    $result = mysqli_query($conn, $sql);
+    $row = mysqli_fetch_assoc($result);
+    return ($row['max_id']) ? $row['max_id'] + 1 : 1;
+}
+
 //  ตรวจสอบ ID งานซ่อม
 if (!isset($_GET['id']) || empty($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสงานซ่อม";
@@ -71,11 +79,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
         list($type, $id) = explode('_', $item_value);
         $id = (int)$id;
 
+        $new_detail_id = getNextId($conn, 'bill_details', 'detail_id');
+
         // เตรียม SQL Insert (ใช้ร่วมกัน)
         $sql_insert = "INSERT INTO bill_details (
-            amount, price, bill_headers_bill_id, products_prod_id, prod_stocks_stock_id, 
+            detail_id, amount, price, bill_headers_bill_id, products_prod_id, prod_stocks_stock_id, 
             warranty_duration_months, warranty_note, create_at, update_at
-        ) VALUES (1, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
+        ) VALUES (?, 1, ?, ?, ?, ?, ?, ?, NOW(), NOW())";
 
         $stmt = $conn->prepare($sql_insert);
 
@@ -84,8 +94,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
             $stock_id = $id;
             $chk = $conn->query("SELECT products_prod_id FROM prod_stocks WHERE stock_id=$stock_id")->fetch_assoc();
             $prod_id = $chk['products_prod_id'];
-            $stmt->bind_param("diiiis", $price, $bill_id, $prod_id, $stock_id, $warranty_months, $warranty_note);
-            
+            $stmt->bind_param("idiiiis", $new_detail_id, $price, $bill_id, $prod_id, $stock_id, $warranty_months, $warranty_note);
+
             if ($stmt->execute()) {
                 // ตัดสต็อก -> เปลี่ยนสถานะเป็น 'Sold'
                 $conn->query("UPDATE prod_stocks SET stock_status='Sold' WHERE stock_id=$stock_id");
@@ -99,8 +109,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_item'])) {
         } elseif ($type === 'service') {
             // --- กรณีค่าบริการ (ไม่มีสต็อก) ---
             $prod_id = $id; 
-            $stock_id = NULL; // ค่าบริการไม่มี stock_id
-            $stmt->bind_param("diiiis", $price, $bill_id, $prod_id, $stock_id, $warranty_months, $warranty_note);
+            $stock_id = NULL;
+            $stmt->bind_param("idiiiis", $new_detail_id, $price, $bill_id, $prod_id, $stock_id, $warranty_months, $warranty_note);
             $stmt->execute();
         }
 

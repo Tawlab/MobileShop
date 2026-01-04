@@ -54,9 +54,11 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
 
     $action = $_REQUEST['ajax_action'];
 
-    // --- Action 1: โหลดข้อมูลตาม Shop ID ---
+    // --- Action 1: โหลดข้อมูลตาม Shop ID และ Branch ID ---
     if ($action == 'get_shop_data') {
         $target_shop_id = intval($_REQUEST['shop_id']);
+        // [แก้ไข] รับค่า Branch ID เข้ามาด้วย เพื่อกรอง Supplier/Employee
+        $target_branch_id = isset($_REQUEST['branch_id']) ? intval($_REQUEST['branch_id']) : 0;
 
         if (!$is_admin && $target_shop_id != $current_shop_id) {
             echo json_encode(['error' => 'Unauthorized']);
@@ -65,7 +67,7 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
 
         $response = [];
 
-        // 1. Branches (โหลดเฉพาะถ้าเป็น Admin เอาไว้เลือก ถ้า User ไม่ต้องใช้ส่วนนี้ในการแสดงผล Dropdown)
+        // 1. Branches (โหลดเฉพาะถ้าเป็น Admin เพื่อนำไปสร้าง Dropdown)
         $branches = [];
         if ($is_admin) {
             $sql = "SELECT branch_id, branch_name FROM branches WHERE shop_info_shop_id = $target_shop_id ORDER BY branch_name";
@@ -74,25 +76,28 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
         }
         $response['branches'] = $branches;
 
-        // 2. Suppliers
+        // 2. Suppliers ([แก้ไข] กรองตาม Branch ID)
         $suppliers = [];
-        $sql = "SELECT supplier_id, co_name FROM suppliers WHERE shop_info_shop_id = $target_shop_id ORDER BY co_name";
-        $res = $conn->query($sql);
-        while ($row = $res->fetch_assoc()) $suppliers[] = $row;
+        if ($target_branch_id > 0) {
+            $sql = "SELECT supplier_id, co_name FROM suppliers WHERE branches_branch_id = $target_branch_id ORDER BY co_name";
+            $res = $conn->query($sql);
+            while ($row = $res->fetch_assoc()) $suppliers[] = $row;
+        }
         $response['suppliers'] = $suppliers;
 
-        // 3. Employees (แสดงเฉพาะพนักงานของร้านนั้นๆ)
+        // 3. Employees ([แก้ไข] กรองตาม Branch ID)
         $employees = [];
-        $sql = "SELECT e.emp_id, e.firstname_th, e.lastname_th 
-                FROM employees e
-                LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
-                WHERE b.shop_info_shop_id = $target_shop_id AND e.emp_status = 'Active' 
-                ORDER BY e.firstname_th";
-        $res = $conn->query($sql);
-        while ($row = $res->fetch_assoc()) $employees[] = $row;
+        if ($target_branch_id > 0) {
+            $sql = "SELECT emp_id, firstname_th, lastname_th, emp_code
+                    FROM employees 
+                    WHERE branches_branch_id = $target_branch_id AND emp_status = 'Active' 
+                    ORDER BY firstname_th";
+            $res = $conn->query($sql);
+            while ($row = $res->fetch_assoc()) $employees[] = $row;
+        }
         $response['employees'] = $employees;
 
-        // 4. Products (รวมสินค้าส่วนกลาง shop_id=0)
+        // 4. Products (รวมสินค้าส่วนกลาง shop_id=0) -> [คงเดิม] อิงตาม Shop
         $products = [];
         $sql = "SELECT p.prod_id, p.prod_name, p.model_name, p.prod_price, pb.brand_name_th 
                 FROM products p
@@ -258,7 +263,7 @@ if ($is_admin) {
                                     <div class="col-md-6">
                                         <label class="form-label required-label">ร้านค้า (Shop)</label>
                                         <?php if ($is_admin): ?>
-                                            <select class="form-select select2" name="shop_id" id="shopSelect" onchange="loadShopData(this.value)">
+                                            <select class="form-select select2" name="shop_id" id="shopSelect" onchange="loadShopData(this.value, 0)">
                                                 <option value="">-- เลือกร้านค้า --</option>
                                                 <?php foreach ($shops_list as $shop): ?>
                                                     <option value="<?= $shop['shop_id'] ?>"><?= htmlspecialchars($shop['shop_name']) ?></option>
@@ -289,14 +294,14 @@ if ($is_admin) {
                                     <div class="col-md-6">
                                         <label class="form-label required-label">Supplier (ผู้จำหน่าย)</label>
                                         <select class="form-select select2" name="suppliers_supplier_id" id="supplierSelect" required>
-                                            <option value="">-- กรุณาเลือกร้านค้าก่อน --</option>
+                                            <option value="">-- กรุณาเลือกสาขาก่อน --</option>
                                         </select>
                                     </div>
 
                                     <div class="col-md-6">
                                         <label class="form-label required-label">พนักงานผู้รับเข้า</label>
                                         <select class="form-select select2" name="employees_emp_id" id="employeeSelect" required>
-                                            <option value="">-- กรุณาเลือกร้านค้าก่อน --</option>
+                                            <option value="">-- กรุณาเลือกสาขาก่อน --</option>
                                         </select>
                                     </div>
 
@@ -372,8 +377,16 @@ if ($is_admin) {
         $(document).ready(function() {
             $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
 
-            if (userShopId) {
-                loadShopData(userShopId);
+            if (!isAdmin) {
+                // User: โหลดข้อมูลโดยใช้ Shop ID และ Branch ID ของตัวเอง
+                loadShopData(userShopId, userBranchId);
+            }
+
+            // Admin: เมื่อเลือกสาขา ให้โหลดข้อมูล Supplier/Employee
+            if(isAdmin) {
+                $('#branchSelect').on('change', function() {
+                    loadShopData($('#shopSelect').val(), $(this).val());
+                });
             }
 
             // Bind Add Button
@@ -431,12 +444,19 @@ if ($is_admin) {
             });
         });
 
-        function loadShopData(shopId) {
+        // [แก้ไข] ฟังก์ชันรับ branchId เพิ่มเข้ามา
+        function loadShopData(shopId, branchId = 0) {
             if (!shopId) return;
 
-            $('#product-list-container').empty();
-            calculateTotals();
-            
+            // ไม่เคลียร์รายการสินค้าหากเป็นการเปลี่ยนสาขา (เพราะสินค้าผูกกับ Shop)
+            // แต่ถ้าเป็นการเปลี่ยน Shop (branchId == 0) ควรเคลียร์
+            if(isAdmin && branchId == 0) {
+                $('#product-list-container').empty();
+                calculateTotals();
+            } else if (!isAdmin && $('#product-list-container').children().length == 0) {
+                // User ทั่วไป โหลดครั้งแรก
+            }
+
             const btn = document.getElementById('btnSubmit');
             const originalBtnText = btn.innerHTML;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
@@ -445,7 +465,7 @@ if ($is_admin) {
             $.ajax({
                 url: 'add_purchase_order.php',
                 type: 'GET',
-                data: { ajax_action: 'get_shop_data', shop_id: shopId },
+                data: { ajax_action: 'get_shop_data', shop_id: shopId, branch_id: branchId },
                 dataType: 'json',
                 success: function(res) {
                     if (res.error) {
@@ -453,36 +473,42 @@ if ($is_admin) {
                         return;
                     }
 
-                    // Branches (เฉพาะ Admin เท่านั้นที่ต้อง Populate Dropdown)
-                    if (isAdmin) {
+                    // Branches (เฉพาะ Admin และเป็นการโหลดครั้งแรก/เปลี่ยน Shop)
+                    if (isAdmin && branchId == 0) {
                         let branchOpts = '<option value="">-- เลือกสาขา --</option>';
                         res.branches.forEach(b => {
-                            let selected = (userShopId && b.branch_id == userBranchId) ? 'selected' : '';
-                            branchOpts += `<option value="${b.branch_id}" ${selected}>${b.branch_name}</option>`;
+                            branchOpts += `<option value="${b.branch_id}">${b.branch_name}</option>`;
                         });
                         $('#branchSelect').html(branchOpts).trigger('change');
+                        
+                        // เคลียร์ Supplier/Employee รอเลือกสาขา
+                        $('#supplierSelect').html('<option value="">-- กรุณาเลือกสาขาก่อน --</option>').trigger('change');
+                        $('#employeeSelect').html('<option value="">-- กรุณาเลือกสาขาก่อน --</option>').trigger('change');
                     }
 
-                    // Suppliers
-                    let supOpts = '<option value="">-- เลือก Supplier --</option>';
-                    res.suppliers.forEach(s => {
-                        supOpts += `<option value="${s.supplier_id}">${s.co_name}</option>`;
-                    });
-                    $('#supplierSelect').html(supOpts).trigger('change');
+                    // Suppliers & Employees (โหลดเมื่อมี Branch ID)
+                    if (branchId > 0) {
+                        let supOpts = '<option value="">-- เลือก Supplier --</option>';
+                        res.suppliers.forEach(s => {
+                            supOpts += `<option value="${s.supplier_id}">${s.co_name}</option>`;
+                        });
+                        $('#supplierSelect').html(supOpts).trigger('change');
 
-                    // Employees
-                    let empOpts = '<option value="">-- เลือกพนักงาน --</option>';
-                    res.employees.forEach(e => {
-                        let selected = ''; 
-                        empOpts += `<option value="${e.emp_id}" ${selected}>${e.firstname_th} ${e.lastname_th}</option>`;
-                    });
-                    $('#employeeSelect').html(empOpts).trigger('change');
+                        let empOpts = '<option value="">-- เลือกพนักงาน --</option>';
+                        res.employees.forEach(e => {
+                            let selected = ''; 
+                            empOpts += `<option value="${e.emp_id}" ${selected}>${e.firstname_th} ${e.lastname_th} (${e.emp_code})</option>`;
+                        });
+                        $('#employeeSelect').html(empOpts).trigger('change');
+                    }
 
-                    // Products
+                    // Products (Always update as it depends on Shop)
                     currentProducts = res.products;
 
-                    // Add first row
-                    addProductRow();
+                    // Add first row if empty
+                    if ($('#product-list-container').children().length == 0) {
+                        addProductRow();
+                    }
 
                     btn.innerHTML = originalBtnText;
                     btn.disabled = false;

@@ -1,6 +1,459 @@
-<?php 
-require 'add_repair_logic.php'; 
+<?php
+session_start();
+
+// 1. เรียกใช้ Config และ Autoload
+require '../config/config.php';
+require '../vendor/autoload.php';
+
+// [FIX] เรียกไฟล์ PHPMailer โดยตรง (ป้องกัน Error Class not found)
+$vendorDir = '../vendor/phpmailer/phpmailer/src/';
+if (file_exists($vendorDir . 'Exception.php')) {
+    require_once $vendorDir . 'Exception.php';
+    require_once $vendorDir . 'PHPMailer.php';
+    require_once $vendorDir . 'SMTP.php';
+}
+
+checkPageAccess($conn, 'add_repair');
+
+// รับค่า Branch ID และ Shop ID ปัจจุบันของผู้ใช้จาก Session
+$current_branch_id = $_SESSION['branch_id'];
+$current_shop_id = $_SESSION['shop_id'];
+$current_user_id = $_SESSION['user_id'];
+
+// ตรวจสอบว่าเป็น Admin หรือไม่
+$is_admin = false;
+$chk_sql = "SELECT r.role_name FROM roles r 
+            JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+            WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt = $conn->prepare($chk_sql)) {
+    $stmt->bind_param("i", $current_user_id);
+    $stmt->execute();
+    if ($stmt->get_result()->num_rows > 0) $is_admin = true;
+    $stmt->close();
+}
+
+// [Admin] ดึงรายชื่อร้านค้าและสาขาทั้งหมดเตรียมไว้สำหรับ Dropdown
+$shops_list = [];
+$branches_list = [];
+if ($is_admin) {
+    // ดึงร้านค้า
+    $shop_res = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
+    while ($row = $shop_res->fetch_assoc()) {
+        $shops_list[] = $row;
+    }
+    // ดึงสาขา
+    $branch_res = $conn->query("SELECT branch_id, branch_name, shop_info_shop_id FROM branches ORDER BY branch_name");
+    while ($row = $branch_res->fetch_assoc()) {
+        $branches_list[] = $row;
+    }
+}
+
+// --- ดึงข้อมูลสำหรับ Dropdown ---
+
+// 1. ดึงรายชื่อลูกค้า
+$customers_list = [];
+$sql_cust = "SELECT cs_id, firstname_th, lastname_th, cs_phone_no, cs_email FROM customers";
+if (!$is_admin) {
+    // ถ้าไม่ใช่ Admin เห็นแค่ลูกค้าสาขาตัวเอง (หรือจะให้เห็นทั้งหมดก็ได้แล้วแต่นโยบายร้าน)
+    $sql_cust .= " WHERE branches_branch_id = '$current_branch_id'"; 
+}
+$sql_cust .= " ORDER BY firstname_th ASC";
+$res_cust = $conn->query($sql_cust);
+while($row = $res_cust->fetch_assoc()) {
+    $customers_list[] = $row;
+}
+
+// 2. ดึงรายชื่อพนักงาน
+$employees_list = [];
+$sql_emp = "SELECT emp_id, emp_code, firstname_th, lastname_th FROM employees WHERE emp_status = 'Active'";
+if (!$is_admin) {
+    // ถ้าไม่ใช่ Admin เห็นแค่พนักงานสาขาตัวเอง
+    $sql_emp .= " AND branches_branch_id = '$current_branch_id'";
+}
+$sql_emp .= " ORDER BY firstname_th ASC";
+$res_emp = $conn->query($sql_emp);
+while($row = $res_emp->fetch_assoc()) {
+    $employees_list[] = $row;
+}
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
+
+// -----------------------------------------------------------------------------
+//  SHARED FUNCTIONS
+// -----------------------------------------------------------------------------
+
+function getNextRepairId($conn)
+{
+    $sql = "SELECT IFNULL(MAX(repair_id), 100000) + 1 as next_id FROM repairs";
+    $result = mysqli_query($conn, $sql);
+    return mysqli_fetch_assoc($result)['next_id'];
+}
+
+function getNextStockId($conn)
+{
+    $sql = "SELECT IFNULL(MAX(stock_id), 100000) + 1 as next_id FROM prod_stocks";
+    $result = mysqli_query($conn, $sql);
+    return mysqli_fetch_assoc($result)['next_id'];
+}
+
+function getNextMovementId($conn)
+{
+    $sql = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
+    $result = mysqli_query($conn, $sql);
+    return mysqli_fetch_assoc($result)['next_id'];
+}
+
+function getNextBillId($conn)
+{
+    $sql = "SELECT IFNULL(MAX(bill_id), 0) + 1 as next_id FROM bill_headers";
+    $result = mysqli_query($conn, $sql);
+    return mysqli_fetch_assoc($result)['next_id'];
+}
+
+function getStockIdBySerial($conn, $serial)
+{
+    $sql = "SELECT stock_id, stock_status, products_prod_id FROM prod_stocks WHERE serial_no = ?";
+    $stmt = $conn->prepare($sql);
+    $stmt->bind_param("s", $serial);
+    $stmt->execute();
+    return $stmt->get_result()->fetch_assoc();
+}
+
+// --- ฟังก์ชันส่งอีเมล ---
+function sendJobOrderEmail($to_email, $customer_name, $repair_id, $device_name, $serial_no, $symptoms_txt, $shop_name, $sender_email, $sender_password)
+{
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $sender_email;
+        $mail->Password   = $sender_password;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+        $mail->CharSet    = 'UTF-8';
+
+        $mail->setFrom($sender_email, $shop_name);
+        $mail->addAddress($to_email, $customer_name);
+
+        $mail->isHTML(true);
+        $mail->Subject = "ใบรับซ่อม / Job Order Received (JOB #$repair_id)";
+
+        $bodyContent = "
+        <html>
+        <head>
+            <style>
+                body { font-family: 'Sarabun', Arial, sans-serif; color: #333; }
+                .container { width: 100%; max-width: 600px; margin: 0 auto; border: 1px solid #ddd; padding: 20px; }
+                .header { background-color: #f8f9fa; padding: 10px; text-align: center; border-bottom: 3px solid #198754; }
+                .content { padding: 20px 0; line-height: 1.6; }
+                .table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+                .table td { padding: 8px; border-bottom: 1px solid #eee; vertical-align: top; }
+                .footer { font-size: 12px; color: #777; text-align: center; margin-top: 30px; border-top: 1px dashed #ccc; padding-top: 10px; }
+                .badge { background-color: #0d6efd; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.9em; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <div class='header'>
+                    <h2 style='margin:0; color:#198754;'>$shop_name</h2>
+                    <p style='margin:5px 0 0;'>ใบรับซ่อม / JOB ORDER</p>
+                </div>
+                <div class='content'>
+                    <p>เรียนคุณ <strong>$customer_name</strong>,</p>
+                    <p>ทางร้านได้รับเครื่องของท่านเข้าระบบเรียบร้อยแล้ว รายละเอียดดังนี้:</p>
+                    <table class='table'>
+                        <tr><td width='35%'><strong>เลขที่ใบงาน:</strong></td><td><strong style='font-size:1.1em;'>#$repair_id</strong></td></tr>
+                        <tr><td><strong>วันที่รับเครื่อง:</strong></td><td>" . date("d/m/Y H:i") . "</td></tr>
+                        <tr><td><strong>อุปกรณ์:</strong></td><td>$device_name</td></tr>
+                        <tr><td><strong>Serial/IMEI:</strong></td><td>$serial_no</td></tr>
+                        <tr><td><strong>อาการเสีย:</strong></td><td>$symptoms_txt</td></tr>
+                        <tr><td><strong>สถานะ:</strong></td><td><span class='badge'>รับเครื่อง (Received)</span></td></tr>
+                    </table>
+                    <div style='margin-top: 25px; background-color: #e9ecef; padding: 15px; border-radius: 5px;'>
+                        ท่านสามารถนำเลขที่ใบงาน <strong>#$repair_id</strong> มาติดต่อสอบถามสถานะการซ่อมได้ที่ร้าน
+                    </div>
+                </div>
+                <div class='footer'>
+                    ขอบคุณที่ใช้บริการ <strong>$shop_name</strong><br>
+                    (อีเมลฉบับนี้ส่งจากระบบอัตโนมัติ กรุณาอย่าตอบกลับ)
+                </div>
+            </div>
+        </body>
+        </html>
+        ";
+
+        $mail->Body = $bodyContent;
+        $mail->AltBody = "ได้รับเครื่อง $device_name (Job #$repair_id) เรียบร้อยแล้ว";
+        $mail->send();
+        return true;
+    } catch (Exception $e) {
+        return false;
+    }
+}
+
+// -----------------------------------------------------------------------------
+// GET DATA
+// -----------------------------------------------------------------------------
+$symptoms_result = mysqli_query($conn, "SELECT symptom_id, symptom_name FROM symptoms ORDER BY symptom_name");
+
+// [Update Query] ดึงสินค้าตาม Shop (ถ้าเป็น Admin ตอนโหลดครั้งแรกอาจต้องดึงทั้งหมด หรือดึงตาม Shop แรก)
+// เพื่อความง่ายในหน้านี้ เราจะดึงของ Shop ปัจจุบัน หรือถ้า Admin ให้ดึงทั้งหมดเพื่อ Support การเลือก
+if ($is_admin) {
+    $products_result = mysqli_query($conn, "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th 
+                                            FROM products p 
+                                            LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
+                                            WHERE p.prod_types_type_id NOT IN (3, 4) 
+                                            ORDER BY p.prod_name");
+} else {
+    $products_result = mysqli_query($conn, "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th 
+                                            FROM products p 
+                                            LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
+                                            WHERE p.prod_types_type_id NOT IN (3, 4) AND p.shop_info_shop_id = '$current_shop_id'
+                                            ORDER BY p.prod_name");
+}
+mysqli_data_seek($products_result, 0);
+
+// -----------------------------------------------------------------------------
+//  AJAX HANDLER
+// -----------------------------------------------------------------------------
+if (isset($_POST['action'])) {
+    // ป้องกัน Output แทรก
+    ob_clean();
+    header('Content-Type: application/json');
+    $response = ['success' => false];
+
+    switch ($_POST['action']) {
+        case 'search_customer':
+            $search = mysqli_real_escape_string($conn, $_POST['query']);
+            $target_shop_id = isset($_POST['shop_id']) && !empty($_POST['shop_id']) ? (int)$_POST['shop_id'] : $current_shop_id;
+
+            $sql = "SELECT cs_id, firstname_th, lastname_th, cs_phone_no, cs_email 
+                    FROM customers 
+                    WHERE (cs_phone_no LIKE '%$search%' OR firstname_th LIKE '%$search%' OR lastname_th LIKE '%$search%') 
+                    AND shop_info_shop_id = '$target_shop_id' 
+                    LIMIT 10";
+            $result = mysqli_query($conn, $sql);
+            $customers = [];
+            while ($row = mysqli_fetch_assoc($result)) {
+                $customers[] = $row;
+            }
+            $response = ['success' => true, 'customers' => $customers];
+            break;
+
+        case 'search_employee':
+            $search = mysqli_real_escape_string($conn, $_POST['query']);
+            $target_shop_id = isset($_POST['shop_id']) && !empty($_POST['shop_id']) ? (int)$_POST['shop_id'] : $current_shop_id;
+
+            $sql = "SELECT e.emp_id, e.firstname_th, e.lastname_th, e.emp_code 
+                    FROM employees e
+                    LEFT JOIN branches b ON e.branches_branch_id = b.branch_id
+                    WHERE e.emp_status = 'Active' 
+                    AND b.shop_info_shop_id = '$target_shop_id'
+                    AND (e.firstname_th LIKE '%$search%' OR e.lastname_th LIKE '%$search%' OR e.emp_code LIKE '%$search%') 
+                    LIMIT 10";
+            $result = mysqli_query($conn, $sql);
+            $employees = [];
+            while ($row = mysqli_fetch_assoc($result)) {
+                $employees[] = $row;
+            }
+            $response = ['success' => true, 'employees' => $employees];
+            break;
+
+        case 'check_serial':
+            $serial = mysqli_real_escape_string($conn, $_POST['serial_no']);
+            $stock_info = getStockIdBySerial($conn, $serial);
+            if ($stock_info) {
+                $response['exists'] = true;
+                $response['stock_id'] = $stock_info['stock_id'];
+                $response['status'] = $stock_info['stock_status'];
+
+                // เพิ่มชื่อสินค้ากลับไปด้วย
+                $prod_id = $stock_info['products_prod_id'];
+                $res_p = $conn->query("SELECT prod_name FROM products WHERE prod_id = '$prod_id'");
+                if ($r_p = $res_p->fetch_assoc()) {
+                    $response['prod_name'] = $r_p['prod_name'];
+                }
+            } else {
+                $response['exists'] = false;
+            }
+            $response['success'] = true;
+            break;
+    }
+    echo json_encode($response);
+    exit;
+}
+
+// -----------------------------------------------------------------------------
+// บันทึก (SAVE)
+// -----------------------------------------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+
+    // 1. ตรวจสอบและรับค่า Shop/Branch (Logic ตาม Requirement ข้อ 1 และ 2)
+    if ($is_admin) {
+        // Admin: รับค่าจาก Dropdown
+        $target_shop_id = isset($_POST['selected_shop_id']) ? (int)$_POST['selected_shop_id'] : 0;
+        $target_branch_id = isset($_POST['selected_branch_id']) ? (int)$_POST['selected_branch_id'] : 0;
+
+        if ($target_shop_id == 0 || $target_branch_id == 0) {
+            $_SESSION['error'] = 'กรุณาเลือกร้านค้าและสาขาให้ครบถ้วน';
+            header('Location: add_repair.php');
+            exit;
+        }
+    } else {
+        // User: ใช้ค่าจาก Session เท่านั้น
+        $target_shop_id = $current_shop_id;
+        $target_branch_id = $current_branch_id;
+    }
+
+    // รับค่าอื่นๆ
+    $customer_id = (int)$_POST['customer_id'];
+    $employee_id = (int)$_POST['employee_id'];
+    $assigned_employee_id = (int)$_POST['assigned_employee_id'];
+    $serial_no = mysqli_real_escape_string($conn, trim($_POST['serial_no']));
+    $repair_desc = mysqli_real_escape_string($conn, trim($_POST['repair_desc']));
+    $symptom_ids = isset($_POST['symptoms']) ? array_unique($_POST['symptoms']) : [];
+    $is_new_device = (int)$_POST['is_new_device'];
+    $new_product_id = (int)$_POST['new_product_id'];
+    $device_description = mysqli_real_escape_string($conn, trim($_POST['device_description']));
+    $estimated_cost = floatval($_POST['estimated_cost']);
+    $accessories_list = mysqli_real_escape_string($conn, trim($_POST['accessories_list']));
+
+    if ($customer_id <= 0 || $employee_id <= 0 || $assigned_employee_id <= 0 || empty($serial_no) || empty($symptom_ids)) {
+        $_SESSION['error'] = 'กรุณากรอกข้อมูลสำคัญให้ครบถ้วน (ลูกค้า, พนักงาน, อาการเสีย, Serial Number)';
+        header('Location: add_repair.php');
+        exit;
+    }
+
+    mysqli_autocommit($conn, false);
+
+    try {
+        // [1] จัดการ Stock (ใช้ $target_branch_id)
+        $stock_info = getStockIdBySerial($conn, $serial_no);
+        $stock_id = 0;
+        $device_name_for_mail = "";
+
+        if ($stock_info) {
+            // เจอเครื่องเดิม
+            $stock_id = $stock_info['stock_id'];
+            $conn->query("UPDATE prod_stocks SET stock_status = 'Repair' WHERE stock_id = $stock_id");
+
+            $prod_id_ex = $stock_info['products_prod_id'];
+            $res_prod = $conn->query("SELECT prod_name FROM products WHERE prod_id = $prod_id_ex");
+            if ($r = $res_prod->fetch_assoc()) $device_name_for_mail = $r['prod_name'];
+        } else {
+            // เครื่องใหม่
+            if ($is_new_device != 1 || $new_product_id <= 0) throw new Exception('กรุณาเลือกรุ่นสินค้าสำหรับเครื่องใหม่');
+
+            $stock_id = getNextStockId($conn);
+            $stmt = $conn->prepare("INSERT INTO prod_stocks (stock_id, serial_no, price, stock_status, create_at, update_at, products_prod_id, branches_branch_id) VALUES (?, ?, 0.00, 'Repair', NOW(), NOW(), ?, ?)");
+            // บันทึกลงสาขาเป้าหมาย ($target_branch_id)
+            $stmt->bind_param("isii", $stock_id, $serial_no, $new_product_id, $target_branch_id);
+            $stmt->execute();
+            $stmt->close();
+
+            $res_prod = $conn->query("SELECT prod_name FROM products WHERE prod_id = $new_product_id");
+            if ($r = $res_prod->fetch_assoc()) $device_name_for_mail = $r['prod_name'];
+        }
+
+        // [2] สร้างบิลซ่อม
+        $bill_date = date('Y-m-d H:i:s');
+        $bill_status = 'Pending';
+        $bill_type = 'Repair';
+        $bill_id = getNextBillId($conn);
+
+        $sql_bill = "INSERT INTO bill_headers (
+            bill_id, bill_date, receipt_date, payment_method, bill_status, vat, comment, discount, 
+            customers_cs_id, bill_type, branches_branch_id, employees_emp_id, create_at, update_at
+        ) VALUES (
+            ?, ?, ?, 'Cash', ?, 7.00, 'เปิดบิลซ่อม (Job Order)', 0.00,
+            ?, ?, ?, ?, NOW(), NOW()
+        )";
+        $stmt_bill = $conn->prepare($sql_bill);
+        $stmt_bill->bind_param("isssisii", $bill_id, $bill_date, $bill_date, $bill_status, $customer_id, $bill_type, $target_branch_id, $employee_id);
+        if (!$stmt_bill->execute()) throw new Exception('สร้างบิลซ่อมไม่สำเร็จ: ' . $stmt_bill->error);
+        $stmt_bill->close();
+
+        // [3] Job Order
+        $repair_id = getNextRepairId($conn);
+        $sql_repair = "INSERT INTO repairs (
+            repair_id, customers_cs_id, employees_emp_id, assigned_employee_id, 
+            prod_stocks_stock_id, repair_desc, device_description, estimated_cost, 
+            accessories_list, repair_status, bill_headers_bill_id, branches_branch_id, create_at, update_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'รับเครื่อง', ?, ?, NOW(), NOW())";
+
+        $stmt_repair = $conn->prepare($sql_repair);
+        $stmt_repair->bind_param("iiiiissdsii", $repair_id, $customer_id, $employee_id, $assigned_employee_id, $stock_id, $repair_desc, $device_description, $estimated_cost, $accessories_list, $bill_id, $target_branch_id);
+
+        if (!$stmt_repair->execute()) throw new Exception('บันทึกงานซ่อมไม่สำเร็จ: ' . $stmt_repair->error);
+        $stmt_repair->close();
+
+        // [4] Stock Movement 
+        $movement_id = getNextMovementId($conn);
+        $sql_move = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) VALUES (?, 'IN', 'repairs', ?, NOW(), ?)";
+        $stmt_move = $conn->prepare($sql_move);
+        $stmt_move->bind_param("iii", $movement_id, $repair_id, $stock_id);
+        $stmt_move->execute();
+        $stmt_move->close();
+
+        // [5] Symptoms
+        $sql_symptoms = "INSERT INTO repair_symptoms (repairs_repair_id, symptoms_symptom_id) VALUES ";
+        $values = [];
+        $params = [];
+        $types = '';
+        $symptoms_text_arr = [];
+
+        foreach ($symptom_ids as $sid) {
+            $values[] = "(?, ?)";
+            $params[] = $repair_id;
+            $params[] = (int)$sid;
+            $types .= 'ii';
+            $res_sym = $conn->query("SELECT symptom_name FROM symptoms WHERE symptom_id = " . (int)$sid);
+            if ($row_sym = $res_sym->fetch_assoc()) $symptoms_text_arr[] = $row_sym['symptom_name'];
+        }
+        if (!empty($values)) {
+            $sql_symptoms .= implode(', ', $values);
+            $stmt_sym = $conn->prepare($sql_symptoms);
+            $stmt_sym->bind_param($types, ...$params);
+            $stmt_sym->execute();
+            $stmt_sym->close();
+        }
+
+        // [6] Log Status
+        $conn->query("INSERT INTO repair_status_log (repairs_repair_id, new_status, update_by_employee_id) VALUES ($repair_id, 'รับเครื่อง', $employee_id)");
+
+        mysqli_commit($conn);
+
+        // [7] Email
+        try {
+            $res_cust = $conn->query("SELECT firstname_th, lastname_th, cs_email FROM customers WHERE cs_id = $customer_id");
+            $cust_data = $res_cust->fetch_assoc();
+            $cust_email = $cust_data['cs_email'];
+            $cust_name = $cust_data['firstname_th'] . " " . $cust_data['lastname_th'];
+
+            $res_shop = $conn->query("SELECT shop_name, shop_email, shop_app_password FROM shop_info WHERE shop_id = '$target_shop_id' LIMIT 1");
+            $shop_data = $res_shop->fetch_assoc();
+            if ($shop_data && !empty($cust_email)) {
+                $symptoms_txt_mail = implode(", ", $symptoms_text_arr);
+                if (!empty($repair_desc)) $symptoms_txt_mail .= " (เพิ่มเติม: $repair_desc)";
+                @sendJobOrderEmail($cust_email, $cust_name, $repair_id, $device_name_for_mail, $serial_no, $symptoms_txt_mail, $shop_data['shop_name'], $shop_data['shop_email'], $shop_data['shop_app_password']);
+            }
+        } catch (Exception $mail_err) {
+        }
+
+        $_SESSION['success'] = "✅ รับเครื่องซ่อมสำเร็จ: Job #$repair_id";
+        header("Location: view_repair.php?id=$repair_id");
+        exit;
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        $_SESSION['error'] = '❌ เกิดข้อผิดพลาด: ' . $e->getMessage();
+        header('Location: add_repair.php');
+        exit;
+    }
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="th">
 
@@ -8,10 +461,127 @@ require 'add_repair_logic.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>รับเครื่องซ่อมใหม่ (Job Order)</title>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+
     <?php require '../config/load_theme.php'; ?>
-    <?php require 'add_repair_style.php'; ?>
+    <style>
+        body {
+            background-color: <?= $background_color ?>;
+            font-family: '<?= $font_style ?>';
+            color: <?= $text_color ?>;
+        }
+
+        .container {
+            max-width: 1200px;
+        }
+
+        h4 {
+            font-weight: 700;
+            color: <?= $theme_color ?>;
+        }
+
+        .form-section {
+            background: #fff;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 8px 15px rgba(0, 0, 0, 0.08);
+            margin-bottom: 25px;
+        }
+
+        .btn-success {
+            background-color: <?= $btn_add_color ?>;
+            border-color: <?= $btn_add_color ?>;
+        }
+
+        .btn-secondary {
+            background-color: #6c757d;
+            border-color: #6c757d;
+        }
+
+        .customer-combo-box,
+        .employee-combo-box {
+            position: relative;
+        }
+
+        .customer-info-box {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 15px;
+            min-height: 100px;
+        }
+
+        .serial-check-status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 6px;
+            display: none;
+            font-size: 0.9rem;
+        }
+
+        .serial-check-status.valid {
+            background-color: #d1e7dd;
+            color: #0f5132;
+        }
+
+        .serial-check-status.new {
+            background-color: #d1edff;
+            color: #0c63e4;
+        }
+
+        .serial-check-status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .symptom-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            padding: 10px 0;
+        }
+
+        .is-invalid {
+            border-color: #dc3545;
+        }
+
+        .is-invalid+.invalid-feedback {
+            display: block;
+        }
+
+        /* Combo box custom search results */
+        #customer_results,
+        #employee_results {
+            position: absolute;
+            z-index: 1000;
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            background: white;
+            border-radius: 0 0 8px 8px;
+        }
+
+        #customer_results .list-group-item,
+        #employee_results .list-group-item {
+            cursor: pointer;
+        }
+
+        .form-control[readonly] {
+            background-color: #f0f0f0;
+        }
+
+        /* ปรับแต่ง Select2 ให้เข้ากับ Theme */
+        .select2-container--bootstrap-5 .select2-selection {
+            border-color: #dee2e6;
+        }
+    </style>
 </head>
 
 <body>
@@ -23,7 +593,7 @@ require 'add_repair_logic.php';
                 <div class="container py-5">
                     <div class="card">
                         <div class="card-header bg-white">
-                            <h4 class="mb-0">
+                            <h4 class="mb-0" style="color: <?= $theme_color ?>;">
                                 <i class="fas fa-file-alt me-2"></i>
                                 ฟอร์มรับเครื่องซ่อม (Job Order)
                             </h4>
@@ -33,7 +603,8 @@ require 'add_repair_logic.php';
                             <?php if (isset($_SESSION['error'])): ?>
                                 <div class="alert alert-danger">
                                     <i class="fas fa-exclamation-triangle me-2"></i>
-                                    <?php echo $_SESSION['error']; unset($_SESSION['error']); ?>
+                                    <?php echo $_SESSION['error'];
+                                    unset($_SESSION['error']); ?>
                                 </div>
                             <?php endif; ?>
 
@@ -45,7 +616,7 @@ require 'add_repair_logic.php';
                                         <div class="row g-3">
                                             <div class="col-md-6">
                                                 <label class="form-label">ร้านค้า <span class="text-danger">*</span></label>
-                                                <select name="selected_shop_id" id="selected_shop_id" class="form-select" required>
+                                                <select name="selected_shop_id" id="selected_shop_id" class="form-select select2" required>
                                                     <option value="">-- เลือกร้านค้า --</option>
                                                     <?php foreach ($shops_list as $shop): ?>
                                                         <option value="<?= $shop['shop_id'] ?>" <?= ($shop['shop_id'] == $current_shop_id) ? 'selected' : '' ?>>
@@ -56,7 +627,7 @@ require 'add_repair_logic.php';
                                             </div>
                                             <div class="col-md-6">
                                                 <label class="form-label">สาขา <span class="text-danger">*</span></label>
-                                                <select name="selected_branch_id" id="selected_branch_id" class="form-select" required>
+                                                <select name="selected_branch_id" id="selected_branch_id" class="form-select select2" required>
                                                     <option value="">-- เลือกสาขา --</option>
                                                     <?php foreach ($branches_list as $br): ?>
                                                         <option value="<?= $br['branch_id'] ?>" data-shop="<?= $br['shop_info_shop_id'] ?>">
@@ -68,26 +639,28 @@ require 'add_repair_logic.php';
                                         </div>
                                     </div>
                                 <?php else: ?>
-                                    <input type="hidden" name="selected_shop_id" value="<?= $current_shop_id ?>">
-                                    <input type="hidden" name="selected_branch_id" value="<?= $current_branch_id ?>">
-                                <?php endif; ?>
-
-                                <div class="form-section">
+                                    <input type="hidden" name="selected_shop_id" id="selected_shop_id" value="<?= $current_shop_id ?>">
+                                    <input type="hidden" name="selected_branch_id" id="selected_branch_id" value="<?= $current_branch_id ?>">
+                                <?php endif; ?><div class="form-section">
                                     <h5><i class="fas fa-id-card-alt me-2"></i>ข้อมูลผู้เกี่ยวข้อง</h5>
                                     <div class="row g-4">
                                         <div class="col-md-6">
-                                            <label for="customer_display" class="form-label">ลูกค้าที่นำเครื่องมาซ่อม <span class="text-danger">*</span></label>
-                                            <div class="customer-combo-box input-group">
-                                                <input type="text" class="form-control" id="customer_display" placeholder="คลิกปุ่มเพื่อค้นหาลูกค้า" readonly required>
-                                                <input type="hidden" name="customer_id" id="customer_id" required>
-                                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#customerSearchModal" title="ค้นหาลูกค้า">
-                                                    <i class="fas fa-search"></i>
-                                                </button>
-                                                <a href="../customer/add_customer.php?return_to=<?= urlencode($_SERVER['REQUEST_URI']) ?>" class="btn btn-outline-success" title="เพิ่มลูกค้าใหม่">
+                                            <label for="customer_id" class="form-label">ลูกค้าที่นำเครื่องมาซ่อม <span class="text-danger">*</span></label>
+                                            <div class="d-flex">
+                                                <div class="flex-grow-1">
+                                                    <select name="customer_id" id="customer_id" class="form-select select2" required style="width: 100%;">
+                                                        <option value="">-- ค้นหาชื่อ หรือเบอร์โทรลูกค้า --</option>
+                                                        <?php foreach ($customers_list as $cust): ?>
+                                                            <option value="<?= $cust['cs_id'] ?>">
+                                                                <?= htmlspecialchars($cust['firstname_th'] . ' ' . $cust['lastname_th']) ?> (<?= $cust['cs_phone_no'] ?>)
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                                <a href="../customer/add_customer.php?return_to=<?= urlencode($_SERVER['REQUEST_URI']) ?>" class="btn btn-outline-success ms-2" title="เพิ่มลูกค้าใหม่">
                                                     <i class="fas fa-user-plus"></i>
                                                 </a>
                                             </div>
-                                            <div class="invalid-feedback">กรุณาเลือก/ค้นหาลูกค้าจากรายการ</div>
                                         </div>
 
                                         <div class="col-md-6">
@@ -97,27 +670,27 @@ require 'add_repair_logic.php';
                                         </div>
 
                                         <div class="col-md-6">
-                                            <label for="employee_display" class="form-label">พนักงานผู้รับเรื่อง <span class="text-danger">*</span></label>
-                                            <div class="employee-combo-box input-group">
-                                                <input type="text" class="form-control" id="employee_display" placeholder="คลิกปุ่มเพื่อค้นหาพนักงาน" readonly required>
-                                                <input type="hidden" name="employee_id" id="employee_id" required>
-                                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#employeeSearchModal" title="ค้นหาพนักงาน" onclick="setAssignedMode(false)">
-                                                    <i class="fas fa-search"></i>
-                                                </button>
-                                            </div>
-                                            <div class="invalid-feedback">กรุณาเลือกพนักงานจากรายการ</div>
+                                            <label for="employee_id" class="form-label">พนักงานผู้รับเรื่อง <span class="text-danger">*</span></label>
+                                            <select name="employee_id" id="employee_id" class="form-select select2" required style="width: 100%;">
+                                                <option value="">-- ระบุพนักงาน --</option>
+                                                <?php foreach ($employees_list as $emp): ?>
+                                                    <option value="<?= $emp['emp_id'] ?>" <?= ($emp['emp_id'] == $current_user_id) ? 'selected' : '' ?>>
+                                                        <?= htmlspecialchars($emp['firstname_th'] . ' ' . $emp['lastname_th']) ?> (<?= $emp['emp_code'] ?>)
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
 
                                         <div class="col-md-6">
-                                            <label for="assigned_employee_display" class="form-label">ช่างผู้รับผิดชอบงานซ่อม <span class="text-danger">*</span></label>
-                                            <div class="employee-combo-box input-group">
-                                                <input type="text" class="form-control" id="assigned_employee_display" placeholder="คลิกปุ่มเพื่อค้นหาช่าง" readonly required>
-                                                <input type="hidden" name="assigned_employee_id" id="assigned_employee_id" required>
-                                                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#employeeSearchModal" title="ค้นหาช่าง" onclick="setAssignedMode(true)">
-                                                    <i class="fas fa-search"></i>
-                                                </button>
-                                            </div>
-                                            <div class="invalid-feedback">กรุณาเลือกช่างผู้รับผิดชอบจากรายการ</div>
+                                            <label for="assigned_employee_id" class="form-label">ช่างผู้รับผิดชอบงานซ่อม <span class="text-danger">*</span></label>
+                                            <select name="assigned_employee_id" id="assigned_employee_id" class="form-select select2" required style="width: 100%;">
+                                                <option value="">-- ระบุช่างซ่อม --</option>
+                                                <?php foreach ($employees_list as $emp): ?>
+                                                    <option value="<?= $emp['emp_id'] ?>">
+                                                        <?= htmlspecialchars($emp['firstname_th'] . ' ' . $emp['lastname_th']) ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            </select>
                                         </div>
                                     </div>
                                 </div>
@@ -134,7 +707,7 @@ require 'add_repair_logic.php';
 
                                         <div class="col-md-6" id="new_device_select" style="display:none;">
                                             <label for="new_product_id" class="form-label">รุ่นสินค้า (ถ้าเป็นเครื่องใหม่) <span class="text-danger">*</span></label>
-                                            <select class="form-select" name="new_product_id" id="new_product_id">
+                                            <select class="form-select select2" name="new_product_id" id="new_product_id" style="width: 100%;">
                                                 <option value="">-- เลือกรุ่นสินค้า --</option>
                                                 <?php mysqli_data_seek($products_result, 0); ?>
                                                 <?php while ($p = mysqli_fetch_assoc($products_result)): ?>
@@ -230,7 +803,9 @@ require 'add_repair_logic.php';
                                             </tr>
                                         </thead>
                                         <tbody id="modal_customer_results">
-                                            <tr><td colspan="5" class="text-center text-muted">เริ่มพิมพ์เพื่อค้นหาลูกค้า...</td></tr>
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted">เริ่มพิมพ์เพื่อค้นหาลูกค้า...</td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -264,7 +839,9 @@ require 'add_repair_logic.php';
                                             </tr>
                                         </thead>
                                         <tbody id="modal_employee_results">
-                                            <tr><td colspan="4" class="text-center text-muted">เริ่มพิมพ์เพื่อค้นหาพนักงาน...</td></tr>
+                                            <tr>
+                                                <td colspan="4" class="text-center text-muted">เริ่มพิมพ์เพื่อค้นหาพนักงาน...</td>
+                                            </tr>
                                         </tbody>
                                     </table>
                                 </div>
@@ -276,8 +853,16 @@ require 'add_repair_logic.php';
             </div>
         </div>
     </div>
-    
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+    <script>
+        // แปลงข้อมูลสาขาทั้งหมดจาก PHP เป็น JS Object เพื่อใช้กรอง
+        const allBranches = <?php echo json_encode($branches_list); ?>;
+    </script>
+
     <script>
         let isAssignedMode = false;
 
@@ -285,6 +870,45 @@ require 'add_repair_logic.php';
             isAssignedMode = state;
         }
 
+        $(document).ready(function() {
+            // 1. เปิดใช้งาน Select2 สำหรับ Dropdown ที่มี class .select2
+            $('.select2').select2({
+                theme: "bootstrap-5",
+                width: '100%',
+                placeholder: "กรุณาเลือกข้อมูล",
+                allowClear: true
+            });
+
+            // 2. Logic สำหรับ Admin: กรองสาขาตามร้านค้า
+            const $shopSelect = $('#selected_shop_id');
+            const $branchSelect = $('#selected_branch_id');
+
+            if ($shopSelect.length > 0) {
+                $shopSelect.on('change', function() {
+                    const selectedShopId = $(this).val();
+
+                    // ล้างข้อมูลสาขาเดิม
+                    $branchSelect.empty().append('<option value="">-- เลือกสาขา --</option>');
+
+                    // กรองเฉพาะสาขาที่ตรงกับ Shop ID
+                    if (selectedShopId && allBranches.length > 0) {
+                        const filteredBranches = allBranches.filter(b => b.shop_info_shop_id == selectedShopId);
+
+                        filteredBranches.forEach(branch => {
+                            const option = new Option(branch.branch_name, branch.branch_id);
+                            // เก็บ data attribute เผื่อใช้
+                            $(option).attr('data-shop', branch.shop_info_shop_id);
+                            $branchSelect.append(option);
+                        });
+                    }
+
+                    // อัปเดต Select2 ของสาขาให้แสดงผลใหม่
+                    $branchSelect.trigger('change');
+                });
+            }
+        });
+
+        // --- Customer Search Logic (ใช้ Modal เหมือนเดิม) ---
         const customerSearchModal = new bootstrap.Modal(document.getElementById('customerSearchModal'));
         const customerIdInput = document.getElementById('customer_id');
         const customerDisplayInput = document.getElementById('customer_display');
@@ -298,11 +922,13 @@ require 'add_repair_logic.php';
                 return;
             }
 
-            const currentShopId = document.getElementById('selected_shop_id') ? document.getElementById('selected_shop_id').value : '<?= $current_shop_id ?>';
+            const currentShopId = document.getElementById('selected_shop_id').value;
 
             fetch('', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
                     body: `action=search_customer&query=${query}&shop_id=${currentShopId}`
                 })
                 .then(res => res.json())
@@ -321,8 +947,7 @@ require 'add_repair_logic.php';
                                         onclick="selectCustomerInForm(${customer.cs_id}, '${customer.firstname_th}', '${customer.lastname_th}', '${customer.cs_phone_no}', '${customer.cs_email || ''}')">
                                     <i class="fas fa-check"></i> เลือก
                                 </button>
-                            </td>
-                        `;
+                            </td>`;
                             resultsBody.appendChild(row);
                         });
                     } else {
@@ -359,13 +984,7 @@ require 'add_repair_logic.php';
             searchCustomerInModal(document.getElementById('modal_customer_search').value.trim());
         });
 
-        document.getElementById('customerSearchModal').addEventListener('shown.bs.modal', function() {
-            document.getElementById('modal_customer_search').value = '';
-            document.getElementById('modal_customer_search').focus();
-            document.getElementById('modal_customer_results').innerHTML = '<tr><td colspan="5" class="text-center text-muted">เริ่มพิมพ์เพื่อค้นหาลูกค้า...</td></tr>';
-        });
-
-        // --- Employee Search ---
+        // --- Employee Search Logic ---
         const employeeSearchModal = new bootstrap.Modal(document.getElementById('employeeSearchModal'));
         const employeeIdInput = document.getElementById('employee_id');
         const employeeDisplayInput = document.getElementById('employee_display');
@@ -381,11 +1000,13 @@ require 'add_repair_logic.php';
                 return;
             }
 
-            const currentShopId = document.getElementById('selected_shop_id') ? document.getElementById('selected_shop_id').value : '<?= $current_shop_id ?>';
+            const currentShopId = document.getElementById('selected_shop_id').value;
 
             fetch('', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
                     body: `action=search_employee&query=${query}&shop_id=${currentShopId}`
                 })
                 .then(res => res.json())
@@ -403,8 +1024,7 @@ require 'add_repair_logic.php';
                                         onclick="selectEmployeeInForm(${employee.emp_id}, '${employee.firstname_th}', '${employee.lastname_th}', '${employee.emp_code || ''}')">
                                     <i class="fas fa-check"></i> เลือก
                                 </button>
-                            </td>
-                        `;
+                            </td>`;
                             resultsBody.appendChild(row);
                         });
                     } else {
@@ -446,7 +1066,7 @@ require 'add_repair_logic.php';
             searchEmployeeInModal(document.getElementById('modal_employee_search').value.trim());
         });
 
-        // --- Serial Check ---
+        // --- Serial Number Check Logic ---
         document.getElementById('serial_no').addEventListener('input', function() {
             const serial = this.value.trim();
             const statusDiv = document.getElementById('serial_status');
@@ -463,7 +1083,9 @@ require 'add_repair_logic.php';
 
             fetch('', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded'
+                    },
                     body: `action=check_serial&serial_no=${serial}`
                 })
                 .then(res => res.json())
@@ -476,8 +1098,7 @@ require 'add_repair_logic.php';
                     if (data.success) {
                         if (data.exists) {
                             statusDiv.classList.add('valid');
-                            statusDiv.innerHTML = `<i class="fas fa-check-circle me-1"></i> Serial นี้มีในระบบแล้ว (Stock ID: ${data.stock_id}). สถานะปัจจุบัน: <strong>${data.status}</strong>.`;
-                            newDeviceSelect.style.display = 'none';
+                            statusDiv.innerHTML = `<i class="fas fa-check-circle me-1"></i> Serial นี้มีในระบบแล้ว (สินค้า: ${data.prod_name || '-'}).`;
                             document.getElementById('serial_no').classList.remove('is-invalid');
                         } else {
                             statusDiv.classList.add('new');
@@ -488,102 +1109,75 @@ require 'add_repair_logic.php';
                         }
                     } else {
                         statusDiv.classList.add('error');
-                        statusDiv.innerHTML = `<i class="fas fa-times-circle me-1"></i> เกิดข้อผิดพลาดในการตรวจสอบ Serial.`;
-                        document.getElementById('serial_no').classList.add('is-invalid');
+                        statusDiv.innerHTML = `<i class="fas fa-times-circle me-1"></i> เกิดข้อผิดพลาด.`;
                     }
                 });
         });
 
-        // --- Form Submit ---
+        // --- Form Submission Validation ---
         document.getElementById('repairForm').addEventListener('submit', function(e) {
             let isValid = true;
-            const customerId = document.getElementById('customer_id');
-            const employeeId = document.getElementById('employee_id');
-            const assignedEmployeeId = document.getElementById('assigned_employee_id');
-            const serialNo = document.getElementById('serial_no');
-            const selectedSymptoms = document.querySelectorAll('.symptom-checkbox:checked').length;
-            const isNewDevice = document.getElementById('is_new_device').value === '1';
-            const newProductId = document.getElementById('new_product_id');
-            const estimatedCost = document.getElementById('estimated_cost');
 
-            const checkField = (field) => {
-                if (!field.value.trim() || field.classList.contains('is-invalid')) {
+            const fieldsToCheck = [
+                document.getElementById('customer_id'),
+                document.getElementById('employee_id'),
+                document.getElementById('assigned_employee_id'),
+                document.getElementById('serial_no'),
+                document.getElementById('estimated_cost')
+            ];
+
+            // เช็ค Admin Select
+            const shopSelect = document.getElementById('selected_shop_id');
+            const branchSelect = document.getElementById('selected_branch_id');
+            if (shopSelect && shopSelect.value == "") {
+                isValid = false;
+            }
+            if (branchSelect && branchSelect.value == "") {
+                isValid = false;
+            }
+
+            fieldsToCheck.forEach(field => {
+                if (!field.value.trim()) {
                     field.classList.add('is-invalid');
                     isValid = false;
                 } else {
                     field.classList.remove('is-invalid');
                 }
-            };
+            });
 
-            checkField(customerId);
-            checkField(employeeId);
-            checkField(assignedEmployeeId);
-            checkField(serialNo);
-
-            if (estimatedCost.value.trim() === '' || parseFloat(estimatedCost.value) < 0) {
-                estimatedCost.classList.add('is-invalid');
-                isValid = false;
-            } else {
-                estimatedCost.classList.remove('is-invalid');
-            }
-
-            if (selectedSymptoms === 0) {
+            // เช็คอาการเสีย
+            if (document.querySelectorAll('.symptom-checkbox:checked').length === 0) {
                 isValid = false;
                 document.querySelector('.symptom-grid').style.border = '1px solid #dc3545';
             } else {
                 document.querySelector('.symptom-grid').style.border = 'none';
             }
 
-            if (isNewDevice) {
-                checkField(newProductId);
+            // เช็คเครื่องใหม่
+            if (document.getElementById('is_new_device').value === '1') {
+                const newProd = document.getElementById('new_product_id');
+                if (!newProd.value) {
+                    // ถ้าใช้ Select2 ต้องแจ้งเตือนที่ตัว Select2 หรือ Container
+                    alert('กรุณาเลือกรุ่นสินค้าสำหรับเครื่องใหม่');
+                    isValid = false;
+                }
             }
 
             if (!isValid) {
                 e.preventDefault();
-                document.getElementById('submitBtn').disabled = false;
                 alert('กรุณากรอกข้อมูลที่จำเป็นทั้งหมดให้ถูกต้อง');
                 return;
             }
 
-            const customerNameText = document.getElementById('customer_info_box').innerText.split('\n')[0].replace('ลูกค้า:', '').trim();
-            const confirmRepair = confirm(
-                `ยืนยันการรับเครื่องซ่อม:\n` +
-                `ลูกค้า: ${customerNameText}\n` +
-                `Serial No: ${serialNo.value}\n` +
-                `ค่าซ่อมประเมิน: ฿${parseFloat(estimatedCost.value).toLocaleString()}\n` +
-                `สถานะ: รับเครื่อง\n\n` +
-                `ระบบจะบันทึกเครื่องเข้าสต็อกในสถานะ 'Repair' และสร้าง Job Order ใหม่\n` +
-                `ดำเนินการต่อหรือไม่?`
-            );
-
-            if (!confirmRepair) {
+            if (!confirm('ยืนยันการเปิดใบรับซ่อมหรือไม่?')) {
                 e.preventDefault();
                 return;
             }
 
-            document.getElementById('submitBtn').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>กำลังบันทึก...';
             document.getElementById('submitBtn').disabled = true;
+            document.getElementById('submitBtn').innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>กำลังบันทึก...';
         });
-
-        // สคริปต์กรองสาขา (Admin)
-        const shopSelect = document.getElementById('selected_shop_id');
-        const branchSelect = document.getElementById('selected_branch_id');
-
-        if (shopSelect && branchSelect && shopSelect.tagName === 'SELECT') {
-            shopSelect.addEventListener('change', function() {
-                const selectedShop = this.value;
-                branchSelect.value = "";
-                Array.from(branchSelect.options).forEach(option => {
-                    if (option.value === "") return;
-                    if (option.getAttribute('data-shop') == selectedShop) {
-                        option.style.display = 'block';
-                    } else {
-                        option.style.display = 'none';
-                    }
-                });
-            });
-            shopSelect.dispatchEvent(new Event('change'));
-        }
     </script>
 </body>
+
 </html>
