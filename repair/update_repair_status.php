@@ -85,8 +85,9 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $repair_id = (int)$_GET['id'];
 $current_emp_id = $_SESSION['emp_id'] ?? 1;
+$current_user_id = $_SESSION['user_id']; 
 
-// ดึงข้อมูลงานซ่อม + สถานะบิล
+// ดึงข้อมูลงานซ่อม + สถานะบิล (รวมถึงสาขาของงานซ่อม branches_branch_id)
 $sql = "SELECT r.*, 
         c.firstname_th AS cus_name, c.lastname_th AS cus_lastname, c.cs_email,
         p.prod_name, p.model_name, b.brand_name_th, s.serial_no,
@@ -107,9 +108,33 @@ if (!$repair) {
     exit;
 }
 
-// ดึงรายชื่อช่าง
-$emp_sql = "SELECT emp_id, firstname_th, lastname_th, emp_code FROM employees WHERE emp_status = 'Active'";
+// --- [แก้ไข] ตรวจสอบ Admin เพื่อกำหนดการดึงรายชื่อช่าง ---
+$is_admin = false;
+$chk_sql = "SELECT r.role_name FROM roles r 
+            JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+            WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt = $conn->prepare($chk_sql)) {
+    $stmt->bind_param("i", $current_user_id);
+    $stmt->execute();
+    if ($stmt->get_result()->num_rows > 0) $is_admin = true;
+    $stmt->close();
+}
+
+// กำหนดสาขาที่จะดึงพนักงาน
+if ($is_admin) {
+    // ถ้าเป็น Admin ให้ดึงพนักงานจาก "สาขาของงานซ่อมนี้"
+    $target_branch_id = $repair['branches_branch_id'];
+} else {
+    // ถ้าเป็น User ทั่วไป ให้ดึงพนักงานจาก "สาขาตัวเอง"
+    $target_branch_id = $_SESSION['branch_id'];
+}
+
+// ดึงรายชื่อช่าง (ตามเงื่อนไขสาขา)
+$emp_sql = "SELECT emp_id, firstname_th, lastname_th, emp_code 
+            FROM employees 
+            WHERE emp_status = 'Active' AND branches_branch_id = '$target_branch_id'";
 $emp_result = mysqli_query($conn, $emp_sql);
+
 
 // ============================================================================
 // HANDLE POST REQUEST
@@ -223,6 +248,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    
     <?php require '../config/load_theme.php'; ?>
 
     <style>
@@ -231,7 +259,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --bg-color: <?= $background_color ?>;
         }
         
-        /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
         *, *::before, *::after {
             box-sizing: border-box; 
         }
@@ -294,10 +321,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             border: 2px solid #fff;
             box-shadow: 0 0 0 2px #e9ecef;
         }
+        
+        /* Select2 Style Override */
+        .select2-container .select2-selection--single {
+            height: 48px; /* Match form-select-lg */
+            border: 1px solid #dee2e6;
+            border-radius: 0.375rem;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
+            line-height: 46px;
+            padding-left: 12px;
+        }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
+            height: 46px;
+        }
 
-        /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
-        /* -------------------------------------------------------------------- */
         @media (max-width: 767.98px) {
             .container {
                 max-width: 100%;
@@ -305,28 +343,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             .card-custom {
-                border-radius: 0; /* ทำให้เต็มขอบจอ */
+                border-radius: 0;
                 box-shadow: none;
                 margin-top: 10px;
                 margin-bottom: 10px;
             }
 
             .card-body {
-                padding: 15px; /* ลด Padding ใน Body Card */
+                padding: 15px;
             }
             
-            /* 2. จัดการ Header/Title */
             .card-header-custom {
                 font-size: 1rem;
                 padding: 10px 15px;
             }
 
-            /* 3. จัดการ Info Row */
             .row > div[class*='col-'] {
                 margin-bottom: 5px; 
             }
             
-            /* 4. จัดการ Info Label/Value */
             .info-label {
                 font-size: 0.8rem;
             }
@@ -335,21 +370,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 font-size: 0.9rem;
             }
             
-            /* 5. จัดการ Timeline */
             .timeline {
-                 margin-left: 0; /* ลบ margin เพื่อให้ Timeline ชิดซ้ายมากขึ้น */
+                 margin-left: 0;
                  padding-left: 15px;
             }
             
             .timeline-item {
-                 margin-bottom: 15px; /* ลดระยะห่าง Timeline Item */
+                 margin-bottom: 15px;
             }
             
             .timeline-item::before {
-                 left: -17px; /* ปรับตำแหน่งวงกลม */
+                 left: -17px;
             }
             
-            /* 6. ทำให้ปุ่มหลัก (ถ้ามี) เรียงเป็นแนวตั้ง */
             .d-flex.justify-content-end.no-print {
                 flex-direction: column;
                 gap: 10px;
@@ -361,10 +394,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-
-        /* --- PRINT CSS (A4 Standard) --- */
         @media print {
-            /* ... โค้ด Print เดิม ... */
             @page {
                 size: A4;
                 margin: 10mm;
@@ -401,104 +431,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             .card-body {
                 padding: 10px !important;
-            }
-
-            .print-header {
-                display: flex;
-                justify-content: space-between;
-                border-bottom: 2px solid #000;
-                padding-bottom: 10px;
-                margin-bottom: 15px;
-            }
-
-            .shop-info h3 {
-                font-size: 18pt;
-                font-weight: bold;
-                margin: 0;
-            }
-
-            .job-title {
-                font-size: 16pt;
-                font-weight: bold;
-                text-transform: uppercase;
-                background: #eee;
-                padding: 5px 10px;
-                border: 1px solid #000;
-                display: inline-block;
-            }
-
-            .print-row {
-                display: flex;
-                flex-wrap: wrap;
-                margin: 0 -5px;
-            }
-
-            .print-col-6 {
-                width: 50%;
-                padding: 0 5px;
-                box-sizing: border-box;
-            }
-
-            .print-col-12 {
-                width: 100%;
-                padding: 0 5px;
-                box-sizing: border-box;
-            }
-
-            .section-box {
-                border: 1px solid #000;
-                padding: 10px;
-                margin-bottom: 10px;
-            }
-
-            .section-title {
-                font-weight: bold;
-                border-bottom: 1px solid #ccc;
-                padding-bottom: 5px;
-                margin-bottom: 5px;
-                font-size: 12pt;
-            }
-
-            .terms-box {
-                font-size: 9pt;
-                color: #444;
-                margin-top: 15px;
-                border: 1px dotted #999;
-                padding: 8px;
-                text-align: justify;
-            }
-
-            .signature-area {
-                display: flex;
-                justify-content: space-between;
-                margin-top: 40px;
-                margin-bottom: 20px;
-            }
-
-            .sign-box {
-                width: 45%;
-                text-align: center;
-                border-top: 1px solid #000;
-                padding-top: 5px;
-            }
-
-            .print-footer {
-                border-top: 1px dashed #000;
-                padding-top: 10px;
-                margin-top: 10px;
-                font-size: 10pt;
-                text-align: center;
-                font-style: italic;
-            }
-        }
-
-        .print-only {
-            display: none;
-        }
-
-        @media print {
-            .print-only {
-                display: block;
             }
         }
     </style>
@@ -569,11 +501,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                                             <div class="col-md-6">
                                                 <label class="form-label fw-bold">ช่างผู้รับผิดชอบ</label>
-                                                <select name="assigned_emp" class="form-select form-select-lg">
+                                                <select name="assigned_emp" class="form-select form-select-lg select2">
                                                     <option value="">-- ระบุช่าง --</option>
                                                     <?php while ($emp = mysqli_fetch_assoc($emp_result)): ?>
                                                         <option value="<?= $emp['emp_id'] ?>" <?= ($emp['emp_id'] == $repair['assigned_employee_id']) ? 'selected' : '' ?>>
-                                                            <?= $emp['firstname_th'] ?> <?= $emp['lastname_th'] ?>
+                                                            <?= $emp['firstname_th'] ?> <?= $emp['lastname_th'] ?> (<?= $emp['emp_code'] ?>)
                                                         </option>
                                                     <?php endwhile; ?>
                                                 </select>
@@ -612,9 +544,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
+        $(document).ready(function() {
+            // Initialize Select2
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                width: '100%',
+                placeholder: '-- ค้นหาช่าง --',
+                allowClear: true
+            });
+        });
+
         const isPaid = <?= $repair['bill_status'] == 'Completed' ? 'true' : 'false' ?>;
         const isCancelled = <?= $repair['repair_status'] == 'ยกเลิก' ? 'true' : 'false' ?>;
 

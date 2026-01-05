@@ -22,21 +22,24 @@ if ($stmt = $conn->prepare($chk_sql)) {
 // -----------------------------------------------------------------------------
 // HELPER FUNCTIONS
 // -----------------------------------------------------------------------------
-function getNextMovementId($conn) {
+function getNextMovementId($conn)
+{
     $sql = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
     $result = mysqli_query($conn, $sql);
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
 // [ใหม่] ฟังก์ชันหา bill_id ถัดไป
-function getNextBillId($conn) {
+function getNextBillId($conn)
+{
     $sql = "SELECT IFNULL(MAX(bill_id), 0) + 1 as next_id FROM bill_headers";
     $result = mysqli_query($conn, $sql);
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
 // [ใหม่] ฟังก์ชันหา detail_id ล่าสุด (สำหรับรายการสินค้า)
-function getNextBillDetailId($conn) {
+function getNextBillDetailId($conn)
+{
     $sql = "SELECT IFNULL(MAX(detail_id), 0) as max_id FROM bill_details";
     $result = mysqli_query($conn, $sql);
     $row = mysqli_fetch_assoc($result);
@@ -53,12 +56,15 @@ if (isset($_GET['ajax_action'])) {
     // 1. โหลดสาขา (ตามร้านค้า)
     if ($action == 'get_branches' && isset($_GET['shop_id'])) {
         $shop_id = (int)$_GET['shop_id'];
-        if (!$is_admin && $shop_id != $current_shop_id) { echo json_encode([]); exit; }
+        if (!$is_admin && $shop_id != $current_shop_id) {
+            echo json_encode([]);
+            exit;
+        }
 
         $sql = "SELECT branch_id, branch_name FROM branches WHERE shop_info_shop_id = $shop_id ORDER BY branch_name";
         $res = $conn->query($sql);
         $data = [];
-        while($row = $res->fetch_assoc()) $data[] = $row;
+        while ($row = $res->fetch_assoc()) $data[] = $row;
         echo json_encode($data);
         exit;
     }
@@ -74,7 +80,7 @@ if (isset($_GET['ajax_action'])) {
                     ORDER BY firstname_th";
         $emp_res = $conn->query($emp_sql);
         $employees = [];
-        while($row = $emp_res->fetch_assoc()) $employees[] = $row;
+        while ($row = $emp_res->fetch_assoc()) $employees[] = $row;
 
         // B. ดึงลูกค้า (Customers) - ของสาขานั้นๆ
         $cust_sql = "SELECT cs_id, firstname_th, lastname_th FROM customers 
@@ -82,7 +88,7 @@ if (isset($_GET['ajax_action'])) {
                      ORDER BY firstname_th";
         $cust_res = $conn->query($cust_sql);
         $customers = [];
-        while($row = $cust_res->fetch_assoc()) $customers[] = $row;
+        while ($row = $cust_res->fetch_assoc()) $customers[] = $row;
 
         // C. ดึงสินค้า (Stocks)
         $stock_sql = "SELECT ps.stock_id, ps.serial_no, ps.price, p.prod_id, p.prod_name, p.model_name
@@ -90,7 +96,7 @@ if (isset($_GET['ajax_action'])) {
                       JOIN products p ON ps.products_prod_id = p.prod_id
                       WHERE ps.branches_branch_id = $branch_id 
                       AND (ps.stock_status = 'In Stock'";
-        
+
         if ($bill_id_edit > 0) {
             $stock_sql .= " OR ps.stock_id IN (SELECT prod_stocks_stock_id FROM bill_details WHERE bill_headers_bill_id = $bill_id_edit)";
         }
@@ -98,10 +104,10 @@ if (isset($_GET['ajax_action'])) {
 
         $stock_res = $conn->query($stock_sql);
         $stocks = [];
-        while($row = $stock_res->fetch_assoc()) $stocks[] = $row;
+        while ($row = $stock_res->fetch_assoc()) $stocks[] = $row;
 
         echo json_encode([
-            'employees' => $employees, 
+            'employees' => $employees,
             'customers' => $customers,
             'stocks' => $stocks
         ]);
@@ -126,22 +132,22 @@ $existing_items = [];
 // ตรวจสอบโหมดแก้ไข
 if (isset($_GET['id']) && is_numeric($_GET['id'])) {
     $bill_id = (int)$_GET['id'];
-    
+
     $sql_head = "SELECT b.*, br.shop_info_shop_id 
                  FROM bill_headers b
                  JOIN branches br ON b.branches_branch_id = br.branch_id
                  WHERE b.bill_id = $bill_id AND b.bill_status = 'Pending'";
-    
+
     if (!$is_admin) {
         $sql_head .= " AND b.branches_branch_id = $current_branch_id";
     }
 
     $res_head = mysqli_query($conn, $sql_head);
-    
+
     if ($res_head && mysqli_num_rows($res_head) > 0) {
         $edit_mode = true;
         $head = mysqli_fetch_assoc($res_head);
-        
+
         $selected_shop = $head['shop_info_shop_id'];
         $selected_branch = $head['branches_branch_id'];
         $selected_customer = $head['customers_cs_id'];
@@ -183,12 +189,12 @@ if ($filter_branch > 0) {
     // 1. Customers
     $c_sql = "SELECT cs_id, firstname_th, lastname_th FROM customers WHERE branches_branch_id = $filter_branch ORDER BY firstname_th";
     $c_res = mysqli_query($conn, $c_sql);
-    while($r = mysqli_fetch_assoc($c_res)) $customers_list[] = $r;
+    while ($r = mysqli_fetch_assoc($c_res)) $customers_list[] = $r;
 
     // 2. Employees
     $e_sql = "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE branches_branch_id = $filter_branch AND emp_status = 'Active' ORDER BY firstname_th";
     $e_res = mysqli_query($conn, $e_sql);
-    while($r = mysqli_fetch_assoc($e_res)) $employees_list[] = $r;
+    while ($r = mysqli_fetch_assoc($e_res)) $employees_list[] = $r;
 
     // 3. Stocks (Initial for PHP Variable -> JS)
     $s_sql = "SELECT ps.stock_id, ps.serial_no, ps.price, p.prod_id, p.prod_name, p.model_name
@@ -198,14 +204,14 @@ if ($filter_branch > 0) {
               AND ps.stock_status = 'In Stock'
               ORDER BY p.prod_name, ps.serial_no";
     $s_res = mysqli_query($conn, $s_sql);
-    while($r = mysqli_fetch_assoc($s_res)) $stocks_list[] = $r;
+    while ($r = mysqli_fetch_assoc($s_res)) $stocks_list[] = $r;
 }
 
 // Shops (Only for Admin Dropdown)
 $shops = [];
 if ($is_admin) {
     $shop_res = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
-    while($row = $shop_res->fetch_assoc()) $shops[] = $row;
+    while ($row = $shop_res->fetch_assoc()) $shops[] = $row;
 }
 
 // -----------------------------------------------------------------------------
@@ -214,7 +220,7 @@ if ($is_admin) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
 
     $target_branch_id = $is_admin ? (int)$_POST['branch_id'] : $current_branch_id;
-    
+
     if ($is_admin && empty($target_branch_id)) {
         $error = "กรุณาเลือกสาขาที่จะทำรายการขาย";
     } else {
@@ -224,7 +230,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
         $discount    = isset($_POST['discount']) ? floatval($_POST['discount']) : 0.00;
         $comment     = mysqli_real_escape_string($conn, $_POST['comment'] ?? '');
         $bill_date   = date('Y-m-d H:i:s');
-        
+
         $current_bill_id = !empty($_POST['bill_id']) ? (int)$_POST['bill_id'] : 0;
 
         mysqli_autocommit($conn, false);
@@ -246,7 +252,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                 if (!$stmt->execute()) throw new Exception("อัปเดตบิลไม่สำเร็จ");
                 $stmt->close();
                 $bill_id = $current_bill_id;
-
             } else {
                 // [แก้ไข] สร้างบิลใหม่แบบ Manual ID
                 $bill_id = getNextBillId($conn);
@@ -279,7 +284,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                 // ตรวจสอบสาขาของสินค้า
                 $res_chk = $conn->query("SELECT products_prod_id, branches_branch_id, stock_status FROM prod_stocks WHERE stock_id = $sid");
                 $row_chk = $res_chk->fetch_assoc();
-                
+
                 if (!$row_chk) throw new Exception("ไม่พบสินค้า Stock ID: $sid");
                 if ($row_chk['branches_branch_id'] != $target_branch_id) throw new Exception("สินค้า (ID: $sid) ไม่ได้อยู่ในสาขาที่เลือก");
                 if ($row_chk['stock_status'] != 'In Stock') throw new Exception("สินค้า (ID: $sid) ถูกขายไปแล้ว");
@@ -293,7 +298,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                 $stmt2 = $conn->prepare($sql_detail);
                 // bind_param: i(detail_id) i(amount) d(price) i(bill_id) i(prod_id) i(stock_id)
                 $stmt2->bind_param('iidiii', $running_detail_id, $qty, $price, $bill_id, $prod_id, $sid);
-                
+
                 if (!$stmt2->execute()) throw new Exception("บันทึกรายการสินค้าไม่สำเร็จ");
                 $stmt2->close();
 
@@ -317,7 +322,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             mysqli_commit($conn);
             header("Location: payment_select.php?id=" . $bill_id);
             exit;
-
         } catch (Exception $e) {
             mysqli_rollback($conn);
             $error = "เกิดข้อผิดพลาด: " . $e->getMessage();
@@ -328,6 +332,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
 
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <title>เปิดบิลขายสินค้า</title>
@@ -336,7 +341,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-    
+
     <?php require '../config/load_theme.php'; ?>
     <style>
         body {
@@ -344,6 +349,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             font-family: '<?= $font_style ?>', sans-serif;
             color: <?= $text_color ?>;
         }
+
         .container-box {
             background: #fff;
             padding: 30px;
@@ -351,14 +357,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
             margin-top: 30px;
         }
-        .header-text { color: <?= $theme_color ?>; font-weight: bold; }
-        .required-mark { color: red; }
-        
+
+        .header-text {
+            color: <?= $theme_color ?>;
+            font-weight: bold;
+        }
+
+        .required-mark {
+            color: red;
+        }
+
         @media (max-width: 991.98px) {
-            .container-box { padding: 20px; margin-top: 15px; border-radius: 0; }
-            .table th, .table td { padding: 0.5rem; font-size: 0.8rem; white-space: nowrap; }
-            .table .form-control, .table .form-select { padding: 0.4rem; font-size: 0.75rem; min-width: 80px; }
-            .d-grid .btn { width: 100% !important; margin-bottom: 10px; }
+            .container-box {
+                padding: 20px;
+                margin-top: 15px;
+                border-radius: 0;
+            }
+
+            .table th,
+            .table td {
+                padding: 0.5rem;
+                font-size: 0.8rem;
+                white-space: nowrap;
+            }
+
+            .table .form-control,
+            .table .form-select {
+                padding: 0.4rem;
+                font-size: 0.75rem;
+                min-width: 80px;
+            }
+
+            .d-grid .btn {
+                width: 100% !important;
+                margin-bottom: 10px;
+            }
         }
     </style>
 </head>
@@ -372,7 +405,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                 <div class="container container-box">
                     <h3 class="header-text mb-4">
                         <i class="fas <?= $edit_mode ? 'fa-edit' : 'fa-cash-register' ?> me-2"></i>
-                        <?= $edit_mode ? 'แก้ไขบิลขายสินค้า (POS) #'.$bill_id : 'เปิดบิลขายสินค้า (POS)' ?>
+                        <?= $edit_mode ? 'แก้ไขบิลขายสินค้า (POS) #' . $bill_id : 'เปิดบิลขายสินค้า (POS)' ?>
                     </h3>
 
                     <?php if (isset($error)): ?>
@@ -380,14 +413,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                     <?php endif; ?>
 
                     <form action="" method="post" id="saleForm">
-                        
-                        <?php if($edit_mode): ?>
+
+                        <?php if ($edit_mode): ?>
                             <input type="hidden" name="bill_id" value="<?= $bill_id ?>">
                         <?php endif; ?>
 
                         <?php if ($is_admin): ?>
                             <div class="row g-3 mb-3 p-3 bg-light rounded border">
-                                <div class="col-md-12"><h6 class="text-primary"><i class="fas fa-store me-2"></i>เลือกสาขาที่ทำรายการ</h6></div>
+                                <div class="col-md-12">
+                                    <h6 class="text-primary"><i class="fas fa-store me-2"></i>เลือกสาขาที่ทำรายการ</h6>
+                                </div>
                                 <div class="col-md-6">
                                     <label class="form-label">ร้านค้า <span class="required-mark">*</span></label>
                                     <select name="shop_id" id="shopSelect" class="form-select select2" required>
@@ -425,12 +460,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    
-                                    <a href="../customer/add_customer.php?return_to=<?= urlencode($_SERVER['REQUEST_URI']) ?>" 
-                                       class="btn btn-outline-success ms-2" 
-                                       target="_blank" 
-                                       title="เพิ่มลูกค้าใหม่"
-                                       style="width: 42px; display: flex; align-items: center; justify-content: center;">
+
+                                    <a href="../customer/add_customer.php?return_to=<?= urlencode($_SERVER['REQUEST_URI']) ?>"
+                                        class="btn btn-outline-success ms-2"
+                                        target="_blank"
+                                        title="เพิ่มลูกค้าใหม่"
+                                        style="width: 42px; display: flex; align-items: center; justify-content: center;">
                                         <i class="fas fa-plus"></i>
                                     </a>
                                 </div>
@@ -493,12 +528,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                     </form>
                 </div>
 
-                <div id="initData" 
-                     data-selected-branch="<?= $selected_branch ?>" 
-                     data-selected-employee="<?= $selected_employee ?>"
-                     data-selected-customer="<?= $selected_customer ?>"
-                     data-edit-bill-id="<?= $bill_id ?>"
-                     style="display:none;"></div>
+                <div id="initData"
+                    data-selected-branch="<?= $selected_branch ?>"
+                    data-selected-employee="<?= $selected_employee ?>"
+                    data-selected-customer="<?= $selected_customer ?>"
+                    data-edit-bill-id="<?= $bill_id ?>"
+                    style="display:none;"></div>
                 <div id="stockData" style="display:none;"><?= json_encode($stocks_list) ?></div>
                 <div id="existingItemsData" style="display:none;"><?= json_encode($existing_items) ?></div>
 
@@ -515,12 +550,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
         let existingItems = [];
 
         $(document).ready(function() {
-            $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
 
             try {
                 currentBranchStocks = JSON.parse($('#stockData').html());
                 existingItems = JSON.parse($('#existingItemsData').html());
-            } catch(e) {}
+            } catch (e) {}
 
             $('#shopSelect').change(function() {
                 const shopId = $(this).val();
@@ -537,32 +575,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
 
             if ($('#shopSelect').is('select') && initShop) {
                 loadBranches(initShop, initBranch);
-            } 
-            
+            }
+
             if (existingItems.length > 0) {
                 existingItems.forEach(item => addRow(item.stock_id, item.price));
             } else {
-                if(currentBranchStocks.length > 0) addRow();
+                if (currentBranchStocks.length > 0) addRow();
             }
         });
 
         function loadBranches(shopId, preSelectBranch = '') {
             const branchSelect = $('#branchSelect');
             branchSelect.html('<option value="">กำลังโหลด...</option>');
-            
+
             if (!shopId) {
                 branchSelect.html('<option value="">-- กรุณาเลือกร้านค้าก่อน --</option>');
                 return;
             }
 
-            $.get('add_sale.php', { ajax_action: 'get_branches', shop_id: shopId }, function(data) {
+            $.get('add_sale.php', {
+                ajax_action: 'get_branches',
+                shop_id: shopId
+            }, function(data) {
                 let options = '<option value="">-- เลือกสาขา --</option>';
                 data.forEach(b => {
                     const sel = (b.branch_id == preSelectBranch) ? 'selected' : '';
                     options += `<option value="${b.branch_id}" ${sel}>${b.branch_name}</option>`;
                 });
                 branchSelect.html(options);
-                
+
                 if (preSelectBranch) {
                     loadBranchResources(preSelectBranch);
                 }
@@ -572,7 +613,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
         function loadBranchResources(branchId) {
             const empSelect = $('#employeeSelect');
             const custSelect = $('#customerSelect');
-            
+
             if (!branchId) {
                 empSelect.html('<option value="">-- เลือกสาขาก่อน --</option>');
                 custSelect.html('<option value="">-- เลือกสาขาก่อน --</option>');
@@ -584,8 +625,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             const preSelectEmp = $('#initData').data('selected-employee');
             const preSelectCust = $('#initData').data('selected-customer');
 
-            $.get('add_sale.php', { ajax_action: 'get_branch_resources', branch_id: branchId, bill_id: billId }, function(data) {
-                
+            $.get('add_sale.php', {
+                ajax_action: 'get_branch_resources',
+                branch_id: branchId,
+                bill_id: billId
+            }, function(data) {
+
                 let empOptions = '<option value="">-- เลือกพนักงาน --</option>';
                 data.employees.forEach(e => {
                     const sel = (e.emp_id == preSelectEmp) ? 'selected' : '';
@@ -607,47 +652,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
 
                 if (!isInitialLoad) {
                     tableBody.empty();
-                    addRow(); 
+                    addRow();
                 }
 
             }, 'json');
         }
 
-        function buildStockOptions(selectedId = null) {
+        // [แก้ไข] เพิ่ม parameter excludeIds เพื่อรับรายการ ID ที่ต้องซ่อน
+        function buildStockOptions(selectedId = null, excludeIds = []) {
             let options = '<option value="">-- เลือกสินค้า --</option>';
+
             currentBranchStocks.forEach(s => {
-                const isSelected = (selectedId == s.stock_id) ? 'selected' : '';
-                options += `<option value="${s.stock_id}" data-price="${s.price}" ${isSelected}>
-                    ${s.prod_name} ${s.model_name} (SN: ${s.serial_no})
-                </option>`;
+                const stockId = parseInt(s.stock_id);
+                const selId = selectedId ? parseInt(selectedId) : null;
+                if (stockId === selId || !excludeIds.includes(stockId)) {
+                    const isSelected = (selId === stockId) ? 'selected' : '';
+                    options += `<option value="${s.stock_id}" data-price="${s.price}" ${isSelected}>
+                ${s.prod_name} ${s.model_name} (SN: ${s.serial_no})
+            </option>`;
+                }
             });
             return options;
         }
 
+        // [เพิ่มใหม่] ฟังก์ชันสำหรับอัปเดตตัวเลือกสินค้าในทุกแถว
+        function refreshStockDropdowns() {
+            // 1. รวบรวม Stock ID ทั้งหมดที่ถูกเลือกไปแล้วในขณะนี้
+            let usedIds = [];
+            $('.stock-select').each(function() {
+                const val = $(this).val();
+                if (val) {
+                    usedIds.push(parseInt(val));
+                }
+            });
+
+            // 2. วนลูปทุก Dropdown เพื่อสร้าง Option ใหม่ โดยส่ง usedIds ไปตัดออก
+            $('.stock-select').each(function() {
+                const $select = $(this);
+                const currentVal = $select.val(); // เก็บค่าปัจจุบันไว้ก่อน
+
+                // สร้าง HTML option ใหม่ โดยส่ง currentVal และ usedIds ไปด้วย
+                const newOptions = buildStockOptions(currentVal, usedIds);
+
+                // อัปเดต HTML ใน select
+                $select.html(newOptions);
+
+                // เนื่องจากค่า value อาจจะถูกรีเซ็ตตอน .html() ให้เรา set ค่าเดิมกลับเข้าไป
+                if (currentVal) {
+                    $select.val(currentVal);
+                }
+            });
+        }
+
         function addRow(stockId = null, price = null) {
+            // ตรวจสอบว่ามีข้อมูลสินค้าหรือไม่ (ป้องกันกดเพิ่มตอนยังไม่เลือกสาขา)
             if (currentBranchStocks.length === 0 && $('#branchSelect').length > 0 && !$('#branchSelect').val()) {
                 return;
             }
 
+            // สร้าง HTML ของแถวใหม่
             const html = `
-                <tr>
-                    <td>
-                        <select name="stock_ids[]" class="form-select stock-select" onchange="updatePrice(this)" required>
-                            ${buildStockOptions(stockId)}
-                        </select>
-                    </td>
-                    <td>
-                        <input type="number" name="prices[]" class="form-control text-end price-input" 
-                               value="${price !== null ? price : ''}" 
-                               min="0" step="0.01" onchange="calcTotal()" oninput="calcTotal()" required>
-                    </td>
-                    <td class="text-center">
-                        <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
-                    </td>
-                </tr>
-            `;
+        <tr>
+            <td>
+                <select name="stock_ids[]" class="form-select stock-select" onchange="updatePrice(this)" required>
+                    ${buildStockOptions(stockId)}
+                </select>
+            </td>
+            <td>
+                <input type="number" name="prices[]" class="form-control text-end price-input" 
+                       value="${price !== null ? price : ''}" 
+                       min="0" step="0.01" onchange="calcTotal()" oninput="calcTotal()" required>
+            </td>
+            <td class="text-center">
+                <button type="button" class="btn btn-sm btn-danger" onclick="removeRow(this)"><i class="fas fa-times"></i></button>
+            </td>
+        </tr>
+    `;
+
+            // เพิ่มแถวลงในตาราง
             $('#productTable tbody').append(html);
-            $('#productTable tbody tr:last .stock-select').select2({ theme: 'bootstrap-5', width: '100%' });
+
+            // เปิดใช้งาน Select2 สำหรับแถวล่าสุด
+            $('#productTable tbody tr:last .stock-select').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
+
+            // [สำคัญ] เรียก Refresh เพื่อซ่อนสินค้าที่ถูกเลือกไปแล้วในทุก Dropdown
+            refreshStockDropdowns();
+
+            // คำนวณยอดเงินรวมใหม่
             calcTotal();
         }
 
@@ -655,14 +749,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             const price = $(select).find(':selected').data('price');
             const row = $(select).closest('tr');
             const priceInput = row.find('.price-input');
-            if(priceInput.val() === '' || priceInput.val() == 0) {
+
+            if (priceInput.val() === '' || priceInput.val() == 0) {
                 priceInput.val(price || 0);
             }
+
+            refreshStockDropdowns();
+
             calcTotal();
         }
-        
+
         window.removeRow = function(btn) {
             $(btn).closest('tr').remove();
+
+            refreshStockDropdowns();
+
             calcTotal();
         }
 
@@ -680,8 +781,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
 
             if (grandTotal < 0) grandTotal = 0;
 
-            $('#grandTotal').text(grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2 }));
+            $('#grandTotal').text(grandTotal.toLocaleString('en-US', {
+                minimumFractionDigits: 2
+            }));
         }
     </script>
 </body>
+
 </html>

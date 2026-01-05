@@ -3,446 +3,282 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_purchase_order');
 
-// -----------------------------------------------------------------------------
-// VALIDATE & GET PO ID
-// -----------------------------------------------------------------------------
-$po_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
-if ($po_id <= 0) {
-    $_SESSION['error'] = 'ไม่พบรหัสใบสั่งซื้อ (PO) ที่ต้องการแก้ไข';
-    header('Location: purchase_order.php');
-    exit;
-}
+$current_user_id = $_SESSION['user_id'];
+$current_shop_id = $_SESSION['shop_id'];
 
 // -----------------------------------------------------------------------------
-// บันทึกการแก้ไข)
+// 1. จัดการ AJAX Request (สำหรับการบันทึกข้อมูล)
 // -----------------------------------------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_po') {
+    
+    // ตั้งค่า Header ให้ตอบกลับเป็น JSON
+    ob_clean(); 
+    header('Content-Type: application/json');
 
-    $po_id = (int)$_POST['po_id'];
-    $purchase_date = mysqli_real_escape_string($conn, $_POST['purchase_date']);
-    $supplier_id = (int)$_POST['supplier_id'];
-    $branch_id = (int)$_POST['branch_id'];
-    $employee_id = (int)$_POST['employee_id'];
-
-    $items_data = $_POST['items'] ?? []; 
-
-    // Validation
-    if (empty($items_data)) {
-        $_SESSION['error'] = 'ไม่สามารถบันทึก PO ที่ไม่มีรายการสินค้า (อย่างน้อย 1 รายการ)';
-        header('Location: edit_purchase_order.php?id=' . $po_id);
-        exit;
-    }
-
-    mysqli_autocommit($conn, false); 
+    $response = ['success' => false, 'message' => ''];
 
     try {
+        $po_id = isset($_POST['po_id']) ? (int)$_POST['po_id'] : 0;
+        $purchase_date = mysqli_real_escape_string($conn, $_POST['purchase_date']);
+        $supplier_id = (int)$_POST['supplier_id'];
+        $employee_id = (int)$_POST['employee_id'];
+        
+        // รับค่า Branch ID เดิม (ไม่ต้องให้เลือกใหม่ แต่ต้องส่งมาเพื่อความชัวร์)
+        $branch_id = (int)$_POST['branch_id'];
+
+        $items_data = $_POST['items'] ?? [];
+
+        if ($po_id <= 0 || empty($purchase_date) || $supplier_id <= 0 || $employee_id <= 0) {
+            throw new Exception("กรุณากรอกข้อมูลหลักให้ครบถ้วน (วันที่, Supplier, พนักงาน)");
+        }
+
+        if (empty($items_data)) {
+            throw new Exception("ต้องมีรายการสินค้าอย่างน้อย 1 รายการ");
+        }
+
+        mysqli_autocommit($conn, false);
+
+        // 1. อัปเดต Header
         $sql_header = "UPDATE purchase_orders SET 
                         purchase_date = ?, 
                         suppliers_supplier_id = ?, 
-                        branches_branch_id = ?, 
-                        employees_emp_id = ?
-                       WHERE purchase_id = ?";
+                        employees_emp_id = ?,
+                        update_at = NOW()
+                       WHERE purchase_id = ? AND branches_branch_id = ?"; // เช็ค Branch เพื่อความปลอดภัย
         $stmt_header = $conn->prepare($sql_header);
-        $stmt_header->bind_param("siiii", $purchase_date, $supplier_id, $branch_id, $employee_id, $po_id);
+        $stmt_header->bind_param("siiii", $purchase_date, $supplier_id, $employee_id, $po_id, $branch_id);
+        
         if (!$stmt_header->execute()) {
-            throw new Exception("ไม่สามารถอัปเดต PO Header: " . $stmt_header->error);
+            throw new Exception("บันทึกข้อมูลหลักไม่สำเร็จ: " . $stmt_header->error);
         }
         $stmt_header->close();
 
-        // ดึง ID รายการสินค้าเก่าทั้งหมด 
-        $old_item_ids_sql = "SELECT order_id FROM order_details WHERE purchase_orders_purchase_id = $po_id";
-        $old_item_result = mysqli_query($conn, $old_item_ids_sql);
-        $old_item_ids = [];
-        while ($row = mysqli_fetch_assoc($old_item_result)) {
-            $old_item_ids[$row['order_id']] = $row['order_id']; 
+        // 2. จัดการรายการสินค้า (Items)
+        
+        // ดึง ID รายการเดิมที่มีใน DB เพื่อเปรียบเทียบการลบ
+        $old_ids = [];
+        $res_old = $conn->query("SELECT order_id FROM order_details WHERE purchase_orders_purchase_id = $po_id");
+        while($row = $res_old->fetch_assoc()) {
+            $old_ids[] = $row['order_id'];
         }
 
-        // วนลูปรายการสินค้าที่ส่งมา
-        foreach ($items_data as $item_key => $item) {
+        $submitted_ids = []; // เก็บ ID ที่ส่งมาจากฟอร์ม
+
+        foreach ($items_data as $item) {
             $order_detail_id = (int)$item['order_detail_id'];
             $product_id = (int)$item['product_id'];
             $amount = (int)$item['amount'];
             $price = floatval($item['price']);
 
-            if ($product_id <= 0 || $amount <= 0 || $price < 0) {
-                throw new Exception("ข้อมูลสินค้า (ID: $product_id) ไม่ถูกต้อง (จำนวนหรือราคา)");
-            }
+            if ($product_id <= 0 || $amount <= 0) continue;
 
-            // ตรวจสอบว่าสินค้านี้เคยถูกรับเข้าสต็อกไปแล้วหรือยัง
-            $received_count = 0;
+            $submitted_ids[] = $order_detail_id;
+
+            // ตรวจสอบการรับของ (Stock Movement Check)
+            $received_qty = 0;
             if ($order_detail_id > 0) {
-                $check_received_sql = "SELECT COUNT(*) as cnt FROM stock_movements WHERE ref_table = 'order_details' AND ref_id = ?";
-                $stmt_check = $conn->prepare($check_received_sql);
-                $stmt_check->bind_param("i", $order_detail_id);
-                $stmt_check->execute();
-                $received_count = (int)$stmt_check->get_result()->fetch_assoc()['cnt'];
-                $stmt_check->close();
+                $chk_stk = $conn->query("SELECT COUNT(*) as c FROM stock_movements WHERE ref_table = 'order_details' AND ref_id = $order_detail_id");
+                $received_qty = $chk_stk->fetch_assoc()['c'];
             }
 
-            // กรณี "รายการใหม่" 
             if ($order_detail_id == 0) {
-                $sql_insert = "INSERT INTO order_details (purchase_orders_purchase_id, products_prod_id, amount, price, create_at, update_at)
-                               VALUES (?, ?, ?, ?, NOW(), NOW())";
-                $stmt_insert = $conn->prepare($sql_insert);
-                $stmt_insert->bind_param("iiid", $po_id, $product_id, $amount, $price);
-                if (!$stmt_insert->execute()) {
-                    throw new Exception("ไม่สามารถเพิ่มรายการสินค้าใหม่: " . $stmt_insert->error);
+                // Insert New Item
+                $stmt_ins = $conn->prepare("INSERT INTO order_details (purchase_orders_purchase_id, products_prod_id, amount, price, create_at, update_at) VALUES (?, ?, ?, ?, NOW(), NOW())");
+                $stmt_ins->bind_param("iiid", $po_id, $product_id, $amount, $price);
+                if (!$stmt_ins->execute()) throw new Exception("เพิ่มรายการสินค้าไม่สำเร็จ");
+                $stmt_ins->close();
+            } else {
+                // Update Existing Item
+                if ($received_qty > 0) {
+                    // ถ้าเคยรับของแล้ว ห้ามเปลี่ยนสินค้า และห้ามลดจำนวนต่ำกว่าที่รับไป
+                    if ($amount < $received_qty) throw new Exception("สินค้า ID $product_id รับเข้าระบบไปแล้ว $received_qty ชิ้น ไม่สามารถลดจำนวนต่ำกว่านี้ได้");
+                    
+                    $stmt_upd = $conn->prepare("UPDATE order_details SET amount = ?, price = ?, update_at = NOW() WHERE order_id = ?");
+                    $stmt_upd->bind_param("idi", $amount, $price, $order_detail_id);
+                } else {
+                    // ยังไม่เคยรับของ แก้ได้หมด
+                    $stmt_upd = $conn->prepare("UPDATE order_details SET products_prod_id = ?, amount = ?, price = ?, update_at = NOW() WHERE order_id = ?");
+                    $stmt_upd->bind_param("iidi", $product_id, $amount, $price, $order_detail_id);
                 }
-                $stmt_insert->close();
-            }
-            // กรณี "รายการเดิม" 
-            else {
-                // ถ้าเคยรับของแล้ว
-                if ($received_count > 0) {
-                    if ($amount < $received_count) {
-                        throw new Exception("ไม่สามารถลดจำนวนสินค้า (ID: $product_id) ให้น้อยกว่าจำนวนที่รับไปแล้ว ($received_count)");
-                    }
-                    // ห้ามเปลี่ยนตัวสินค้า ถ้าเคยรับไปแล้ว
-                    $sql_update = "UPDATE order_details SET amount = ?, price = ? WHERE order_id = ?";
-                    $stmt_update = $conn->prepare($sql_update);
-                    $stmt_update->bind_param("idi", $amount, $price, $order_detail_id);
-                }
-                // ถ้ายังไม่เคยรับของเลย 
-                else {
-                    $sql_update = "UPDATE order_details SET products_prod_id = ?, amount = ?, price = ? WHERE order_id = ?";
-                    $stmt_update = $conn->prepare($sql_update);
-                    $stmt_update->bind_param("iidi", $product_id, $amount, $price, $order_detail_id);
-                }
-
-                if (!$stmt_update->execute()) {
-                    throw new Exception("ไม่สามารถอัปเดตรายการสินค้า (ID: $product_id): " . $stmt_update->error);
-                }
-                $stmt_update->close();
-
-                //  ลบ ID นี้ออกจาก $old_item_ids (เพราะเราเจอมันในฟอร์มแล้ว)
-                unset($old_item_ids[$order_detail_id]);
+                
+                if (!$stmt_upd->execute()) throw new Exception("อัปเดตรายการสินค้าไม่สำเร็จ");
+                $stmt_upd->close();
             }
         }
 
-        //  ลบรายการสินค้าที่หายไป 
-        if (!empty($old_item_ids)) {
-            foreach ($old_item_ids as $id_to_delete) {
-                // ตรวจสอบครั้งสุดท้ายว่าลบได้จริง
-                $check_received_sql = "SELECT COUNT(*) as cnt FROM stock_movements WHERE ref_table = 'order_details' AND ref_id = ?";
-                $stmt_check = $conn->prepare($check_received_sql);
-                $stmt_check->bind_param("i", $id_to_delete);
-                $stmt_check->execute();
-                $received_count = (int)$stmt_check->get_result()->fetch_assoc()['cnt'];
-                $stmt_check->close();
-
-                if ($received_count > 0) {
-                    throw new Exception("ไม่สามารถลบรายการสินค้า (ID: $id_to_delete) เพราะมีการรับสินค้าเข้าระบบไปแล้ว");
-                }
-
-                // ลบ
-                $sql_delete = "DELETE FROM order_details WHERE order_id = ?";
-                $stmt_delete = $conn->prepare($sql_delete);
-                $stmt_delete->bind_param("i", $id_to_delete);
-                if (!$stmt_delete->execute()) {
-                    throw new Exception("ไม่สามารถลบรายการสินค้า (ID: $id_to_delete): " . $stmt_delete->error);
-                }
-                $stmt_delete->close();
+        // 3. ลบรายการที่หายไป
+        $ids_to_delete = array_diff($old_ids, $submitted_ids);
+        foreach ($ids_to_delete as $del_id) {
+            // เช็คก่อนลบว่าเคยรับของไหม
+            $chk_del = $conn->query("SELECT COUNT(*) as c FROM stock_movements WHERE ref_table = 'order_details' AND ref_id = $del_id");
+            if ($chk_del->fetch_assoc()['c'] > 0) {
+                throw new Exception("ไม่สามารถลบรายการสินค้าบางรายการได้ เนื่องจากมีการรับของเข้าระบบไปแล้ว");
             }
+            $conn->query("DELETE FROM order_details WHERE order_id = $del_id");
         }
 
-        //  ถ้าทุกอย่างสำเร็จ
         mysqli_commit($conn);
-        $_SESSION['success'] = "แก้ไขใบสั่งซื้อ (PO #$po_id) สำเร็จ";
-        header('Location: purchase_order.php');
-        exit;
+        $response['success'] = true;
+        $response['message'] = "บันทึกการแก้ไขเรียบร้อยแล้ว";
+
     } catch (Exception $e) {
-        //  ถ้ามีปัญหา
         mysqli_rollback($conn);
-        $_SESSION['error'] = 'เกิดข้อผิดพลาด: ' . $e->getMessage();
-        header('Location: edit_purchase_order.php?id=' . $po_id);
-        exit;
+        $response['message'] = $e->getMessage();
     }
 
-    mysqli_autocommit($conn, true);
+    echo json_encode($response);
+    exit;
 }
 
-
 // -----------------------------------------------------------------------------
-// สำหรับแสดงฟอร์ม
+// 2. ส่วน View (HTML)
 // -----------------------------------------------------------------------------
 
-//  ดึง PO Header
-$po_sql = "SELECT * FROM purchase_orders WHERE purchase_id = $po_id";
-$po_result = mysqli_query($conn, $po_sql);
-$po_data = mysqli_fetch_assoc($po_result);
+// ตรวจสอบ ID
+$po_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+if ($po_id <= 0) {
+    $_SESSION['error'] = 'ไม่พบรหัสใบสั่งซื้อ';
+    header('Location: purchase_order.php');
+    exit;
+}
+
+// ดึงข้อมูล PO Header
+$sql_po = "SELECT * FROM purchase_orders WHERE purchase_id = $po_id";
+$res_po = mysqli_query($conn, $sql_po);
+$po_data = mysqli_fetch_assoc($res_po);
 
 if (!$po_data) {
-    $_SESSION['error'] = 'ไม่พบ PO ที่ต้องการแก้ไข';
+    $_SESSION['error'] = 'ไม่พบข้อมูลใบสั่งซื้อ';
     header('Location: purchase_order.php');
     exit;
 }
 
-// ตรวจสอบสถานะ 
-if ($po_data['po_status'] != 'Pending') {
-    $_SESSION['error'] = "PO นี้ (สถานะ: {$po_data['po_status']}) ไม่สามารถแก้ไขได้";
+// ตรวจสอบสถานะ (แก้ไขได้เฉพาะ Pending)
+if ($po_data['po_status'] !== 'Pending') {
+    $_SESSION['error'] = "ใบสั่งซื้อนี้สถานะ '{$po_data['po_status']}' ไม่สามารถแก้ไขได้";
     header('Location: purchase_order.php');
     exit;
 }
 
-// ดึง PO Items (พร้อมเช็กว่าเคยรับของหรือยัง)
-$items_sql = "SELECT 
-                od.*, 
-                p.prod_name, 
-                p.model_name, 
-                pb.brand_name_th,
-                (SELECT COUNT(*) FROM stock_movements sm WHERE sm.ref_table = 'order_details' AND sm.ref_id = od.order_id) as received_count
+$po_branch_id = $po_data['branches_branch_id'];
+
+// ดึงข้อมูล PO Items
+$sql_items = "SELECT od.*, p.prod_name, p.model_name, pb.brand_name_th,
+              (SELECT COUNT(*) FROM stock_movements sm WHERE sm.ref_table = 'order_details' AND sm.ref_id = od.order_id) as received_count
               FROM order_details od
               LEFT JOIN products p ON od.products_prod_id = p.prod_id
               LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id
-              WHERE od.purchase_orders_purchase_id = $po_id
-              ORDER BY od.order_id ASC";
-$items_result = mysqli_query($conn, $items_sql);
+              WHERE od.purchase_orders_purchase_id = $po_id";
+$res_items = mysqli_query($conn, $sql_items);
 $po_items = [];
-while ($row = mysqli_fetch_assoc($items_result)) {
+while ($row = mysqli_fetch_assoc($res_items)) {
     $po_items[] = $row;
 }
 
-// ดึงข้อมูล Dropdowns
-$suppliers_result = mysqli_query($conn, "SELECT supplier_id, co_name FROM suppliers ORDER BY co_name");
-$branches_result = mysqli_query($conn, "SELECT branch_id, branch_name FROM branches ORDER BY branch_name");
-$employees_result = mysqli_query($conn, "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE emp_status = 'Active' ORDER BY firstname_th");
-$products_result = mysqli_query($conn, "SELECT p.prod_id, p.prod_name, p.model_name, p.prod_price, pb.brand_name_th 
-                                        FROM products p 
-                                        LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
-                                        ORDER BY p.prod_name");
-$products_js_array = [];
-while ($row = mysqli_fetch_assoc($products_result)) {
-    $products_js_array[] = $row;
-}
-mysqli_data_seek($products_result, 0); 
+// --- โหลดข้อมูล Dropdown (ตามเงื่อนไขที่ขอ) ---
 
+// 1. Supplier: เฉพาะสาขาตัวเอง (สาขาของ PO)
+$sql_sup = "SELECT supplier_id, co_name FROM suppliers WHERE branches_branch_id = '$po_branch_id' ORDER BY co_name";
+$res_sup = mysqli_query($conn, $sql_sup);
+
+// 2. Employee: เฉพาะสาขาตัวเอง (สาขาของ PO)
+$sql_emp = "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE branches_branch_id = '$po_branch_id' AND emp_status = 'Active' ORDER BY firstname_th";
+$res_emp = mysqli_query($conn, $sql_emp);
+
+// 3. Products: เฉพาะสินค้าของร้าน (และสินค้าส่วนกลาง) + [แก้ไข] ไม่เอาสินค้าประเภทบริการ (type_id != 4)
+$sql_prod = "SELECT p.prod_id, p.prod_name, p.model_name, p.prod_price, pb.brand_name_th 
+             FROM products p
+             LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id
+             WHERE (p.shop_info_shop_id = '$current_shop_id' OR p.shop_info_shop_id = 0)
+             AND p.prod_types_type_id != 4 
+             ORDER BY p.prod_name";
+$res_prod = mysqli_query($conn, $sql_prod);
+
+// เก็บสินค้าลง Array PHP เพื่อนำไปวนลูปใน JavaScript (Template Row)
+$products_list = [];
+while ($p = mysqli_fetch_assoc($res_prod)) {
+    $products_list[] = $p;
+}
 ?>
 
 <!DOCTYPE html>
 <html lang="th">
-
 <head>
     <meta charset="UTF-8">
     <title>แก้ไขใบสั่งซื้อ (PO #<?= $po_id ?>)</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body {
-            background-color: <?= $background_color ?>;
-            font-family: '<?= $font_style ?>', sans-serif;
-            color: <?= $text_color ?>;
-        }
-
-        .container {
-            max-width: 1400px;
-        }
-
-        h4 {
-            font-weight: 700;
-            color: <?= $theme_color ?>;
-        }
-
-        h5 {
-            font-weight: 600;
-            color: <?= $theme_color ?>;
-        }
-
-        .form-section {
-            background: #fff;
-            border-radius: 10px;
-            padding: 25px;
-            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-            margin-bottom: 25px;
-        }
-
-        .form-control,
-        .form-select {
-            font-size: 14px;
-            padding: 8px 12px;
-            border-radius: 6px;
-        }
-
-        .form-control:disabled {
-            background-color: #f8f9fa;
-            border-style: dashed;
-        }
-
-        .btn-success {
-            background-color: <?= $btn_add_color ?>;
-            border-color: <?= $btn_add_color ?>;
-        }
-
-        .btn-add-item {
-            background-color: <?= $theme_color ?>;
-            color: white;
-        }
-
-        .btn-remove-item {
-            background-color: <?= $btn_delete_color ?>;
-            color: white;
-        }
-
-        .table th {
-            background-color: <?= $header_bg_color ?>;
-            color: <?= $header_text_color ?>;
-            vertical-align: middle;
-            text-align: center;
-        }
-
-        .table td {
-            vertical-align: middle;
-        }
+        body { background-color: <?= $background_color ?>; color: <?= $text_color ?>; font-family: 'Prompt', sans-serif; }
+        .card { border-radius: 12px; border: none; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .card-header { background-color: #fff; border-bottom: 2px solid <?= $theme_color ?>; color: <?= $theme_color ?>; font-weight: 600; padding: 1.2rem; border-radius: 12px 12px 0 0; }
         
-        /* **[เพิ่ม]** จัดการปุ่ม Action ในตาราง */
-        .table td:last-child {
-            display: flex;
-            gap: 5px; 
-            justify-content: center;
-            align-items: center;
-            flex-wrap: nowrap;
-        }
+        .form-section { background: #fff; border-radius: 10px; padding: 25px; margin-bottom: 20px; border: 1px solid #e9ecef; }
+        .form-section h5 { color: <?= $theme_color ?>; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 20px; font-weight: 600; }
 
-        .item-row.locked {
-            background-color: #f8f9fa;
-            opacity: 0.7;
-        }
-
-        .item-row.locked .form-control,
-        .item-row.locked .form-select,
-        .item-row.locked .btn-remove-item {
-            pointer-events: none;
-        }
-
-        /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
-        /* -------------------------------------------------------------------- */
-        @media (max-width: 991.98px) {
-            .container {
-                /* เพิ่ม Padding ด้านข้างบน Mobile */
-                padding-left: 15px;
-                padding-right: 15px;
-            }
-            
-            .form-section {
-                padding: 15px; /* ลด Padding ของ Card ลงเล็กน้อย */
-            }
-
-            h4 {
-                 font-size: 1.5rem;
-            }
-            
-            h5 {
-                 font-size: 1.25rem;
-            }
-            
-            /* 1. ปรับขนาด Font และ Padding ในฟอร์ม */
-            .form-control,
-            .form-select {
-                font-size: 1rem; /* เพิ่มขนาด Font เล็กน้อยให้อ่านง่ายขึ้นบน Mobile */
-                padding: 10px 12px; /* เพิ่ม Padding ให้กดง่ายขึ้น */
-            }
-
-            /* 2. ปรับ Table Cell/Font ในตารางรายการสินค้า */
-            .table th, .table td {
-                padding: 0.5rem 0.5rem; /* ลด Padding ด้านข้าง */
-                font-size: 0.8rem; /* ลดขนาด Font ในตารางให้เหมาะสม */
-                white-space: nowrap; /* ป้องกันไม่ให้ข้อความยาวๆ ขึ้นบรรทัดใหม่ในตาราง Responsive */
-            }
-
-            /* 3. ทำให้ Form Control ภายในตารางมีขนาดเล็กและใช้งานได้จริง */
-            .table .form-control,
-            .table .form-select {
-                 padding: 0.4rem; /* ลด Padding ใน Input/Select */
-                 font-size: 0.75rem;
-                 min-width: 80px; 
-            }
-
-            /* 4. จัดการปุ่ม Action (ถ้ามีปุ่มเพิ่ม/ลบ ในแต่ละแถว) */
-            .table td:last-child {
-                flex-direction: column; /* จัดปุ่มเป็นแนวตั้งในแถว */
-                gap: 5px;
-            }
-
-            /* 5. ทำให้ปุ่มหลัก (Add Item, Save) ใช้เต็มความกว้าง */
-            .d-grid .btn {
-                width: 100% !important;
-                margin-bottom: 10px;
-            }
-        }
+        .table th { background-color: <?= $header_bg_color ?>; color: <?= $header_text_color ?>; text-align: center; vertical-align: middle; white-space: nowrap; }
+        .table td { vertical-align: middle; }
+        
+        /* Select2 Customization */
+        .select2-container .select2-selection--single { height: 38px; border: 1px solid #dee2e6; border-radius: 0.375rem; }
+        .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered { line-height: 36px; padding-left: 12px; }
+        
+        .btn-add-item { background-color: <?= $theme_color ?>; color: white; }
+        .btn-add-item:hover { background-color: #145c32; color: white; }
+        
+        .item-locked { background-color: #f8f9fa; opacity: 0.8; pointer-events: none; }
+        .item-locked input { background-color: #e9ecef; }
     </style>
 </head>
-
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
+                <div class="container" style="max-width: 1400px;">
+                    
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h4 class="mb-0"><i class="fas fa-edit me-2"></i>แก้ไขใบสั่งซื้อ (PO #<?= $po_id ?>)</h4>
+                    </div>
 
-                <div class="container my-4">
-
-                    <?php if (isset($_SESSION['success'])): ?>
-                        <div class="alert alert-success alert-dismissible fade show">
-                            <?= $_SESSION['success'];
-                            unset($_SESSION['success']); ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
-                    <?php if (isset($_SESSION['error'])): ?>
-                        <div class="alert alert-danger alert-dismissible fade show">
-                            <?= $_SESSION['error'];
-                            unset($_SESSION['error']); ?>
-                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                        </div>
-                    <?php endif; ?>
-
-                    <h4 class="mb-4"><i class="fas fa-edit me-2"></i>แก้ไขใบสั่งซื้อ (PO #<?= $po_id ?>)</h4>
-
-                    <form method="POST" id="editPoForm">
+                    <form id="editPoForm">
+                        <input type="hidden" name="action" value="update_po">
                         <input type="hidden" name="po_id" value="<?= $po_id ?>">
+                        <input type="hidden" name="branch_id" value="<?= $po_branch_id ?>">
 
-                        <div class="form-section">
-                            <h5>ข้อมูลหลัก (Header)</h5>
+                        <div class="form-section shadow-sm">
+                            <h5><i class="fas fa-info-circle me-2"></i>ข้อมูลหลัก (Header)</h5>
                             <div class="row g-3">
-                                <div class="col-md-3">
-                                    <label class="form-label">วันที่สั่ง <span class="text-danger">*</span></label>
-                                    <input type="datetime-local" class="form-control" name="purchase_date"
-                                        value="<?= date('Y-m-d\TH:i', strtotime($po_data['purchase_date'])) ?>" required>
+                                <div class="col-md-4">
+                                    <label class="form-label">วันที่สั่งซื้อ <span class="text-danger">*</span></label>
+                                    <input type="datetime-local" class="form-control" name="purchase_date" 
+                                           value="<?= date('Y-m-d\TH:i', strtotime($po_data['purchase_date'])) ?>" required>
                                 </div>
-                                <div class="col-md-3">
+                                <div class="col-md-4">
                                     <label class="form-label">ผู้จำหน่าย (Supplier) <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="supplier_id" required>
-                                        <option value="">-- เลือกผู้จำหน่าย --</option>
-                                        <?php mysqli_data_seek($suppliers_result, 0); ?>
-                                        <?php while ($row = mysqli_fetch_assoc($suppliers_result)): ?>
-                                            <option value="<?= $row['supplier_id'] ?>" <?= ($row['supplier_id'] == $po_data['suppliers_supplier_id']) ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($row['co_name']) ?>
+                                    <select class="form-select select2" name="supplier_id" required>
+                                        <option value="">-- ค้นหาผู้จำหน่าย --</option>
+                                        <?php while($s = mysqli_fetch_assoc($res_sup)): ?>
+                                            <option value="<?= $s['supplier_id'] ?>" <?= ($s['supplier_id'] == $po_data['suppliers_supplier_id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($s['co_name']) ?>
                                             </option>
                                         <?php endwhile; ?>
                                     </select>
                                 </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">สาขา <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="branch_id" required>
-                                        <option value="">-- เลือกสาขา --</option>
-                                        <?php mysqli_data_seek($branches_result, 0); ?>
-                                        <?php while ($row = mysqli_fetch_assoc($branches_result)): ?>
-                                            <option value="<?= $row['branch_id'] ?>" <?= ($row['branch_id'] == $po_data['branches_branch_id']) ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($row['branch_name']) ?>
-                                            </option>
-                                        <?php endwhile; ?>
-                                    </select>
-                                </div>
-                                <div class="col-md-3">
-                                    <label class="form-label">พนักงาน <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="employee_id" required>
-                                        <option value="">-- เลือกพนักงาน --</option>
-                                        <?php mysqli_data_seek($employees_result, 0); ?>
-                                        <?php while ($row = mysqli_fetch_assoc($employees_result)): ?>
-                                            <option value="<?= $row['emp_id'] ?>" <?= ($row['emp_id'] == $po_data['employees_emp_id']) ? 'selected' : '' ?>>
-                                                <?= htmlspecialchars($row['firstname_th'] . ' ' . $row['lastname_th']) ?>
+                                <div class="col-md-4">
+                                    <label class="form-label">พนักงานผู้รับเรื่อง <span class="text-danger">*</span></label>
+                                    <select class="form-select select2" name="employee_id" required>
+                                        <option value="">-- ค้นหาพนักงาน --</option>
+                                        <?php while($e = mysqli_fetch_assoc($res_emp)): ?>
+                                            <option value="<?= $e['emp_id'] ?>" <?= ($e['emp_id'] == $po_data['employees_emp_id']) ? 'selected' : '' ?>>
+                                                <?= htmlspecialchars($e['firstname_th'] . ' ' . $e['lastname_th']) ?>
                                             </option>
                                         <?php endwhile; ?>
                                     </select>
@@ -450,236 +286,230 @@ mysqli_data_seek($products_result, 0);
                             </div>
                         </div>
 
-                        <div class="form-section">
-                            <h5>รายการสินค้า (Items)</h5>
+                        <div class="form-section shadow-sm">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0 border-0"><i class="fas fa-boxes me-2"></i>รายการสินค้า (Items)</h5>
+                                <button type="button" class="btn btn-add-item btn-sm shadow-sm" id="btn-add-row">
+                                    <i class="fas fa-plus me-1"></i> เพิ่มสินค้า
+                                </button>
+                            </div>
 
                             <div class="table-responsive">
-                                <table class="table align-middle">
+                                <table class="table table-bordered table-hover align-middle" id="items-table">
                                     <thead>
                                         <tr>
-                                            <th style="width: 40%;">สินค้า</th>
-                                            <th style="width: 15%;">จำนวน <span class="text-danger">*</span></th>
-                                            <th style="width: 20%;">ราคา/หน่วย (ต้นทุน) <span class="text-danger">*</span></th>
-                                            <th style="width: 20%;">ยอดรวม</th>
-                                            <th style="width: 5%;">ลบ</th>
+                                            <th style="width: 45%;">สินค้า</th>
+                                            <th style="width: 15%;">จำนวน</th>
+                                            <th style="width: 15%;">ต้นทุน/หน่วย (฿)</th>
+                                            <th style="width: 15%;">รวม (฿)</th>
+                                            <th style="width: 10%;">ลบ</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="item-list-body">
-
-                                        <?php foreach ($po_items as $item): ?>
-                                            <?php
-                                            // ตรวจสอบว่าแถวนี้ควรถูกล็อคหรือไม่
+                                    <tbody id="items-body">
+                                        <?php foreach ($po_items as $item): 
                                             $is_locked = $item['received_count'] > 0;
-                                            $min_qty = $is_locked ? $item['received_count'] : 1;
-                                            ?>
-                                            <tr class="item-row <?= $is_locked ? 'locked' : '' ?>" data-key="<?= $item['order_id'] ?>">
-                                                <input type="hidden" name="items[<?= $item['order_id'] ?>][order_detail_id]" value="<?= $item['order_id'] ?>">
-
-                                                <td>
-                                                    <select class="form-select product-select" name="items[<?= $item['order_id'] ?>][product_id]" required <?= $is_locked ? 'disabled' : '' ?>>
-                                                        <option value="">-- เลือกสินค้า --</option>
-                                                        <?php mysqli_data_seek($products_result, 0); ?>
-                                                        <?php while ($p = mysqli_fetch_assoc($products_result)): ?>
-                                                            <option value="<?= $p['prod_id'] ?>"
-                                                                data-price="<?= $p['prod_price'] ?>"
-                                                                <?= ($p['prod_id'] == $item['products_prod_id']) ? 'selected' : '' ?>>
-                                                                <?= htmlspecialchars($p['prod_name']) ?> (<?= htmlspecialchars($p['brand_name_th']) ?>)
-                                                            </option>
-                                                        <?php endwhile; ?>
-                                                    </select>
-                                                    <?php if ($is_locked): ?>
-                                                        <small class="text-danger">
-                                                            <i class="fas fa-lock me-1"></i> ล็อค (รับของแล้ว <?= $item['received_count'] ?> ชิ้น)
-                                                        </small>
-                                                        <input type="hidden" name="items[<?= $item['order_id'] ?>][product_id]" value="<?= $item['products_prod_id'] ?>">
-                                                    <?php endif; ?>
-                                                </td>
-                                                <td>
-                                                    <input type="number" class="form-control item-amount"
-                                                        name="items[<?= $item['order_id'] ?>][amount]"
-                                                        value="<?= $item['amount'] ?>" min="<?= $min_qty ?>" required>
-                                                </td>
-                                                <td>
-                                                    <div class="input-group">
-                                                        <span class="input-group-text">฿</span>
-                                                        <input type="number" class="form-control item-price"
-                                                            name="items[<?= $item['order_id'] ?>][price]"
-                                                            value="<?= number_format($item['price'], 2, '.', '') ?>" step="0.01" min="0" required>
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <input type="text" class="form-control item-total"
-                                                        value="<?= number_format($item['amount'] * $item['price'], 2) ?>" readonly>
-                                                </td>
-                                                <td class="text-center">
-                                                    <button type="button" class="btn btn-remove-item btn-sm" <?= $is_locked ? 'disabled' : '' ?>>
-                                                        <i class="fas fa-trash"></i>
-                                                    </button>
-                                                </td>
-                                            </tr>
-                                        <?php endforeach; ?>
-
-                                    </tbody>
-                                    <tfoot>
-                                        <tr>
-                                            <td colspan="3">
-                                                <button type="button" class="btn btn-add-item btn-sm" id="add-item-btn">
-                                                    <i class="fas fa-plus me-1"></i> เพิ่มรายการสินค้า
+                                            $unique_key = $item['order_id'];
+                                        ?>
+                                        <tr class="item-row <?= $is_locked ? 'item-locked' : '' ?>" id="row-<?= $unique_key ?>">
+                                            <input type="hidden" name="items[<?= $unique_key ?>][order_detail_id]" value="<?= $item['order_id'] ?>">
+                                            
+                                            <td>
+                                                <select class="form-select product-select select2-product" name="items[<?= $unique_key ?>][product_id]" required <?= $is_locked ? 'disabled' : '' ?>>
+                                                    <option value="">-- เลือกสินค้า --</option>
+                                                    <?php foreach ($products_list as $p): ?>
+                                                        <option value="<?= $p['prod_id'] ?>" data-price="<?= $p['prod_price'] ?>"
+                                                            <?= ($p['prod_id'] == $item['products_prod_id']) ? 'selected' : '' ?>>
+                                                            <?= htmlspecialchars($p['prod_name']) ?> (<?= htmlspecialchars($p['brand_name_th']) ?>)
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <?php if($is_locked): ?>
+                                                    <input type="hidden" name="items[<?= $unique_key ?>][product_id]" value="<?= $item['products_prod_id'] ?>">
+                                                    <small class="text-danger d-block mt-1"><i class="fas fa-lock"></i> รับของแล้ว แก้ไขไม่ได้</small>
+                                                <?php endif; ?>
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control text-center amount-input" 
+                                                       name="items[<?= $unique_key ?>][amount]" 
+                                                       value="<?= $item['amount'] ?>" min="1" required>
+                                            </td>
+                                            <td>
+                                                <input type="number" class="form-control text-end price-input" 
+                                                       name="items[<?= $unique_key ?>][price]" 
+                                                       value="<?= $item['price'] ?>" step="0.01" min="0" required>
+                                            </td>
+                                            <td>
+                                                <input type="text" class="form-control text-end total-input bg-light" readonly value="<?= number_format($item['amount'] * $item['price'], 2) ?>">
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-outline-danger btn-sm remove-row-btn" <?= $is_locked ? 'disabled' : '' ?>>
+                                                    <i class="fas fa-trash"></i>
                                                 </button>
                                             </td>
-                                            <td colspan="2" class="text-end">
-                                                <h5 class="mb-0">ยอดรวมสุทธิ: <span id="grand-total" style="color: <?= $theme_color ?>;">0.00</span></h5>
-                                            </td>
+                                        </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr class="table-light fw-bold">
+                                            <td colspan="3" class="text-end">ยอดรวมสุทธิ:</td>
+                                            <td class="text-end text-success fs-5" id="grand-total">0.00</td>
+                                            <td>บาท</td>
                                         </tr>
                                     </tfoot>
                                 </table>
                             </div>
-
                         </div>
 
-                        <div class="text-end">
-                            <button type="submit" class="btn btn-success" id="submitBtn">
+                        <div class="d-flex justify-content-end gap-2 mb-5">
+                            <a href="purchase_order.php" class="btn btn-secondary shadow-sm px-4">
+                                <i class="fas fa-times me-2"></i> ยกเลิก
+                            </a>
+                            <button type="submit" class="btn btn-success shadow-sm px-4">
                                 <i class="fas fa-save me-2"></i> บันทึกการแก้ไข
                             </button>
-                            <a href="purchase_order.php" class="btn btn-secondary">
-                                <i class="fas fa-arrow-left me-2"></i> ย้อนกลับ
-                            </a>
                         </div>
                     </form>
+
                 </div>
-
-                <template id="new-item-row-template">
-                    <tr class="item-row" data-key="NEW_KEY">
-                        <input type="hidden" name="items[NEW_KEY][order_detail_id]" value="0">
-
-                        <td>
-                            <select class="form-select product-select" name="items[NEW_KEY][product_id]" required>
-                                <option value="">-- เลือกสินค้า --</option>
-                                <?php mysqli_data_seek($products_result, 0); ?>
-                                <?php while ($p = mysqli_fetch_assoc($products_result)): ?>
-                                    <option value="<?= $p['prod_id'] ?>" data-price="<?= $p['prod_price'] ?>">
-                                        <?= htmlspecialchars($p['prod_name']) ?> (<?= htmlspecialchars($p['brand_name_th']) ?>)
-                                    </option>
-                                <?php endwhile; ?>
-                            </select>
-                        </td>
-                        <td>
-                            <input type="number" class="form-control item-amount"
-                                name="items[NEW_KEY][amount]"
-                                value="1" min="1" required>
-                        </td>
-                        <td>
-                            <div class="input-group">
-                                <span class="input-group-text">฿</span>
-                                <input type="number" class="form-control item-price"
-                                    name="items[NEW_KEY][price]"
-                                    value="0.00" step="0.01" min="0" required>
-                            </div>
-                        </td>
-                        <td>
-                            <input type="text" class="form-control item-total" value="0.00" readonly>
-                        </td>
-                        <td class="text-center">
-                            <button type="button" class="btn btn-remove-item btn-sm">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </td>
-                    </tr>
-                </template>
             </div>
         </div>
     </div>
+
+    <template id="row-template">
+        <tr class="item-row">
+            <input type="hidden" name="items[INDEX][order_detail_id]" value="0">
+            <td>
+                <select class="form-select product-select" name="items[INDEX][product_id]" required>
+                    <option value="">-- เลือกสินค้า --</option>
+                    <?php foreach ($products_list as $p): ?>
+                        <option value="<?= $p['prod_id'] ?>" data-price="<?= $p['prod_price'] ?>">
+                            <?= htmlspecialchars($p['prod_name']) ?> (<?= htmlspecialchars($p['brand_name_th']) ?>)
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </td>
+            <td><input type="number" class="form-control text-center amount-input" name="items[INDEX][amount]" value="1" min="1" required></td>
+            <td><input type="number" class="form-control text-end price-input" name="items[INDEX][price]" value="0.00" step="0.01" min="0" required></td>
+            <td><input type="text" class="form-control text-end total-input bg-light" readonly value="0.00"></td>
+            <td class="text-center">
+                <button type="button" class="btn btn-outline-danger btn-sm remove-row-btn"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>
+    </template>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const itemListBody = document.getElementById('item-list-body');
-            const addItemBtn = document.getElementById('add-item-btn');
+        $(document).ready(function() {
+            // 1. เริ่มต้น Select2
+            $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
+            initProductSelect2($('.select2-product'));
 
-            // ฟังก์ชันสำหรับอัปเดต Event Listeners ทั้งหมด
-            function attachListeners() {
-                //  ปุ่มลบแถว
-                document.querySelectorAll('.btn-remove-item').forEach(btn => {
-                    // ลบ event เก่ากันซ้ำ
-                    btn.removeEventListener('click', removeRow);
-                    // เพิ่ม event ใหม่
-                    btn.addEventListener('click', removeRow);
-                });
+            calculateGrandTotal();
 
-                //ช่อง Product Select
-                document.querySelectorAll('.product-select').forEach(select => {
-                    select.removeEventListener('change', updatePrice);
-                    select.addEventListener('change', updatePrice);
-                });
-
-                // ช่อง Amount/Price
-                document.querySelectorAll('.item-amount, .item-price').forEach(input => {
-                    input.removeEventListener('input', calculateRowTotal);
-                    input.addEventListener('input', calculateRowTotal);
-                });
-            }
-
-            // ฟังก์ชันลบแถว
-            function removeRow(event) {
-                event.target.closest('tr').remove();
-                calculateGrandTotal(); 
-            }
-
-            // ฟังก์ชันอัปเดตราคาทุน เมื่อเลือกสินค้า
-            function updatePrice(event) {
-                const select = event.target;
-                const selectedOption = select.options[select.selectedIndex];
-                const price = selectedOption.dataset.price || 0;
-
-                const row = select.closest('tr');
-                row.querySelector('.item-price').value = parseFloat(price).toFixed(2);
-                calculateRowTotal({
-                    target: row.querySelector('.item-price')
-                }); // คำนวณใหม่
-            }
-
-            // ฟังก์ชันคำนวณยอดรวม "ต่อแถว"
-            function calculateRowTotal(event) {
-                const input = event.target;
-                const row = input.closest('tr');
-
-                const amount = parseFloat(row.querySelector('.item-amount').value) || 0;
-                const price = parseFloat(row.querySelector('.item-price').value) || 0;
-
-                const total = amount * price;
-                row.querySelector('.item-total').value = total.toFixed(2);
-
-                calculateGrandTotal(); // อัปเดตยอดรวมสุทธิ
-            }
-
-            // ฟังก์ชันคำนวณ "ยอดรวมสุทธิ"
-            function calculateGrandTotal() {
-                let grandTotal = 0;
-                document.querySelectorAll('.item-row').forEach(row => {
-                    const total = parseFloat(row.querySelector('.item-total').value) || 0;
-                    grandTotal += total;
-                });
-
-                document.getElementById('grand-total').textContent = grandTotal.toLocaleString('en-US', {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2
-                });
-            }
-
-            // ฟังก์ชัน "เพิ่มแถวใหม่"
-            addItemBtn.addEventListener('click', function() {
-                const template = document.getElementById('new-item-row-template');
-                const newRowHtml = template.innerHTML.replace(/NEW_KEY/g, `new_${Date.now()}`); 
-
-                itemListBody.insertAdjacentHTML('beforeend', newRowHtml);
-                attachListeners(); 
+            // 2. ฟังก์ชันเพิ่มแถว
+            $('#btn-add-row').click(function() {
+                const timestamp = Date.now();
+                const template = document.getElementById('row-template').innerHTML;
+                const newRowHtml = template.replace(/INDEX/g, timestamp);
+                
+                $('#items-body').append(newRowHtml);
+                
+                // Init Select2 สำหรับแถวใหม่
+                const newSelect = $('#items-body tr:last .product-select');
+                initProductSelect2(newSelect);
             });
 
-            // ทำงานครั้งแรกเมื่อโหลดหน้า
-            attachListeners();
-            calculateGrandTotal();
+            // 3. จัดการ Event ในตาราง (Change/Input/Click)
+            $('#items-body').on('change', '.product-select', function() {
+                const price = $(this).find(':selected').data('price') || 0;
+                const row = $(this).closest('tr');
+                row.find('.price-input').val(parseFloat(price).toFixed(2));
+                calculateRow(row);
+            });
+
+            $('#items-body').on('input', '.amount-input, .price-input', function() {
+                calculateRow($(this).closest('tr'));
+            });
+
+            $('#items-body').on('click', '.remove-row-btn', function() {
+                $(this).closest('tr').remove();
+                calculateGrandTotal();
+            });
+
+            // 4. ฟังก์ชันคำนวณ
+            function calculateRow(row) {
+                const qty = parseFloat(row.find('.amount-input').val()) || 0;
+                const price = parseFloat(row.find('.price-input').val()) || 0;
+                const total = qty * price;
+                row.find('.total-input').val(total.toFixed(2));
+                calculateGrandTotal();
+            }
+
+            function calculateGrandTotal() {
+                let grandTotal = 0;
+                $('.total-input').each(function() {
+                    grandTotal += parseFloat($(this).val()) || 0;
+                });
+                $('#grand-total').text(grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            }
+
+            // 5. ตั้งค่า Select2 ให้ค้นหาได้ในตาราง
+            function initProductSelect2(element) {
+                element.select2({
+                    theme: 'bootstrap-5',
+                    width: '100%',
+                    dropdownAutoWidth: true
+                });
+            }
+
+            // 6. บันทึกข้อมูลด้วย AJAX
+            $('#editPoForm').on('submit', function(e) {
+                e.preventDefault();
+
+                // Validation เบื้องต้น
+                if ($('.item-row').length === 0) {
+                    Swal.fire('ข้อผิดพลาด', 'กรุณาเพิ่มรายการสินค้าอย่างน้อย 1 รายการ', 'warning');
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'กำลังบันทึก...',
+                    text: 'กรุณารอสักครู่',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading() }
+                });
+
+                $.ajax({
+                    url: 'edit_purchase_order.php',
+                    type: 'POST',
+                    data: $(this).serialize(),
+                    dataType: 'json',
+                    success: function(res) {
+                        if (res.success) {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'สำเร็จ!',
+                                text: res.message,
+                                timer: 1500,
+                                showConfirmButton: false
+                            }).then(() => {
+                                window.location.href = 'purchase_order.php';
+                            });
+                        } else {
+                            Swal.fire('เกิดข้อผิดพลาด', res.message, 'error');
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error(xhr.responseText);
+                        Swal.fire('Server Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+                    }
+                });
+            });
         });
     </script>
 </body>
-
 </html>
