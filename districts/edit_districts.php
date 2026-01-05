@@ -164,7 +164,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   </style>
 </head>
 
-<body class="bg-light">
+<body >
   <div class="d-flex" id="wrapper">
     <?php include '../global/sidebar.php'; ?>
     <div class="main-content w-100">

@@ -11,16 +11,14 @@ $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
 // --------------------------------------------------------------------------
-// [PHP Logic] ฟังก์ชันหา ID ถัดไป (Manual Increment) ใช้ได้กับทุกตาราง
+// [PHP Logic] ฟังก์ชันหา ID ถัดไป (Manual Increment)
 // --------------------------------------------------------------------------
 function getNextId($conn, $table, $column) {
     $sql = "SELECT MAX($column) as max_id FROM $table";
     $result = mysqli_query($conn, $sql);
     $row = mysqli_fetch_assoc($result);
-    // ถ้ามีค่า ให้บวก 1, ถ้าไม่มี (เป็นค่าว่าง/NULL) ให้เริ่มที่ 1
     return ($row['max_id']) ? $row['max_id'] + 1 : 1;
 }
-// --------------------------------------------------------------------------
 
 // ตรวจสอบว่าเป็น Admin หรือไม่
 $is_super_admin = false;
@@ -35,7 +33,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
 }
 
 // ==========================================================================================
-// [1] FORM SUBMISSION: บันทึกข้อมูล
+// [1] FORM SUBMISSION: บันทึกข้อมูล (AJAX)
 // ==========================================================================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     ob_clean(); 
@@ -43,7 +41,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     
     try {
         // 1. รับค่าและ Validate
+        // ถ้าเป็น Admin ให้ใช้ค่าจาก Post, ถ้าไม่ใช่ให้ใช้ ID ร้านตัวเอง
         $shop_id = ($is_super_admin && !empty($_POST['shop_id'])) ? intval($_POST['shop_id']) : $current_shop_id;
+        
         $branch_name = trim($_POST['branch_name']);
         $branch_code = trim($_POST['branch_code']);
         $branch_phone = trim($_POST['branch_phone']);
@@ -58,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($branch_name)) throw new Exception("กรุณากรอกชื่อสาขา");
         if ($subdistrict_id <= 0) throw new Exception("กรุณาเลือก ตำบล/แขวง ให้ถูกต้อง");
 
-        // ตรวจสอบชื่อสาขาซ้ำ
+        // ตรวจสอบชื่อสาขาซ้ำ (ในร้านเดียวกัน)
         $chk_sql = "SELECT branch_id FROM branches WHERE branch_name = ? AND shop_info_shop_id = ?";
         $stmt = $conn->prepare($chk_sql);
         $stmt->bind_param("si", $branch_name, $shop_id);
@@ -71,11 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // 2. เริ่ม Transaction
         $conn->begin_transaction();
 
-        // ---------------------------------------------------------
-        // Step 1: บันทึกที่อยู่ (Addresses) ด้วย Manual ID
-        // ---------------------------------------------------------
-        $new_address_id = getNextId($conn, 'addresses', 'address_id'); // ** หา ID ที่อยู่ใหม่ **
-
+        // Step 1: บันทึกที่อยู่ (Addresses)
+        $new_address_id = getNextId($conn, 'addresses', 'address_id'); 
         $sql_addr = "INSERT INTO addresses (address_id, home_no, moo, soi, road, subdistricts_subdistrict_id) 
                      VALUES (?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql_addr);
@@ -84,20 +81,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!$stmt->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ: " . $stmt->error);
         $stmt->close();
 
-        // ---------------------------------------------------------
-        // Step 2: บันทึกสาขา (Branches) ด้วย Manual ID
-        // ---------------------------------------------------------
-        $new_branch_id = getNextId($conn, 'branches', 'branch_id'); // ** หา ID สาขาใหม่ **
-
+        // Step 2: บันทึกสาขา (Branches)
+        $new_branch_id = getNextId($conn, 'branches', 'branch_id');
         $sql_branch = "INSERT INTO branches (branch_id, branch_code, branch_name, branch_phone, Addresses_address_id, shop_info_shop_id, create_at, update_at) 
                        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())";
         
         $stmt = $conn->prepare($sql_branch);
-        // Param: i(id), s(code), s(name), s(phone), i(addr_id), i(shop_id)
         $stmt->bind_param("isssii", $new_branch_id, $branch_code, $branch_name, $branch_phone, $new_address_id, $shop_id);
         
         if (!$stmt->execute()) {
-             // เช็ค Error ซ้ำอีกทีเผื่อ Race Condition
             if ($conn->errno == 1062) throw new Exception("รหัสสาขาซ้ำ ($new_branch_id) กรุณาลองใหม่อีกครั้ง");
             throw new Exception("บันทึกสาขาไม่สำเร็จ: " . $stmt->error);
         }
@@ -146,16 +138,13 @@ ob_end_flush();
     <style>
         body { background-color: <?= $background_color ?>; font-family: '<?= $font_style ?>', sans-serif; color: <?= $text_color ?>; }
         
-        /* Custom Header: สีขาวตามที่ขอ */
         .card-header-custom { 
             background: linear-gradient(135deg, <?= $theme_color ?>, #0f5132); 
-            color: #ffffff !important; /* บังคับตัวหนังสือสีขาว */
+            color: #ffffff !important; 
             padding: 1.5rem; 
             border-radius: 15px 15px 0 0; 
         }
-        .card-header-custom h4, .card-header-custom i {
-            color: #ffffff !important;
-        }
+        .card-header-custom h4, .card-header-custom i { color: #ffffff !important; }
 
         .form-section-title { font-weight: 700; color: <?= $theme_color ?>; border-left: 5px solid <?= $theme_color ?>; padding-left: 10px; margin: 25px 0 15px 0; background: #f8f9fa; padding: 10px; border-radius: 0 5px 5px 0; }
         .required-star { color: #dc3545; }
@@ -180,22 +169,18 @@ ob_end_flush();
                                     
                                     <div class="form-section-title">ข้อมูลพื้นฐาน</div>
                                     <div class="row g-3">
-                                        <div class="col-md-6">
-                                            <label class="form-label fw-bold">สังกัดร้านค้า</label>
-                                            <?php if ($is_super_admin): ?>
+                                        
+                                        <?php if ($is_super_admin): ?>
+                                            <div class="col-md-6">
+                                                <label class="form-label fw-bold">สังกัดร้านค้า</label>
                                                 <select class="form-select select2" name="shop_id" required>
                                                     <option value="">-- ค้นหาร้านค้า --</option>
                                                     <?php while($s = $shops->fetch_assoc()): ?>
                                                         <option value="<?= $s['shop_id'] ?>"><?= $s['shop_name'] ?></option>
                                                     <?php endwhile; ?>
                                                 </select>
-                                            <?php else: ?>
-                                                <input type="text" class="form-control bg-light text-muted" value="<?= $_SESSION['shop_name'] ?>" readonly>
-                                                <input type="hidden" name="shop_id" value="<?= $current_shop_id ?>">
-                                            <?php endif; ?>
-                                        </div>
-                                        <div class="col-md-6"></div>
-
+                                            </div>
+                                            <div class="col-md-6"></div> <?php endif; ?>
                                         <div class="col-md-6">
                                             <label class="form-label fw-bold">ชื่อสาขา <span class="required-star">*</span></label>
                                             <div class="input-group">
@@ -284,7 +269,7 @@ ob_end_flush();
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // ข้อมูลสำหรับ Filter
+        // ข้อมูลสำหรับ Filter Address
         const allDistricts = <?= json_encode($all_districts, JSON_UNESCAPED_UNICODE) ?>;
         const allSubdistricts = <?= json_encode($all_subdistricts, JSON_UNESCAPED_UNICODE) ?>;
 
@@ -334,7 +319,7 @@ ob_end_flush();
                 $('#zipcodeDisplay').text(zip ? zip : '-');
             });
 
-            // 4. Submit Form
+            // 4. Submit Form via AJAX
             $('#addBranchForm').on('submit', function(e) {
                 e.preventDefault();
                 

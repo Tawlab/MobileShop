@@ -29,7 +29,8 @@ $page_title = "เพิ่มสต็อก (กรณีพิเศษ/ข�
 $page_icon = "fa-gift";
 
 // -----------------------------------------------------------------------------
-// ดึงข้อมูลสินค้า
+// [MODIFIED] ดึงข้อมูลสินค้า (Admin เห็นหมด, User เห็นของร้าน+ส่วนกลาง)
+// และ **ไม่แสดงสินค้าประเภทบริการ (Type ID != 4)**
 // -----------------------------------------------------------------------------
 $sql_products = "SELECT 
                     p.prod_id, p.prod_name, p.model_name, p.prod_price, p.shop_info_shop_id,
@@ -41,15 +42,18 @@ $sql_products = "SELECT
                  LEFT JOIN prod_types pt ON p.prod_types_type_id = pt.type_id 
                  LEFT JOIN shop_info s ON p.shop_info_shop_id = s.shop_id";
 
+// สร้าง Array เก็บเงื่อนไข WHERE
 $conditions = [];
-// ไม่แสดงสินค้าประเภทบริการ (Type ID != 4)
+
+// 1. [NEW] ไม่แสดงสินค้าประเภทบริการ (Service) เพราะไม่ต้องรับเข้าสต็อก
 $conditions[] = "p.prod_types_type_id != 4";
 
-// ถ้าไม่ใช่ Admin ให้กรองเฉพาะของร้านตัวเอง หรือ ของส่วนกลาง (ID=0)
+// 2. ถ้าไม่ใช่ Admin ให้กรองเฉพาะของร้านตัวเอง หรือ ของส่วนกลาง (ID=0)
 if (!$is_admin) {
     $conditions[] = "(p.shop_info_shop_id = '$shop_id' OR p.shop_info_shop_id = 0)";
 }
 
+// ต่อ SQL ด้วย WHERE Clause
 if (count($conditions) > 0) {
     $sql_products .= " WHERE " . implode(' AND ', $conditions);
 }
@@ -84,7 +88,7 @@ function getNextMovementId($conn)
 }
 
 // -----------------------------------------------------------------------------
-// AJAX: เช็ค Serial ซ้ำ (Backend)
+// AJAX: เช็ค Serial ซ้ำ
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -110,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     // จัดการอัปโหลดรูปภาพ 
     $first_image_name = NULL;
     if (isset($_FILES['prod_image']) && $_FILES['prod_image']['error'][0] === UPLOAD_ERR_OK) {
-        $upload_dir = '../uploads/products/';
+        $upload_dir = '../uploads/products/'; 
         if (!is_dir($upload_dir)) {
             mkdir($upload_dir, 0777, true);
         }
@@ -130,10 +134,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     $stock_ids = [];
 
     try {
+        // รับค่าจากฟอร์ม
         $products_prod_id = mysqli_real_escape_string($conn, $_POST['products_prod_id']);
         $price = floatval($_POST['price']);
         $serial_list = $_POST['serial_no'];
-        $ref_table = mysqli_real_escape_string($conn, $_POST['manual_reason']);
+        $ref_table = mysqli_real_escape_string($conn, $_POST['manual_reason']); 
 
         if (empty($products_prod_id) || empty($serial_list) || $price <= 0 || empty($ref_table)) {
             throw new Exception('กรุณากรอกข้อมูลโหมดพิเศษให้ครบถ้วน (สินค้า, ราคา, Serial, เหตุผล)');
@@ -144,17 +149,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             if (empty(trim($serial))) throw new Exception('กรุณากรอก Serial Number ให้ครบทุกชิ้น');
             if (checkSerialExists($conn, $serial)) throw new Exception("Serial Number: $serial มีอยู่ในระบบแล้ว");
         }
-
-        // ตรวจสอบค่าซ้ำใน Input เอง
         if (count($serial_list) !== count(array_unique($serial_list))) {
             throw new Exception('Serial Number ที่กรอกต้องไม่ซ้ำกัน');
         }
 
-        // วนลูปบันทึก
+        // วนลูปบันทึกทีละชิ้น
         foreach ($serial_list as $serial) {
             $stock_id = getNextStockId($conn);
             $serial_escaped = mysqli_real_escape_string($conn, trim($serial));
 
+            // บันทึกลงตาราง prod_stocks (ผูกกับ Branch ของคนทำรายการ)
             $sql = "INSERT INTO prod_stocks (
                         stock_id, serial_no, price, stock_status, warranty_start_date, 
                         image_path, create_at, update_at, products_prod_id, branches_branch_id
@@ -164,11 +168,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                     )";
 
             $stmt = $conn->prepare($sql);
-            $stmt->bind_param("isdsii", $stock_id, $serial_escaped, $price, $first_image_name, $products_prod_id, $branch_id);
+            $stmt->bind_param(
+                "isdsii",
+                $stock_id,
+                $serial_escaped,
+                $price,
+                $first_image_name,
+                $products_prod_id,
+                $branch_id 
+            );
             if (!$stmt->execute()) throw new Exception('ไม่สามารถเพิ่มสต็อกได้: ' . $stmt->error);
             $stmt->close();
 
-            // Movement
+            // บันทึก Movement
             $move_id = getNextMovementId($conn);
             $move_stmt = $conn->prepare(
                 "INSERT INTO stock_movements 
@@ -183,6 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $stock_ids[] = $stock_id;
         }
 
+        // Commit Transaction
         mysqli_commit($conn);
         mysqli_autocommit($conn, true);
 
@@ -191,6 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         $_SESSION['success'] = "เพิ่มสินค้าเข้าสต็อกสำเร็จ จำนวน $success_count ชิ้น (รหัส: $stock_range)";
         header('Location: prod_stock.php');
         exit;
+
     } catch (Exception $e) {
         mysqli_rollback($conn);
         mysqli_autocommit($conn, true);
@@ -210,10 +224,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <?php require '../config/load_theme.php'; ?>
     <style>
+        /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
         *,
         *::before,
         *::after {
@@ -232,10 +246,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             max-width: 1200px;
         }
 
-        h4,
-        h5 {
-            color: <?= $theme_color ?>;
+        h4 {
             font-weight: 700;
+            color: <?= $theme_color ?>;
+        }
+
+        h5 {
+            font-weight: 600;
+            color: <?= $theme_color ?>;
         }
 
         .form-section {
@@ -251,6 +269,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             font-size: 14px;
             padding: 8px 12px;
             border-radius: 6px;
+            /* **[แก้ไข]** กำหนดความกว้างสูงสุด 100% ของพื้นที่ Parent */
             max-width: 100%;
         }
 
@@ -328,12 +347,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             color: #444;
         }
 
+        /* -------------------------------------------------------------------- */
+        /* --- Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
+        /* -------------------------------------------------------------------- */
         @media (max-width: 991.98px) {
             .container {
                 padding-left: 15px;
                 padding-right: 15px;
             }
 
+            /* 1. จัดการ Heading และ Form Section */
             h4 {
                 font-size: 1.5rem;
             }
@@ -347,22 +370,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 margin-bottom: 20px;
             }
 
+            .form-control,
+            .form-select {
+                font-size: 1rem;
+                padding: 10px 12px;
+            }
+
+            /* **[เพิ่ม/แก้ไข]** ทำให้ Form Control ภายในตารางไม่ล้นจอ */
+            /* หากช่องเลือกสินค้าอยู่ในตาราง (td) ต้องมั่นใจว่า td นั้นยืดได้ */
+            table td {
+                /* ... โค้ดเดิม ... */
+                width: 100%;
+            }
+
+            /* 2. จัดการ Table Layout (สำหรับ Label-Input rows) */
             table,
             tbody,
-            tr,
-            td {
+            tr {
                 display: block;
                 width: 100%;
             }
 
             table td {
+                display: block;
+                width: 100%;
                 padding: 5px 0 !important;
             }
 
             .label-col {
+                width: 100%;
+                padding-top: 0 !important;
                 margin-top: 10px;
                 margin-bottom: 5px;
                 font-weight: 600;
+            }
+
+            /* 3. จัดการ Serial/Item Row */
+            .serial-row {
+                padding: 10px;
+            }
+
+            /* 4. จัดการ Image Grid */
+            .images-grid {
+                grid-template-columns: repeat(3, minmax(80px, 1fr));
+                gap: 5px;
+            }
+
+            .images-grid img {
+                max-width: 100%;
+                max-height: 80px;
+            }
+
+            /* 5. ทำให้ปุ่มหลักใช้เต็มความกว้าง */
+            .d-grid .btn {
+                width: 100%;
+                margin-bottom: 10px;
             }
         }
     </style>
@@ -373,42 +435,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
+
                 <div class="container my-4">
 
                     <?php if (isset($_SESSION['success'])): ?>
-                        <script>
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'สำเร็จ!',
-                                text: '<?= $_SESSION['success']; ?>',
-                                timer: 2000,
-                                showConfirmButton: false
-                            });
-                        </script>
-                        <?php unset($_SESSION['success']); ?>
+                        <div class="alert alert-success alert-dismissible fade show">
+                            <?= $_SESSION['success'];
+                            unset($_SESSION['success']); ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
                     <?php endif; ?>
-
                     <?php if (isset($_SESSION['error'])): ?>
-                        <script>
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'เกิดข้อผิดพลาด',
-                                text: '<?= $_SESSION['error']; ?>'
-                            });
-                        </script>
-                        <?php unset($_SESSION['error']); ?>
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <?= $_SESSION['error'];
+                            unset($_SESSION['error']); ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
                     <?php endif; ?>
 
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <h4 class="mb-0"><i class="fas <?= $page_icon ?> me-2"></i><?= $page_title ?></h4>
+
                         <a href="add_stock_barcode.php" class="btn btn-primary shadow-sm">
-                            <i class="fas fa-barcode fa-lg me-2"></i> รับเข้าด้วยบาร์โค้ด
+                            <i class="fas fa-barcode fa-lg me-2"></i> รับเข้าด้วยบาร์โค้ด (Scan Mode)
                         </a>
                     </div>
 
                     <div class="alert alert-warning">
                         <i class="fas fa-exclamation-triangle me-2"></i>
-                        หน้านี้ใช้สำหรับเพิ่มสินค้าเข้าสต็อกโดยตรง (เช่น ของแถม, ปรับสต็อก)
+                        หน้านี้ใช้สำหรับเพิ่มสินค้าเข้าสต็อกโดยตรง (เช่น ของแถม, สินค้าตกหล่น, ปรับสต็อก)
+                        <br>หากต้องการรับสินค้าจาก PO, กรุณาไปที่หน้า "ใบสั่งซื้อ" และกดปุ่ม "รับสินค้า"
                     </div>
 
                     <form method="POST" enctype="multipart/form-data" id="addStockForm" novalidate>
@@ -422,9 +478,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                                             <option value="">-- เลือกสินค้า --</option>
                                             <?php mysqli_data_seek($products_result, 0); ?>
                                             <?php while ($product = mysqli_fetch_assoc($products_result)): ?>
+                                                <?php
+                                                // สร้าง Label เพิ่มเติมถ้าเป็น Admin หรือสินค้าส่วนกลาง
+                                                $extra_label = "";
+                                                if ($product['shop_info_shop_id'] == 0) {
+                                                    $extra_label = " [ส่วนกลาง]";
+                                                } elseif ($is_admin && !empty($product['shop_name'])) {
+                                                    $extra_label = " [ร้าน: " . $product['shop_name'] . "]";
+                                                }
+                                                ?>
                                                 <option value="<?= $product['prod_id'] ?>" data-price="<?= $product['prod_price'] ?>">
-                                                    <?= htmlspecialchars($product['prod_name']) ?> <?= htmlspecialchars($product['brand_name']) ?>
-                                                    (<?= htmlspecialchars($product['model_name']) ?>) - ฿<?= number_format($product['prod_price'], 2) ?>
+                                                    <?= htmlspecialchars($product['prod_name']) ?>
+                                                    <?= htmlspecialchars($product['brand_name']) ?>
+                                                    (<?= htmlspecialchars($product['model_name']) ?>)
+                                                    <?= $extra_label ?>
+                                                    - ฿<?= number_format($product['prod_price'], 2) ?>
                                                 </option>
                                             <?php endwhile; ?>
                                         </select>
@@ -466,12 +534,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                                 </tr>
                             </table>
                         </div>
+
                         <div class="form-section">
                             <h5><i class="fas fa-barcode me-2"></i>ข้อมูล Serial Number (หรือ IMEI)</h5>
                             <div id="serialContainer">
-                                <div class="text-center text-muted py-3">
-                                    <i class="fas fa-arrow-up me-2"></i>กรุณาเลือกสินค้าและระบุจำนวน
-                                </div>
                             </div>
                         </div>
 
@@ -518,274 +584,199 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // ประกาศตัวแปร Global
-        let selectedImages = [];
-
         $(document).ready(function() {
-            // 1. Init Select2
             $('.select2').select2({
                 theme: 'bootstrap-5',
                 width: '100%',
                 placeholder: '-- ค้นหาและเลือกสินค้า --',
                 allowClear: true
             });
+            let selectedImages = [];
 
-            // 2. ตั้งค่าวันปัจจุบัน
-            document.getElementById('date_in').value = new Date().toISOString().split('T')[0];
+            document.addEventListener('DOMContentLoaded', function() {
+                setTodayDate();
 
-            // 3. Event Listeners (แก้ไขบัคตรงนี้)
-            // เมื่อมีการเปลี่ยนสินค้า -> อัปเดตราคา และ สร้างช่อง Serial
-            $('#products_prod_id').on('change', function() {
-                updatePriceFromProduct();
                 updateSerialFieldsManual();
+                document.getElementById('quantity').addEventListener('change', updateSerialFieldsManual);
+                document.getElementById('products_prod_id').addEventListener('change', updatePriceFromProduct);
             });
 
-            // เมื่อมีการเปลี่ยนจำนวน -> สร้างช่อง Serial ใหม่ตามจำนวน
-            $('#quantity').on('input change', function() {
-                updateSerialFieldsManual();
-            });
-
-            // เรียกทำงานครั้งแรก (กรณีมีค่าค้างในฟอร์มหลัง Refresh)
-            if ($('#products_prod_id').val()) {
-                updatePriceFromProduct();
-                updateSerialFieldsManual();
-            }
-        });
-
-        // --- ฟังก์ชันดึงราคาจาก Option ---
-        function updatePriceFromProduct() {
-            const productSelect = document.getElementById('products_prod_id');
-            const priceInput = document.getElementById('price');
-
-            // ดึงค่าจาก Option ที่เลือก (รองรับ Select2)
-            const selectedOption = productSelect.options[productSelect.selectedIndex];
-
-            if (selectedOption && selectedOption.value && selectedOption.dataset.price) {
-                priceInput.value = parseFloat(selectedOption.dataset.price).toFixed(2);
-            } else {
-                priceInput.value = '';
-            }
-        }
-
-        // --- ฟังก์ชันสร้างช่องกรอก Serial (Logic หลักที่แก้ไข) ---
-        function updateSerialFieldsManual() {
-            const quantity = parseInt(document.getElementById('quantity').value) || 0;
-            const productId = document.getElementById('products_prod_id').value;
-            const container = document.getElementById('serialContainer');
-
-            // ถ้ายังไม่เลือกสินค้า หรือจำนวนน้อยกว่า 1 ให้เคลียร์และแสดงข้อความแจ้งเตือน
-            if (!productId || quantity < 1) {
-                container.innerHTML = `
-                    <div class="text-center text-muted py-3">
-                        <i class="fas fa-arrow-up me-2"></i>กรุณาเลือกสินค้าและระบุจำนวนที่ถูกต้อง
-                    </div>`;
-                return;
+            // --- SHARED ---
+            function setTodayDate() {
+                document.getElementById('date_in').value = new Date().toISOString().split('T')[0];
             }
 
-            // ถ้ามีสินค้าแล้ว ให้สร้าง Input ตามจำนวน
-            container.innerHTML = '';
-            for (let i = 1; i <= quantity; i++) {
-                container.appendChild(createSerialField('serial_no[]', i));
-            }
-        }
+            async function checkSerial(inputElement) {
+                const value = inputElement.value.trim();
+                const errorElement = inputElement.parentElement.querySelector('.error-feedback');
 
-        // --- Helper: สร้าง HTML สำหรับแต่ละแถว Serial ---
-        function createSerialField(name, itemNumber) {
-            const row = document.createElement('div');
-            row.className = 'serial-row animate__animated animate__fadeIn'; // เพิ่ม Animation เล็กน้อย (ถ้ามี library)
-            row.innerHTML = `
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <div class="item-number mb-0">ชิ้นที่ ${itemNumber}</div>
-                </div>
+                if (value.length >= 5) {
+                    try {
+                        const formData = new FormData();
+                        formData.append('action', 'check_serial');
+                        formData.append('serial_no', value);
+
+                        const response = await fetch('', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        const data = await response.json();
+
+                        if (data.success && data.exists) {
+                            inputElement.classList.add('is-invalid');
+                            errorElement.textContent = 'Serial Number นี้มีอยู่ในระบบแล้ว';
+                        } else {
+                            inputElement.classList.remove('is-invalid');
+                            errorElement.textContent = 'กรุณากรอก Serial Number';
+                        }
+                    } catch (error) {
+                        console.error('Error checking Serial:', error);
+                    }
+                } else if (value.length > 0) {
+                    inputElement.classList.remove('is-invalid');
+                    errorElement.textContent = 'กรุณากรอก Serial Number';
+                }
+            }
+
+            function previewImages(input) {
+                const files = Array.from(input.files);
+                const maxFiles = 6;
+                if (files.length > maxFiles) {
+                    alert(`สามารถเลือกได้สูงสุด ${maxFiles} รูป`);
+                    const dt = new DataTransfer();
+                    files.slice(0, maxFiles).forEach(file => dt.items.add(file));
+                    input.files = dt.files;
+                }
+                selectedImages = [];
+                const container = document.getElementById('selectedImages');
+                const preview = document.getElementById('imagePreview');
+                container.innerHTML = '';
+                const finalFiles = Array.from(input.files);
+                preview.style.display = finalFiles.length > 0 ? 'none' : 'flex';
+                finalFiles.forEach((file, index) => {
+                    selectedImages.push(file);
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        const imageItem = document.createElement('div');
+                        imageItem.className = 'position-relative';
+                        imageItem.innerHTML = `<img src="${e.target.result}" alt="Preview ${index + 1}"><button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0" style="margin: -5px;" onclick="removeImage(${index})"><i class="fas fa-times"></i></button>`;
+                        container.appendChild(imageItem);
+                    }
+                    reader.readAsDataURL(file);
+                });
+                if (finalFiles.length > 0) preview.style.display = 'none';
+                else preview.style.display = 'flex';
+            }
+
+            function removeImage(index) {
+                selectedImages.splice(index, 1);
+                const dt = new DataTransfer();
+                selectedImages.forEach(file => dt.items.add(file));
+                document.getElementById('prod_image').files = dt.files;
+                previewImages(document.getElementById('prod_image'));
+            }
+
+            // --- MANUAL MODE ---
+            function updatePriceFromProduct() {
+                const productSelect = document.getElementById('products_prod_id');
+                const priceInput = document.getElementById('price');
+                const selectedOption = productSelect.options[productSelect.selectedIndex];
+                if (selectedOption.value && selectedOption.dataset.price) {
+                    priceInput.value = parseFloat(selectedOption.dataset.price).toFixed(2);
+                } else {
+                    priceInput.value = '';
+                }
+            }
+
+            function updateSerialFieldsManual() {
+                const quantity = parseInt(document.getElementById('quantity').value) || 1;
+                const container = document.getElementById('serialContainer');
+                container.innerHTML = '';
+                for (let i = 1; i <= quantity; i++) {
+                    container.appendChild(createSerialField('serial_no[]', i));
+                }
+            }
+
+            // --- SHARED UTILITY ---
+            function createSerialField(name, itemNumber) {
+                const row = document.createElement('div');
+                row.className = 'serial-row';
+                row.innerHTML = `
+                <div class="item-number">ชิ้นที่ ${itemNumber}</div>
                 <div class="row">
-                    <div class="col-md-12">
-                        <label class="form-label small text-muted">Serial Number / IMEI <span class="text-danger">*</span></label>
-                        <div class="input-group">
-                            <span class="input-group-text"><i class="fas fa-barcode"></i></span>
-                            <input type="text" class="form-control serial-input" name="${name}" placeholder="สแกนหรือพิมพ์ S/N ที่นี่..." maxlength="50" required>
-                        </div>
-                        <div class="error-feedback">Serial Number นี้มีในระบบแล้ว หรือข้อมูลไม่ถูกต้อง</div>
+                    <div class="col-md-8">
+                        <label class="form-label">Serial Number (S/N) <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control serial-input" name="${name}" placeholder="กรอก S/N หรือ IMEI" maxlength="50" required>
+                        <div class="error-feedback">กรุณากรอก Serial Number</div>
                     </div>
                 </div>
             `;
+                // Event Listener ให้ช่องที่เพิ่งสร้าง
+                row.querySelector('.serial-input').addEventListener('input', function() {
+                    checkSerial(this);
+                });
+                return row;
+            }
 
-            // ผูก Event Check Serial ซ้ำ (AJAX) ทันทีที่พิมพ์
-            const input = row.querySelector('.serial-input');
-            let timeout = null;
-            input.addEventListener('input', function() {
-                clearTimeout(timeout);
-                // หน่วงเวลา 500ms ก่อนเช็ค เพื่อไม่ให้ยิง Request ถี่เกินไป
-                timeout = setTimeout(() => checkSerial(this), 500);
-            });
+            // --- FORM VALIDATION ---
+            document.getElementById('addStockForm').addEventListener('submit', function(e) {
+                let isValid = true;
 
-            return row;
-        }
-
-        // --- AJAX Check Serial ---
-        async function checkSerial(inputElement) {
-            const value = inputElement.value.trim();
-            const errorElement = inputElement.closest('.col-md-12').querySelector('.error-feedback');
-
-            if (value.length >= 4) { // เช็คเมื่อพิมพ์ 4 ตัวขึ้นไป
-                try {
-                    const formData = new FormData();
-                    formData.append('action', 'check_serial');
-                    formData.append('serial_no', value);
-
-                    const response = await fetch('', {
-                        method: 'POST',
-                        body: formData
-                    });
-                    const data = await response.json();
-
-                    if (data.success && data.exists) {
-                        inputElement.classList.add('is-invalid');
-                        inputElement.classList.remove('is-valid');
-                        errorElement.style.display = 'block';
-                        errorElement.textContent = 'Serial Number นี้มีอยู่ในระบบแล้ว';
+                // Validate Manual Mode
+                const requiredFields = ['products_prod_id', 'quantity', 'price', 'manual_reason'];
+                requiredFields.forEach(fieldName => {
+                    const field = document.querySelector(`[name="${fieldName}"]`);
+                    if (!field.value.trim() || (fieldName === 'price' && parseFloat(field.value) <= 0)) {
+                        field.classList.add('is-invalid');
+                        isValid = false;
                     } else {
-                        inputElement.classList.remove('is-invalid');
-                        inputElement.classList.add('is-valid');
-                        errorElement.style.display = 'none';
+                        field.classList.remove('is-invalid');
                     }
-                } catch (error) {
-                    console.error('Error:', error);
-                }
-            } else {
-                inputElement.classList.remove('is-invalid', 'is-valid');
-                errorElement.style.display = 'none';
-            }
-        }
+                });
 
-        // --- Image Preview Functions ---
-        window.previewImages = function(input) { // ทำให้เป็น Global function
-            const files = Array.from(input.files);
-            const maxFiles = 6;
+                // Validate Serials
+                const serialInputs = document.querySelectorAll('.serial-input');
+                const serialValues = [];
 
-            if (files.length > maxFiles) {
-                Swal.fire('แจ้งเตือน', `สามารถเลือกรูปภาพได้สูงสุด ${maxFiles} รูป`, 'warning');
-                // ตัดให้เหลือแค่ 6 รูป
-                const dt = new DataTransfer();
-                files.slice(0, maxFiles).forEach(file => dt.items.add(file));
-                input.files = dt.files;
-            }
+                serialInputs.forEach(input => {
+                    const value = input.value.trim();
+                    if (!value) {
+                        input.classList.add('is-invalid');
+                        isValid = false;
+                    } else if (input.classList.contains('is-invalid')) {
+                        isValid = false;
+                    } else {
+                        input.classList.remove('is-invalid');
+                        serialValues.push(value);
+                    }
+                });
 
-            selectedImages = [];
-            const container = document.getElementById('selectedImages');
-            const preview = document.getElementById('imagePreview');
-            container.innerHTML = '';
-
-            const finalFiles = Array.from(input.files);
-            preview.style.display = finalFiles.length > 0 ? 'none' : 'flex';
-
-            finalFiles.forEach((file, index) => {
-                selectedImages.push(file);
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const imageItem = document.createElement('div');
-                    imageItem.className = 'position-relative';
-                    imageItem.innerHTML = `
-                        <img src="${e.target.result}" alt="Preview">
-                        <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0" 
-                                style="transform: translate(30%, -30%); border-radius: 50%;" 
-                                onclick="removeImage(${index})">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    `;
-                    container.appendChild(imageItem);
-                }
-                reader.readAsDataURL(file);
-            });
-        }
-
-        window.removeImage = function(index) {
-            const input = document.getElementById('prod_image');
-            const dt = new DataTransfer();
-            const files = Array.from(input.files);
-
-            files.forEach((file, i) => {
-                if (i !== index) dt.items.add(file);
-            });
-
-            input.files = dt.files;
-            previewImages(input); // Render ใหม่
-        }
-
-        // --- Form Validation & Submit ---
-        document.getElementById('addStockForm').addEventListener('submit', function(e) {
-            e.preventDefault(); // หยุดการส่งฟอร์มไว้ก่อนเพื่อเช็ค
-
-            let isValid = true;
-            const requiredFields = ['products_prod_id', 'quantity', 'price', 'manual_reason'];
-
-            // 1. เช็คฟิลด์หลัก
-            requiredFields.forEach(fieldName => {
-                const field = document.querySelector(`[name="${fieldName}"]`);
-                if (!field.value.trim() || (fieldName === 'price' && parseFloat(field.value) <= 0)) {
-                    field.classList.add('is-invalid');
+                const uniqueSerial = [...new Set(serialValues)];
+                if (uniqueSerial.length !== serialValues.length && serialValues.length > 0) {
+                    alert('Serial Number ต้องไม่ซ้ำกัน (ทั้งในฟอร์มและในระบบ)');
                     isValid = false;
-                } else {
-                    field.classList.remove('is-invalid');
                 }
+
+                if (!isValid) {
+                    e.preventDefault();
+                    const firstError = document.querySelector('.is-invalid');
+                    if (firstError) {
+                        firstError.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'center'
+                        });
+                        firstError.focus();
+                    }
+                    return;
+                }
+
+                const submitBtn = document.getElementById('submitBtn');
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>กำลังบันทึก...';
+                submitBtn.disabled = true;
             });
-
-            // 2. เช็ค Serial Numbers
-            const serialInputs = document.querySelectorAll('.serial-input');
-            const serialValues = [];
-
-            if (serialInputs.length === 0) {
-                Swal.fire('ผิดพลาด', 'กรุณาระบุจำนวนและเลือกสินค้าก่อน', 'error');
-                return;
-            }
-
-            serialInputs.forEach(input => {
-                const val = input.value.trim();
-                if (!val) {
-                    input.classList.add('is-invalid');
-                    isValid = false;
-                } else if (input.classList.contains('is-invalid')) {
-                    // ถ้ามี class invalid ค้างอยู่ (เช่น ซ้ำใน DB)
-                    isValid = false;
-                } else {
-                    input.classList.remove('is-invalid');
-                    serialValues.push(val);
-                }
-            });
-
-            // 3. เช็คค่าซ้ำในฟอร์มเอง
-            const uniqueSerial = [...new Set(serialValues)];
-            if (uniqueSerial.length !== serialValues.length && serialValues.length > 0) {
-                Swal.fire('ข้อมูลซ้ำ', 'Serial Number ที่กรอกต้องไม่ซ้ำกันในรายการเดียวกัน', 'warning');
-                isValid = false;
-            }
-
-            if (!isValid) {
-                Swal.fire('ข้อมูลไม่ครบถ้วน', 'กรุณาตรวจสอบข้อมูลที่แจ้งเตือนสีแดง', 'error');
-                // เลื่อนหน้าจอไปหาจุดผิด
-                const firstError = document.querySelector('.is-invalid');
-                if (firstError) {
-                    firstError.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center'
-                    });
-                    firstError.focus();
-                }
-                return;
-            }
-
-            // ถ้าผ่านหมด ให้ Submit
-            const submitBtn = document.getElementById('submitBtn');
-            const originalText = submitBtn.innerHTML;
-            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>กำลังบันทึก...';
-            submitBtn.disabled = true;
-
-            // ส่งฟอร์มจริง
-            this.submit();
         });
     </script>
 </body>
