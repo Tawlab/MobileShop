@@ -1,13 +1,21 @@
 <?php
+// reset_settings.php
+ob_start();
 session_start();
 require '../config/config.php';
 
-$user_id = $_GET['user_id'] ?? 0;
+header('Content-Type: application/json');
+
+// ใช้ user_id จาก Session เพื่อความปลอดภัย
+$user_id = $_SESSION['user_id'] ?? 0;
+
 if (!$user_id) {
-  die("ไม่ได้ระบุรหัสผู้ใช้");
+    echo json_encode(['status' => 'error', 'message' => 'ไม่พบข้อมูลผู้ใช้งาน']);
+    exit;
 }
 
-$default_theme_config = [
+// ค่าเริ่มต้น
+$default = [
   'theme_color'        => '#198754',
   'background_color'   => '#ffffff',
   'font_style'         => 'Prompt',
@@ -23,32 +31,36 @@ $default_theme_config = [
   'danger_text_color'  => '#dc3545'
 ];
 
-$sql = "REPLACE INTO systemconfig (
-  user_id,
-  theme_color, background_color, font_style, text_color,
-  header_bg_color, header_text_color,
-  btn_add_color, btn_edit_color, btn_delete_color,
-  status_on_color, status_off_color,
-  warning_bg_color, danger_text_color
-) VALUES (
-  $user_id,
-  '{$default_theme_config['theme_color']}',
-  '{$default_theme_config['background_color']}',
-  '{$default_theme_config['font_style']}',
-  '{$default_theme_config['text_color']}',
-  '{$default_theme_config['header_bg_color']}',
-  '{$default_theme_config['header_text_color']}',
-  '{$default_theme_config['btn_add_color']}',
-  '{$default_theme_config['btn_edit_color']}',
-  '{$default_theme_config['btn_delete_color']}',
-  '{$default_theme_config['status_on_color']}',
-  '{$default_theme_config['status_off_color']}',
-  '{$default_theme_config['warning_bg_color']}',
-  '{$default_theme_config['danger_text_color']}'
-)";
+// ตรวจสอบว่ามีข้อมูลหรือไม่
+$chk = mysqli_query($conn, "SELECT user_id FROM systemconfig WHERE user_id = $user_id");
+
+if (mysqli_num_rows($chk) > 0) {
+    // UPDATE
+    $sql = "UPDATE systemconfig SET
+      theme_color       = '{$default['theme_color']}',
+      background_color  = '{$default['background_color']}',
+      font_style        = '{$default['font_style']}',
+      text_color        = '{$default['text_color']}',
+      header_bg_color   = '{$default['header_bg_color']}',
+      header_text_color = '{$default['header_text_color']}',
+      btn_add_color     = '{$default['btn_add_color']}',
+      btn_edit_color    = '{$default['btn_edit_color']}',
+      btn_delete_color  = '{$default['btn_delete_color']}',
+      status_on_color   = '{$default['status_on_color']}',
+      status_off_color  = '{$default['status_off_color']}',
+      warning_bg_color  = '{$default['warning_bg_color']}',
+      danger_text_color = '{$default['danger_text_color']}'
+      WHERE user_id = $user_id";
+} else {
+    // INSERT (กรณี User ใหม่ยังไม่เคยมี Config)
+    $sql = "INSERT INTO systemconfig (user_id, theme_color, background_color, font_style, text_color, header_bg_color, header_text_color) 
+            VALUES ($user_id, '{$default['theme_color']}', '{$default['background_color']}', '{$default['font_style']}', '{$default['text_color']}', '{$default['header_bg_color']}', '{$default['header_text_color']}')";
+}
 
 if (mysqli_query($conn, $sql)) {
-  echo "<script>alert('คืนค่าธีมเป็นค่าเริ่มต้นแล้ว'); window.location.href='settings.php';</script>";
+    echo json_encode(['status' => 'success', 'message' => 'คืนค่าเริ่มต้นเรียบร้อยแล้ว']);
 } else {
-  echo "<script>alert('เกิดข้อผิดพลาด: " . mysqli_error($conn) . "'); window.history.back();</script>";
+    echo json_encode(['status' => 'error', 'message' => 'เกิดข้อผิดพลาด: ' . mysqli_error($conn)]);
 }
+ob_end_flush();
+?>

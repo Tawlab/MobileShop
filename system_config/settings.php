@@ -19,7 +19,8 @@ $config = mysqli_fetch_assoc($result);
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=<?= $config['font_style'] ?? 'Prompt' ?>&display=swap" rel="stylesheet">
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+  
   <style>
     body {
       background-color: <?= $config['background_color'] ?? '#ffffff' ?>;
@@ -27,8 +28,7 @@ $config = mysqli_fetch_assoc($result);
       font-family: '<?= $config['font_style'] ?? 'Prompt' ?>', sans-serif;
     }
 
-    h4,
-    h5 {
+    h4, h5 {
       color: <?= $config['theme_color'] ?? '#198754' ?>;
     }
 
@@ -58,8 +58,7 @@ $config = mysqli_fetch_assoc($result);
           <div class="card shadow-lg rounded-4 p-4">
             <h4 class="mb-4"><i class="bi bi-palette me-2"></i> ตั้งค่ารูปแบบเว็บไซต์</h4>
 
-            <form method="POST" action="save_settings.php">
-
+            <form id="settingsForm">
               <input type="hidden" name="user_id" value="<?= $user_id ?>">
 
               <div class="row g-4">
@@ -112,9 +111,9 @@ $config = mysqli_fetch_assoc($result);
                   <i class="bi bi-save me-1"></i> บันทึก
                 </button>
 
-                <a href="reset_settings.php?user_id=<?= $user_id ?>" class="btn btn-outline-secondary">
+                <button type="button" id="btnReset" class="btn btn-outline-secondary">
                   <i class="bi bi-arrow-counterclockwise me-1"></i> คืนค่าเริ่มต้น
-                </a>
+                </button>
               </div>
             </form>
           </div>
@@ -122,6 +121,95 @@ $config = mysqli_fetch_assoc($result);
       </div>
     </div>
   </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // 1. จัดการปุ่มบันทึก (AJAX)
+        document.getElementById('settingsForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // หยุดการ Refresh หน้า
+
+            Swal.fire({
+                title: 'กำลังบันทึก...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            const formData = new FormData(this);
+
+            fetch('save_settings.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สำเร็จ',
+                        text: data.message,
+                        timer: 1500,
+                        showConfirmButton: false
+                    }).then(() => {
+                        window.location.reload(); // รีโหลดเพื่อเห็นผลการเปลี่ยนธีม
+                    });
+                } else {
+                    Swal.fire('เกิดข้อผิดพลาด', data.message, 'error');
+                }
+            })
+            .catch(error => {
+                Swal.fire('Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+            });
+        });
+
+        // 2. จัดการปุ่มคืนค่าเริ่มต้น (AJAX)
+        document.getElementById('btnReset').addEventListener('click', function() {
+            Swal.fire({
+                title: 'ยืนยันการคืนค่า?',
+                text: "การตั้งค่าทั้งหมดจะกลับเป็นค่าเริ่มต้น",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#198754',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'ใช่, คืนค่าเลย',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({
+                        title: 'กำลังคืนค่า...',
+                        allowOutsideClick: false,
+                        didOpen: () => Swal.showLoading()
+                    });
+
+                    fetch('reset_settings.php') // ไม่ต้องส่ง user_id เพราะใช้ session
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'สำเร็จ',
+                                text: data.message,
+                                timer: 1500,
+                                showConfirmButton: false
+                            }).then(() => {
+                                window.location.reload();
+                            });
+                        } else {
+                            Swal.fire('เกิดข้อผิดพลาด', data.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        Swal.fire('Error', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+                    });
+                }
+            });
+        });
+
+    });
+  </script>
 </body>
 
 </html>
