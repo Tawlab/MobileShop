@@ -1,83 +1,89 @@
 <?php
 session_start();
 require '../config/config.php';
-require '../vendor/autoload.php';
 
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
-
+// ส่วนจัดการ AJAX Request
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    header('Content-Type: application/json'); 
+    header('Content-Type: application/json');
     $action = $_POST['action'];
     $response = ['status' => 'error', 'message' => 'เกิดข้อผิดพลาด'];
 
-    // --- ส่ง OTP (Send OTP) ---
-    if ($action === 'send_otp') {
-        $email = trim($_POST['email']);
+    try {
+        // --- 1. ตรวจสอบข้อมูล (Verify Identity) ---
+        if ($action === 'verify_identity') {
+            $username = trim($_POST['username']);
+            $email = trim($_POST['email']);
 
-        // เช็คอีเมลใน DB
-        $stmt = $conn->prepare("SELECT u.user_id, e.firstname_th FROM employees e JOIN users u ON e.users_user_id = u.user_id WHERE e.emp_email = ?");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $res = $stmt->get_result();
+            // ตรวจสอบว่ามีคู่ Username และ Email นี้จริงหรือไม่
+            $sql = "SELECT u.user_id, e.firstname_th 
+                    FROM users u 
+                    JOIN employees e ON u.user_id = e.users_user_id 
+                    WHERE u.username = ? AND e.emp_email = ?";
+            
+            $stmt = $conn->prepare($sql);
+            $stmt->bind_param("ss", $username, $email);
+            $stmt->execute();
+            $res = $stmt->get_result();
 
-        if ($res->num_rows > 0) {
-            $user = $res->fetch_assoc();
-            $otp = rand(100000, 999999);
+            if ($res->num_rows > 0) {
+                $user = $res->fetch_assoc();
+                
+                // เก็บ Session ชั่วคราวเพื่ออนุญาตให้เปลี่ยนรหัส
+                $_SESSION['reset_user_id'] = $user['user_id'];
+                $_SESSION['allow_reset'] = true;
 
-            // เก็บลง Session
-            $_SESSION['reset_otp'] = $otp;
-            $_SESSION['reset_email'] = $email;
-            $_SESSION['reset_user_id'] = $user['user_id'];
-            $_SESSION['reset_expiry'] = time() + 900;
-
-            // ส่งเมล
-            try {
-                $shop = mysqli_fetch_assoc(mysqli_query($conn, "SELECT * FROM shop_info LIMIT 1"));
-                $mail = new PHPMailer(true);
-                $mail->isSMTP();
-                $mail->Host = 'smtp.gmail.com';
-                $mail->SMTPAuth = true;
-                $mail->Username = $shop['shop_email'];
-                $mail->Password = $shop['shop_app_password'];
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port = 587;
-                $mail->CharSet = 'UTF-8';
-                $mail->setFrom($shop['shop_email'], $shop['shop_name']);
-                $mail->addAddress($email);
-                $mail->isHTML(true);
-                $mail->Subject = "รหัส OTP ของคุณคือ $otp";
-                $mail->Body = "<h3>รหัสยืนยันตัวตน</h3><h1>$otp</h1><p>รหัสมีอายุ 15 นาที</p>";
-                $mail->send();
-
-                $response = ['status' => 'success', 'message' => 'ส่ง OTP แล้ว'];
-            } catch (Exception $e) {
-                $response = ['status' => 'error', 'message' => 'ส่งเมลไม่ผ่าน: ' . $mail->ErrorInfo];
+                $response = [
+                    'status' => 'success', 
+                    'message' => 'ตรวจสอบข้อมูลถูกต้อง',
+                    'user_name' => $user['firstname_th']
+                ];
+            } else {
+                $response = ['status' => 'error', 'message' => 'ไม่พบข้อมูล Username หรือ Email นี้ในระบบ'];
             }
-        } else {
-            $response = ['status' => 'error', 'message' => 'ไม่พบอีเมลนี้ในระบบ'];
         }
-    }
 
-    // --- ยืนยัน OTP  ---
-    elseif ($action === 'verify_otp') {
-        $input_otp = trim($_POST['otp_code']);
+        // --- 2. เปลี่ยนรหัสผ่าน (Update Password) ---
+        elseif ($action === 'update_password') {
+            if (!isset($_SESSION['allow_reset']) || !isset($_SESSION['reset_user_id'])) {
+                throw new Exception('Session หมดอายุ กรุณาทำรายการใหม่');
+            }
 
-        if (!isset($_SESSION['reset_otp'])) {
-            $response = ['status' => 'error', 'message' => 'Session หมดอายุ กรุณาเริ่มใหม่'];
-        } elseif (time() > $_SESSION['reset_expiry']) {
-            $response = ['status' => 'error', 'message' => 'รหัส OTP หมดอายุแล้ว'];
-        } elseif ($input_otp != $_SESSION['reset_otp']) {
-            $response = ['status' => 'error', 'message' => 'รหัส OTP ไม่ถูกต้อง'];
-        } else {
-            $_SESSION['allow_reset'] = true;
-            unset($_SESSION['reset_otp']); // ลบ OTP ทิ้ง
-            $response = ['status' => 'success', 'redirect' => 'reset_new_password.php'];
+            $new_pass = $_POST['new_password'];
+            $confirm_pass = $_POST['confirm_password'];
+
+            if (strlen($new_pass) < 6) {
+                throw new Exception('รหัสผ่านต้องมีความยาวอย่างน้อย 6 ตัวอักษร');
+            }
+
+            if ($new_pass !== $confirm_pass) {
+                throw new Exception('รหัสผ่านยืนยันไม่ตรงกัน');
+            }
+
+            // Hash รหัสผ่านใหม่
+            $hashed_password = password_hash($new_pass, PASSWORD_DEFAULT);
+            $user_id = $_SESSION['reset_user_id'];
+
+            // อัปเดตลงฐานข้อมูล
+            $stmt = $conn->prepare("UPDATE users SET password = ? WHERE user_id = ?");
+            $stmt->bind_param("si", $hashed_password, $user_id);
+
+            if ($stmt->execute()) {
+                // ล้าง Session
+                unset($_SESSION['reset_user_id']);
+                unset($_SESSION['allow_reset']);
+                
+                $response = ['status' => 'success', 'message' => 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว'];
+            } else {
+                throw new Exception('เกิดข้อผิดพลาดในการบันทึกข้อมูล');
+            }
         }
+
+    } catch (Exception $e) {
+        $response = ['status' => 'error', 'message' => $e->getMessage()];
     }
 
     echo json_encode($response);
-    exit; 
+    exit;
 }
 ?>
 
@@ -86,16 +92,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <head>
     <meta charset="UTF-8">
-    <title>ลืมรหัสผ่าน</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ลืมรหัสผ่าน / กู้คืนบัญชี</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <style>
         body {
             font-family: 'Sarabun', sans-serif;
-            background: #ecfdf5;
-            height: 100vh;
+            background: #f3f4f6; /* สีพื้นหลังเรียบๆ */
+            min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -103,48 +111,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .card-custom {
             width: 100%;
-            max-width: 400px;
-            padding: 30px;
-            border-radius: 15px;
+            max-width: 420px;
+            padding: 40px 30px;
+            border-radius: 20px;
             background: white;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
-            text-align: center;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             position: relative;
-            overflow: hidden;
-        }
-
-        .btn-success {
-            background-color: #10b981;
-            border: none;
-            width: 100%;
-            padding: 10px;
-            border-radius: 8px;
-            font-weight: bold;
-        }
-
-        .btn-success:hover {
-            background-color: #059669;
-        }
-
-        .otp-input {
-            letter-spacing: 8px;
-            font-size: 1.5rem;
             text-align: center;
-            font-weight: bold;
         }
 
-        /* Loading Overlay */
-        .overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.8);
-            display: none;
+        .icon-header {
+            width: 80px;
+            height: 80px;
+            background: #e0f2fe;
+            color: #0284c7;
+            border-radius: 50%;
+            display: flex;
             align-items: center;
             justify-content: center;
-            z-index: 10;
+            margin: 0 auto 20px;
+            font-size: 2rem;
+        }
+
+        .form-control {
+            border-radius: 10px;
+            padding: 12px 15px;
+            border: 1px solid #e5e7eb;
+            background-color: #f9fafb;
+        }
+
+        .form-control:focus {
+            background-color: #fff;
+            box-shadow: 0 0 0 4px rgba(2, 132, 199, 0.1);
+            border-color: #0284c7;
+        }
+
+        .btn-primary {
+            background-color: #0284c7;
+            border: none;
+            width: 100%;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            margin-top: 10px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            background-color: #0369a1;
+            transform: translateY(-2px);
+        }
+
+        .step-container {
+            transition: opacity 0.3s ease;
         }
     </style>
 </head>
@@ -152,103 +171,179 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
 
     <div class="card-custom">
-        <div class="overlay" id="loadingOverlay">
-            <div class="spinner-border text-success" role="status"></div>
-        </div>
+        
+        <div id="step-verify" class="step-container">
+            <div class="icon-header">
+                <i class="fas fa-user-lock"></i>
+            </div>
+            <h4 class="fw-bold mb-2">ลืมรหัสผ่าน?</h4>
+            <p class="text-muted small mb-4">กรอก Username และ Email ให้ตรงกับระบบ<br>เพื่อยืนยันตัวตน</p>
 
-        <div id="step-email">
-            <i class="fas fa-envelope-open-text fa-3x text-success mb-3"></i>
-            <h4 class="fw-bold">ลืมรหัสผ่าน?</h4>
-            <p class="text-muted small mb-4">กรอกอีเมลเพื่อรับรหัส OTP</p>
-
-            <form id="formEmail">
-                <input type="hidden" name="action" value="send_otp">
+            <form id="formVerify">
+                <input type="hidden" name="action" value="verify_identity">
+                
                 <div class="mb-3 text-start">
-                    <input type="email" name="email" class="form-control" placeholder="ระบุอีเมลของคุณ" required>
+                    <label class="form-label small fw-bold text-secondary ms-1">ชื่อผู้ใช้ (Username)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent border-end-0"><i class="fas fa-user text-muted"></i></span>
+                        <input type="text" name="username" class="form-control border-start-0" placeholder="Username" required>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-success">ส่งรหัส OTP</button>
+
+                <div class="mb-4 text-start">
+                    <label class="form-label small fw-bold text-secondary ms-1">อีเมล (Email)</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-transparent border-end-0"><i class="fas fa-envelope text-muted"></i></span>
+                        <input type="email" name="email" class="form-control border-start-0" placeholder="name@example.com" required>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-check-circle me-2"></i> ตรวจสอบข้อมูล
+                </button>
             </form>
-            <a href="login.php" class="d-block mt-3 text-secondary small text-decoration-none">กลับหน้าเข้าสู่ระบบ</a>
+            
+            <a href="login.php" class="d-block mt-4 text-secondary small text-decoration-none">
+                <i class="fas fa-arrow-left me-1"></i> กลับหน้าเข้าสู่ระบบ
+            </a>
         </div>
 
-        <div id="step-otp" style="display: none;">
-            <i class="fas fa-shield-alt fa-3x text-success mb-3"></i>
-            <h4 class="fw-bold">ยืนยันรหัส OTP</h4>
-            <p class="text-muted small mb-4">รหัสถูกส่งไปที่อีเมลของคุณแล้ว</p>
+        <div id="step-reset" class="step-container" style="display: none;">
+            <div class="icon-header" style="background: #dcfce7; color: #16a34a;">
+                <i class="fas fa-key"></i>
+            </div>
+            <h4 class="fw-bold mb-2">ตั้งรหัสผ่านใหม่</h4>
+            <p class="text-muted small mb-4">สวัสดีคุณ <span id="userNameDisplay" class="fw-bold text-dark"></span><br>กรุณากำหนดรหัสผ่านใหม่ของคุณ</p>
 
-            <form id="formOTP">
-                <input type="hidden" name="action" value="verify_otp">
-                <div class="mb-3">
-                    <input type="text" name="otp_code" class="form-control otp-input" maxlength="6" placeholder="000000" required>
+            <form id="formReset">
+                <input type="hidden" name="action" value="update_password">
+                
+                <div class="mb-3 text-start">
+                    <label class="form-label small fw-bold text-secondary ms-1">รหัสผ่านใหม่</label>
+                    <input type="password" name="new_password" class="form-control" placeholder="อย่างน้อย 6 ตัวอักษร" required minlength="6">
                 </div>
-                <button type="submit" class="btn btn-success">ยืนยัน</button>
+
+                <div class="mb-4 text-start">
+                    <label class="form-label small fw-bold text-secondary ms-1">ยืนยันรหัสผ่านใหม่</label>
+                    <input type="password" name="confirm_password" class="form-control" placeholder="กรอกรหัสผ่านอีกครั้ง" required minlength="6">
+                </div>
+
+                <button type="submit" class="btn btn-primary" style="background-color: #16a34a;">
+                    <i class="fas fa-save me-2"></i> บันทึกรหัสผ่าน
+                </button>
             </form>
-            <button onclick="location.reload()" class="btn btn-link text-secondary small text-decoration-none mt-2">เปลี่ยนอีเมล / ส่งใหม่</button>
         </div>
 
     </div>
 
     <script>
-        const stepEmail = document.getElementById('step-email');
-        const stepOtp = document.getElementById('step-otp');
-        const overlay = document.getElementById('loadingOverlay');
+        // DOM Elements
+        const stepVerify = document.getElementById('step-verify');
+        const stepReset = document.getElementById('step-reset');
+        const userNameDisplay = document.getElementById('userNameDisplay');
 
-        // 1. จัดการฟอร์มส่งอีเมล
-        document.getElementById('formEmail').addEventListener('submit', function(e) {
+        // --- 1. จัดการฟอร์มตรวจสอบตัวตน ---
+        document.getElementById('formVerify').addEventListener('submit', function(e) {
             e.preventDefault();
-            overlay.style.display = 'flex'; 
+            
+            // แสดง Loading
+            Swal.fire({
+                title: 'กำลังตรวจสอบ...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
 
             const formData = new FormData(this);
 
             fetch('forgot_password.php', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(res => res.json())
-                .then(data => {
-                    overlay.style.display = 'none';
-                    if (data.status === 'success') {
-                        stepEmail.style.display = 'none';
-                        stepOtp.style.display = 'block';
-                        Swal.fire('สำเร็จ', 'ส่งรหัส OTP ไปที่อีเมลแล้ว', 'success');
-                    } else {
-                        Swal.fire('ผิดพลาด', data.message, 'error');
-                    }
-                })
-                .catch(err => {
-                    overlay.style.display = 'none';
-                    Swal.fire('Error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
-                });
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.close();
+                    
+                    // แสดงชื่อผู้ใช้และสลับไปฟอร์ม Reset
+                    userNameDisplay.innerText = data.user_name;
+                    stepVerify.style.display = 'none';
+                    
+                    // Animation Fade In
+                    stepReset.style.opacity = 0;
+                    stepReset.style.display = 'block';
+                    setTimeout(() => { stepReset.style.opacity = 1; }, 50);
+
+                    // แจ้งเตือนเล็กๆ มุมขวาบน
+                    const Toast = Swal.mixin({
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 3000
+                    });
+                    Toast.fire({ icon: 'success', title: 'ยืนยันตัวตนสำเร็จ' });
+
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'ข้อมูลไม่ถูกต้อง',
+                        text: data.message,
+                        confirmButtonColor: '#0284c7'
+                    });
+                }
+            })
+            .catch(err => {
+                Swal.fire('Error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+            });
         });
 
-        // จัดการฟอร์มยืนยัน OTP
-        document.getElementById('formOTP').addEventListener('submit', function(e) {
+        // --- 2. จัดการฟอร์มเปลี่ยนรหัสผ่าน ---
+        document.getElementById('formReset').addEventListener('submit', function(e) {
             e.preventDefault();
-            overlay.style.display = 'flex';
+
+            const pass1 = this.new_password.value;
+            const pass2 = this.confirm_password.value;
+
+            if (pass1 !== pass2) {
+                Swal.fire('รหัสผ่านไม่ตรงกัน', 'กรุณากรอกรหัสผ่านยืนยันให้ถูกต้อง', 'warning');
+                return;
+            }
+
+            Swal.fire({
+                title: 'กำลังบันทึก...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
 
             const formData = new FormData(this);
 
             fetch('forgot_password.php', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(res => res.json())
-                .then(data => {
-                    overlay.style.display = 'none';
-                    if (data.status === 'success') {
-                        // ถ้าผ่าน ให้ย้ายหน้า
-                        window.location.href = data.redirect;
-                    } else {
-                        Swal.fire('ผิดพลาด', data.message, 'error');
-                    }
-                })
-                .catch(err => {
-                    overlay.style.display = 'none';
-                    Swal.fire('Error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
-                });
+                method: 'POST',
+                body: formData
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สำเร็จ!',
+                        text: 'เปลี่ยนรหัสผ่านเรียบร้อยแล้ว กรุณาเข้าสู่ระบบใหม่',
+                        confirmButtonText: 'ไปหน้าเข้าสู่ระบบ',
+                        confirmButtonColor: '#16a34a',
+                        allowOutsideClick: false
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            window.location.href = 'login.php';
+                        }
+                    });
+                } else {
+                    Swal.fire('ผิดพลาด', data.message, 'error');
+                }
+            })
+            .catch(err => {
+                Swal.fire('Error', 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+            });
         });
     </script>
 
 </body>
-
 </html>

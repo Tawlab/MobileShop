@@ -22,27 +22,27 @@ if ($stmt = $conn->prepare($chk_sql)) {
 $shops_data = [];
 if ($is_admin) {
     $shops_res = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
-    while($row = $shops_res->fetch_assoc()) $shops_data[] = $row;
+    while ($row = $shops_res->fetch_assoc()) $shops_data[] = $row;
 }
 
 // 2. Departments & Branches (Load ALL if Admin, Filtered if User)
 // Admin: โหลดทั้งหมดมาแล้วใช้ JS Filter เอา (เพิ่ม column shop_id ใน select)
 // User: โหลดเฉพาะของตัวเอง
-$dept_sql = $is_admin ? "SELECT * FROM departments" : "SELECT * FROM departments WHERE shop_info_shop_id = '$current_shop_id'";
+$dept_sql = $is_admin ? "SELECT * FROM departments" : "SELECT * FROM departments WHERE shop_info_shop_id = '$current_shop_id' OR shop_info_shop_id = 0";
 $branch_sql = $is_admin ? "SELECT * FROM branches" : "SELECT * FROM branches WHERE shop_info_shop_id = '$current_shop_id'";
 
 $depts_res = $conn->query($dept_sql);
 $depts_data = [];
-while($row = $depts_res->fetch_assoc()) $depts_data[] = $row;
+while ($row = $depts_res->fetch_assoc()) $depts_data[] = $row;
 
 $branches_res = $conn->query($branch_sql);
 $branches_data = [];
-while($row = $branches_res->fetch_assoc()) $branches_data[] = $row;
+while ($row = $branches_res->fetch_assoc()) $branches_data[] = $row;
 
 // 3. Roles
 $roles_res = $conn->query("SELECT * FROM roles"); // Admin เห็นหมด User เดี๋ยวไปซ่อนใน HTML
 $roles_data = [];
-while($row = $roles_res->fetch_assoc()) $roles_data[] = $row;
+while ($row = $roles_res->fetch_assoc()) $roles_data[] = $row;
 
 // Other static data
 $prefixs = $conn->query("SELECT * FROM prefixs");
@@ -60,6 +60,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <title>เพิ่มพนักงานใหม่</title>
@@ -72,15 +73,16 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
     <link href="add_employee.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
 </head>
+
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
-        
+
         <div class="main-content w-100">
             <div class="container py-5">
                 <div class="row justify-content-center">
                     <div class="col-lg-11">
-                        
+
                         <div class="card shadow border-0 rounded-4">
                             <div class="card-header-custom d-flex justify-content-between align-items-center">
                                 <h4 class="mb-0"><i class="bi bi-person-plus-fill me-2"></i>เพิ่มพนักงานใหม่</h4>
@@ -88,24 +90,24 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
                             <div class="card-body p-4">
                                 <form id="addEmpForm" enctype="multipart/form-data" class="needs-validation" novalidate>
-                                    
+
                                     <?php if ($is_admin): ?>
-                                    <div class="alert alert-light border border-secondary border-opacity-25 mb-4">
-                                        <div class="row align-items-center">
-                                            <div class="col-md-6">
-                                                <label class="fw-bold text-success mb-1"><i class="bi bi-shop me-1"></i> เลือกร้านค้าที่สังกัด (Admin Only)</label>
-                                                <select class="form-select select2" name="shop_id" id="shopSelect" required>
-                                                    <option value="">-- กรุณาเลือกร้านค้า --</option>
-                                                    <?php foreach($shops_data as $s): ?>
-                                                        <option value="<?= $s['shop_id'] ?>"><?= $s['shop_name'] ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-6 text-muted small mt-2 mt-md-0">
-                                                * การเลือกร้านค้าจะกรองแผนกและสาขาโดยอัตโนมัติ
+                                        <div class="alert alert-light border border-secondary border-opacity-25 mb-4">
+                                            <div class="row align-items-center">
+                                                <div class="col-md-6">
+                                                    <label class="fw-bold text-success mb-1"><i class="bi bi-shop me-1"></i> เลือกร้านค้าที่สังกัด (Admin Only)</label>
+                                                    <select class="form-select select2" name="shop_id" id="shopSelect" required>
+                                                        <option value="">-- กรุณาเลือกร้านค้า --</option>
+                                                        <?php foreach ($shops_data as $s): ?>
+                                                            <option value="<?= $s['shop_id'] ?>"><?= $s['shop_name'] ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-6 text-muted small mt-2 mt-md-0">
+                                                    * การเลือกร้านค้าจะกรองแผนกและสาขาโดยอัตโนมัติ
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
                                     <?php else: ?>
                                         <input type="hidden" name="shop_id" id="shopSelect" value="<?= $current_shop_id ?>">
                                     <?php endif; ?>
@@ -132,7 +134,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                                 <div class="col-md-5">
                                                     <label class="form-label">คำนำหน้า</label>
                                                     <select class="form-select select2" name="prefixs_prefix_id">
-                                                        <?php while($p = $prefixs->fetch_assoc()): ?>
+                                                        <?php while ($p = $prefixs->fetch_assoc()): ?>
                                                             <option value="<?= $p['prefix_id'] ?>"><?= $p['prefix_th'] ?></option>
                                                         <?php endwhile; ?>
                                                     </select>
@@ -153,7 +155,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                                 <div class="col-md-3">
                                                     <label class="form-label">ศาสนา</label>
                                                     <select class="form-select select2" name="religions_religion_id">
-                                                        <?php while($r = $religions->fetch_assoc()): ?>
+                                                        <?php while ($r = $religions->fetch_assoc()): ?>
                                                             <option value="<?= $r['religion_id'] ?>"><?= $r['religion_name_th'] ?></option>
                                                         <?php endwhile; ?>
                                                     </select>
@@ -164,7 +166,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
                                     <div class="form-section-title">ข้อมูลการติดต่อ</div>
                                     <div class="row g-3">
-                                        <div class="col-md-4"><label class="form-label fw-bold">เบอร์โทรศัพท์</label><input type="text" class="form-control" name="emp_phone_no"></div>
+                                        <div class="col-md-4"><label class="form-label fw-bold">เบอร์โทรศัพท์ <span class="required-star">*</span></label><input type="text" class="form-control" name="emp_phone_no"></div>
                                         <div class="col-md-4"><label class="form-label">อีเมล</label><input type="email" class="form-control" name="emp_email"></div>
                                         <div class="col-md-4"><label class="form-label">LINE ID</label><input type="text" class="form-control" name="emp_line_id"></div>
                                     </div>
@@ -177,10 +179,10 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                         <div class="col-md-2"><label class="form-label">ซอย</label><input type="text" class="form-control" name="soi"></div>
                                         <div class="col-md-2"><label class="form-label">ถนน</label><input type="text" class="form-control" name="road"></div>
                                         <div class="col-md-4">
-                                            <label class="form-label fw-bold">จังหวัด</label>
+                                            <label class="form-label fw-bold">จังหวัด <span class="required-star">*</span></label>
                                             <select class="form-select select2" id="provinceSelect">
                                                 <option value="">-- ค้นหาจังหวัด --</option>
-                                                <?php while($p = $provinces->fetch_assoc()): ?>
+                                                <?php while ($p = $provinces->fetch_assoc()): ?>
                                                     <option value="<?= $p['province_id'] ?>"><?= $p['province_name_th'] ?></option>
                                                 <?php endwhile; ?>
                                             </select>
@@ -199,13 +201,13 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
                                     <div class="form-section-title">ข้อมูลการทำงาน & บัญชีผู้ใช้</div>
                                     <div class="row g-3">
-                                        
+
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">แผนก <span class="required-star">*</span></label>
                                             <select class="form-select select2" name="departments_dept_id" id="deptSelect" required>
                                                 <option value="">-- กรุณาเลือกแผนก --</option>
-                                                <?php if(!$is_admin): ?>
-                                                    <?php foreach($depts_data as $d): ?>
+                                                <?php if (!$is_admin): ?>
+                                                    <?php foreach ($depts_data as $d): ?>
                                                         <option value="<?= $d['dept_id'] ?>"><?= $d['dept_name'] ?></option>
                                                     <?php endforeach; ?>
                                                 <?php endif; ?>
@@ -216,8 +218,8 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                             <label class="form-label fw-bold">สาขาประจำ <span class="required-star">*</span></label>
                                             <select class="form-select select2" name="branches_branch_id" id="branchSelect" required>
                                                 <option value="">-- กรุณาเลือกสาขา --</option>
-                                                <?php if(!$is_admin): ?>
-                                                    <?php foreach($branches_data as $b): ?>
+                                                <?php if (!$is_admin): ?>
+                                                    <?php foreach ($branches_data as $b): ?>
                                                         <option value="<?= $b['branch_id'] ?>"><?= $b['branch_name'] ?></option>
                                                     <?php endforeach; ?>
                                                 <?php endif; ?>
@@ -233,7 +235,9 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                             </select>
                                         </div>
 
-                                        <div class="col-md-12"><hr class="my-2"></div>
+                                        <div class="col-md-12">
+                                            <hr class="my-2">
+                                        </div>
 
                                         <div class="col-md-3">
                                             <label class="form-label fw-bold">Username <span class="required-star">*</span></label>
@@ -253,13 +257,13 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                             <?php if ($is_admin): ?>
                                                 <select class="form-select select2" name="role_id" required>
                                                     <option value="">-- เลือกสิทธิ์ --</option>
-                                                    <?php foreach($roles_data as $rl): ?>
+                                                    <?php foreach ($roles_data as $rl): ?>
                                                         <option value="<?= $rl['role_id'] ?>"><?= $rl['role_name'] ?></option>
                                                     <?php endforeach; ?>
                                                 </select>
                                             <?php else: ?>
                                                 <input type="text" class="form-control bg-light" value="User (พนักงานทั่วไป)" readonly>
-                                                <?php endif; ?>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
 
@@ -283,7 +287,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    
+
     <script>
         // ข้อมูล JSON สำหรับ JS
         const allLocations = <?= json_encode($all_locations) ?>;
@@ -293,7 +297,10 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
         const isAdmin = <?= json_encode($is_admin) ?>;
 
         $(document).ready(function() {
-            $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
 
             // [Admin Only] Logic เปลี่ยนร้านค้า -> กรองแผนก/สาขา
             if (isAdmin) {
@@ -318,12 +325,12 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                         filteredBranches.forEach(b => {
                             $branch.append(new Option(b.branch_name, b.branch_id));
                         });
-                        
+
                         // Notify if empty
-                        if(filteredDepts.length === 0) $dept.append('<option disabled>-- ไม่มีข้อมูลแผนกในร้านนี้ --</option>');
-                        if(filteredBranches.length === 0) $branch.append('<option disabled>-- ไม่มีข้อมูลสาขาในร้านนี้ --</option>');
+                        if (filteredDepts.length === 0) $dept.append('<option disabled>-- ไม่มีข้อมูลแผนกในร้านนี้ --</option>');
+                        if (filteredBranches.length === 0) $branch.append('<option disabled>-- ไม่มีข้อมูลสาขาในร้านนี้ --</option>');
                     }
-                    
+
                     $dept.trigger('change');
                     $branch.trigger('change');
                 });
@@ -334,7 +341,9 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 const preview = document.getElementById('previewImg');
                 const file = document.querySelector('input[type=file]').files[0];
                 const reader = new FileReader();
-                reader.onloadend = function() { preview.src = reader.result; }
+                reader.onloadend = function() {
+                    preview.src = reader.result;
+                }
                 if (file) reader.readAsDataURL(file);
             }
 
@@ -367,7 +376,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                     Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
                     return;
                 }
-                
+
                 // Extra Check for Admin
                 if (isAdmin && !$('#shopSelect').val()) {
                     Swal.fire('แจ้งเตือน', 'กรุณาเลือกร้านค้า', 'warning');
@@ -375,20 +384,34 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 }
 
                 const formData = new FormData(this);
-                Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-                fetch('add_employee_process.php', { method: 'POST', body: formData })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        Swal.fire({ icon: 'success', title: 'สำเร็จ!', text: data.message, timer: 1500, showConfirmButton: false })
-                        .then(() => window.location.href = 'employee.php');
-                    } else {
-                        Swal.fire('ผิดพลาด', data.message, 'error');
-                    }
-                })
-                .catch(err => Swal.fire('System Error', 'Error: ' + err, 'error'));
+                Swal.fire({
+                    title: 'กำลังบันทึก...',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+                fetch('add_employee_process.php', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            Swal.fire({
+                                    icon: 'success',
+                                    title: 'สำเร็จ!',
+                                    text: data.message,
+                                    timer: 1500,
+                                    showConfirmButton: false
+                                })
+                                .then(() => window.location.href = 'employee.php');
+                        } else {
+                            Swal.fire('ผิดพลาด', data.message, 'error');
+                        }
+                    })
+                    .catch(err => Swal.fire('System Error', 'Error: ' + err, 'error'));
             });
         });
     </script>
 </body>
+
 </html>

@@ -22,7 +22,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 $emp_id = (int)$_GET['id'];
 
 try {
-    // ดึงข้อมูลพนักงาน
+    // 1. ดึงข้อมูลพนักงานก่อนลบ (เพื่อเอา ID ไปลบตารางอื่น และเอารูปไปลบไฟล์)
     $sql_get = "SELECT users_user_id, Addresses_address_id, emp_image, firstname_th, lastname_th 
                 FROM employees WHERE emp_id = ?";
     $stmt_get = $conn->prepare($sql_get);
@@ -41,19 +41,35 @@ try {
     $emp_name = $row['firstname_th'] . ' ' . $row['lastname_th'];
     $stmt_get->close();
 
-    // เริ่มการลบ
+    // เริ่ม Transaction (ถ้าลบไม่ผ่านซักอัน ให้ยกเลิกทั้งหมด)
     $conn->begin_transaction();
 
-    // ลบ User (Cascade)
-    $stmt_user = $conn->prepare("DELETE FROM users WHERE user_id = ?");
-    $stmt_user->bind_param("i", $user_id);
+    // 2. ลบสิทธิ์การใช้งาน (User Roles) ก่อน
+    if ($user_id) {
+        $stmt_role = $conn->prepare("DELETE FROM user_roles WHERE users_user_id = ?");
+        $stmt_role->bind_param("i", $user_id);
+        $stmt_role->execute();
+        $stmt_role->close();
+    }
 
-    if (!$stmt_user->execute()) {
+    // 3. ลบข้อมูลพนักงาน (Employees) **จุดสำคัญ: ต้องลบอันนี้ก่อนลบ User**
+    $stmt_emp = $conn->prepare("DELETE FROM employees WHERE emp_id = ?");
+    $stmt_emp->bind_param("i", $emp_id);
+    if (!$stmt_emp->execute()) {
+        // ถ้าลบไม่ได้ (มักจะติด FK จากตารางการขาย bill_headers หรือการซ่อม)
         throw new Exception($conn->error, $conn->errno);
     }
-    $stmt_user->close();
+    $stmt_emp->close();
 
-    // ลบ Address
+    // 4. ลบข้อมูลผู้ใช้ (Users)
+    if ($user_id) {
+        $stmt_user = $conn->prepare("DELETE FROM users WHERE user_id = ?");
+        $stmt_user->bind_param("i", $user_id);
+        $stmt_user->execute();
+        $stmt_user->close();
+    }
+
+    // 5. ลบที่อยู่ (Addresses)
     if ($address_id) {
         $stmt_addr = $conn->prepare("DELETE FROM addresses WHERE address_id = ?");
         $stmt_addr->bind_param("i", $address_id);
@@ -61,33 +77,39 @@ try {
         $stmt_addr->close();
     }
 
+    // ยืนยันการลบทั้งหมด
     $conn->commit();
 
-    // ลบรูปภาพ
+    // 6. ลบไฟล์รูปภาพ (ทำหลังจาก Database สำเร็จแล้ว)
     if (!empty($image_path)) {
         $full_image_path = "../uploads/employees/" . $image_path;
-        if (file_exists($full_image_path)) @unlink($full_image_path);
+        if (file_exists($full_image_path)) {
+            @unlink($full_image_path);
+        }
     }
 
-    // --- ตั้งค่าสำเร็จ ---
+    // --- ตั้งค่า Modal สำเร็จ ---
     $title = 'ลบข้อมูลสำเร็จ';
     $message = "ลบข้อมูลพนักงาน \"$emp_name\" เรียบร้อยแล้ว";
     $header_class = 'bg-success text-white';
     $btn_class = 'btn-success';
     $icon = '<i class="fas fa-check-circle fa-3x text-success mb-3"></i>';
-} catch (Exception $e) {
-    $conn->rollback();
 
-    // --- ดักจับ Foreign Key Error ---
+} catch (Exception $e) {
+    $conn->rollback(); // ยกเลิกการลบถ้ามีปัญหา
+
+    // --- ดักจับ Foreign Key Error (เช่น พนักงานเคยขายของแล้ว) ---
+    // Error 1451: Cannot delete or update a parent row: a foreign key constraint fails
     if ($e->getCode() == 1451 || strpos($e->getMessage(), 'foreign key constraint fails') !== false) {
         $title = 'ไม่สามารถลบข้อมูลได้';
-        $message = "พนักงานรายนี้มีประวัติการทำรายการในระบบ (เช่น การขาย หรือ งานซ่อม)<br>ระบบป้องกันการลบเพื่อรักษาความถูกต้องของข้อมูล<br><hr><strong>คำแนะนำ:</strong> กรุณาเปลี่ยนสถานะเป็น <strong>'ลาออก'</strong> แทนการลบ";
+        $message = "พนักงานรายนี้มีประวัติการทำรายการในระบบ (เช่น การขาย หรือ งานซ่อม)<br>ระบบป้องกันการลบเพื่อรักษาความถูกต้องของบัญชี<br><hr><strong>คำแนะนำ:</strong> กรุณาเปลี่ยนสถานะเป็น <strong>'ลาออก'</strong> หรือ <strong>'พักงาน'</strong> แทนการลบ";
         $header_class = 'bg-warning text-dark';
         $btn_class = 'btn-warning';
         $icon = '<i class="fas fa-exclamation-triangle fa-3x text-warning mb-3"></i>';
     } else {
+        // Error อื่นๆ
         $title = 'เกิดข้อผิดพลาด';
-        $message = $e->getMessage();
+        $message = "System Error: " . $e->getMessage();
         $header_class = 'bg-danger text-white';
         $btn_class = 'btn-danger';
         $icon = '<i class="fas fa-times-circle fa-3x text-danger mb-3"></i>';
@@ -108,16 +130,13 @@ try {
 
     <style>
         body {
-            background-color: rgba(0, 0, 0, 0.5);
+            background-color: rgba(0, 0, 0, 0.5); /* พื้นหลังมืด */
         }
-
-        /* พื้นหลังมืดจางๆ */
         .modal-content {
             border: none;
             border-radius: 15px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
         }
-
         .modal-header {
             border-top-left-radius: 15px;
             border-top-right-radius: 15px;

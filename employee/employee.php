@@ -452,7 +452,7 @@ if ($is_super_admin) {
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-danger text-white border-0">
-                    <h5 class="modal-title fw-bold"><i class="bi bi-exclamation-triangle me-2"></i>ยืนยันการลบ</h5>
+                    <h5 class="modal-title fw-bold text-white"><i class="bi bi-exclamation-triangle me-2"></i>ยืนยันการลบ</h5>
                     <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body text-center py-4">
@@ -461,7 +461,7 @@ if ($is_super_admin) {
                 </div>
                 <div class="modal-footer border-0 justify-content-center bg-light">
                     <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">ยกเลิก</button>
-                    <a id="confirmDelBtn" href="#" class="btn btn-danger rounded-pill px-4 shadow-sm">ยืนยันการลบ</a>
+                    <a id="confirmDelBtn" href="delete_employee.php" class="btn btn-danger rounded-pill px-4 shadow-sm">ยืนยันการลบ</a>
                 </div>
             </div>
         </div>
