@@ -20,18 +20,64 @@ $emp_data = null;
 $form_data = []; // --- สำหรับเก็บค่าถ้ามี Error ---
 $errors_to_display = [];
 
-// --- ดึงข้อมูลสำหรับ Dropdowns  ---
+// ==================================================================================
+// 1. ส่วนดึงข้อมูล Dropdowns (แก้ไขใหม่: กรองตามสิทธิ์ Admin/User)
+// ==================================================================================
+
+$current_user_id = $_SESSION['user_id'];
+$is_admin = false;
+$current_branch_id = 0;
+
+// 1.1 ตรวจสอบสิทธิ์ Admin
+$chk_admin_sql = "SELECT r.role_name FROM roles r 
+                  JOIN user_roles ur ON r.role_id = ur.roles_role_id 
+                  WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
+if ($stmt_a = $conn->prepare($chk_admin_sql)) {
+    $stmt_a->bind_param("i", $current_user_id);
+    $stmt_a->execute();
+    if ($stmt_a->get_result()->num_rows > 0) $is_admin = true;
+    $stmt_a->close();
+}
+
+// 1.2 หา Branch ID ของ User ที่ Login (ถ้าไม่ใช่ Admin)
+if (!$is_admin) {
+    $stmt_b = $conn->prepare("SELECT branches_branch_id FROM employees WHERE users_user_id = ?");
+    $stmt_b->bind_param("i", $current_user_id);
+    $stmt_b->execute();
+    $res_b = $stmt_b->get_result();
+    if ($row_b = $res_b->fetch_assoc()) {
+        $current_branch_id = (int)$row_b['branches_branch_id'];
+    }
+    $stmt_b->close();
+}
+
+// 1.3 สร้าง SQL Query สำหรับ Department และ Branch ตามสิทธิ์
+if ($is_admin) {
+    // Admin: เห็นทั้งหมด
+    $dept_sql = "SELECT dept_id, dept_name FROM departments ORDER BY dept_name";
+    $branch_sql = "SELECT branch_id, branch_name FROM branches ORDER BY branch_name";
+} else {
+    // User ทั่วไป: เห็นเฉพาะของสาขาตัวเอง (ต้องมีคอลัมน์ branches_branch_id ในตาราง departments)
+    $dept_sql = "SELECT dept_id, dept_name FROM departments WHERE branches_branch_id = '$current_branch_id' ORDER BY dept_name";
+    $branch_sql = "SELECT branch_id, branch_name FROM branches WHERE branch_id = '$current_branch_id' ORDER BY branch_name";
+}
+
+// 1.4 รัน Query Dropdowns ที่ต้องใช้ Logic
+$department_result = mysqli_query($conn, $dept_sql);
+$branch_result = mysqli_query($conn, $branch_sql);
+
+// 1.5 รัน Query Dropdowns อื่นๆ (Static Data)
 $prefix_result = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1 ORDER BY prefix_th");
 $religion_result = mysqli_query($conn, "SELECT religion_id, religion_name_th FROM religions WHERE is_active = 1 ORDER BY religion_id");
-$department_result = mysqli_query($conn, "SELECT dept_id, dept_name FROM departments ORDER BY dept_name");
-$branch_result = mysqli_query($conn, "SELECT branch_id, branch_name FROM branches ORDER BY branch_name");
 $role_result = mysqli_query($conn, "SELECT role_id, role_name FROM roles ORDER BY role_name");
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th, provinces_province_id FROM districts ORDER BY district_name_th");
 $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_name_th, zip_code, districts_district_id FROM subdistricts ORDER BY subdistrict_name_th");
 
 
-// --- ส่วนอัปเดตข้อมูล POST ---
+// ==================================================================================
+// 2. ส่วนอัปเดตข้อมูล (POST)
+// ==================================================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // --- ตรวจสอบว่า ID ที่ส่งมาตรงกัน ---
@@ -76,7 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $address_id = (int)$_POST['address_id'];
     $existing_image = trim($_POST['existing_image']);
 
-    // --- ตรวจสอบข้อมูล ---
+    // --- ตรวจสอบข้อมูล (Validation) ---
     $errors = [];
     if (empty($emp_code)) $errors[] = "กรุณากรอกรหัสพนักงาน";
     if (empty($emp_national_id)) $errors[] = "กรุณากรอกเลขบัตรประชาชน";
@@ -148,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // --- ถ้าไม่มี Error ---
+    // --- ถ้าไม่มี Error เริ่มบันทึก ---
     if (empty($errors)) {
 
         $conn->begin_transaction();
@@ -243,9 +289,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 } else {
-    // --- ส่วนดึงข้อมูล (GET) เพื่อแสดงในฟอร์ม ---
+    // ==================================================================================
+    // 3. ส่วนดึงข้อมูล (GET) เพื่อแสดงในฟอร์ม (Form Fetching)
+    // ==================================================================================
 
     if (isset($_SESSION['form_data'])) {
+        // กรณี Redirect กลับมาเพราะ Error
         $form_data = $_SESSION['form_data'];
         $errors_to_display = $_SESSION['errors'] ?? [];
         unset($_SESSION['form_data'], $_SESSION['errors']);
@@ -265,7 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sql_get_ids->close();
         }
     } else {
-        // --- ถ้าเปิดหน้าครั้งแรก---
+        // กรณีเปิดหน้าครั้งแรก (Load from DB)
         $sql_get = "
             SELECT
                 e.*, 

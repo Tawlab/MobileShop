@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// ตรวจสอบสิทธิ์ Admin
+// --- 1. ตรวจสอบสิทธิ์ Admin ---
 $current_user_id = $_SESSION['user_id'];
 $current_shop_id = $_SESSION['shop_id'];
 $is_admin = false;
@@ -17,19 +17,44 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// Prepare Data Queries
-// 1. Shops (Load only if Admin)
+// --- 2. หา Branch ID ของ User ปัจจุบัน (กรณีไม่ใช่ Admin) ---
+// เพื่อนำไปกรองให้เห็นเฉพาะแผนกในสาขาตัวเอง
+$current_branch_id = 0;
+if (!$is_admin) {
+    $stmt_b = $conn->prepare("SELECT branches_branch_id FROM employees WHERE users_user_id = ?");
+    $stmt_b->bind_param("i", $current_user_id);
+    $stmt_b->execute();
+    $res_b = $stmt_b->get_result();
+    if ($row_b = $res_b->fetch_assoc()) {
+        $current_branch_id = $row_b['branches_branch_id'];
+    }
+    $stmt_b->close();
+}
+
+// --- 3. Prepare Data Queries ---
+
+// A. Shops (Load only if Admin)
 $shops_data = [];
 if ($is_admin) {
     $shops_res = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
     while ($row = $shops_res->fetch_assoc()) $shops_data[] = $row;
 }
 
-// 2. Departments & Branches (Load ALL if Admin, Filtered if User)
-// Admin: โหลดทั้งหมดมาแล้วใช้ JS Filter เอา (เพิ่ม column shop_id ใน select)
-// User: โหลดเฉพาะของตัวเอง
-$dept_sql = $is_admin ? "SELECT * FROM departments" : "SELECT * FROM departments WHERE shop_info_shop_id = '$current_shop_id' OR shop_info_shop_id = 0";
-$branch_sql = $is_admin ? "SELECT * FROM branches" : "SELECT * FROM branches WHERE shop_info_shop_id = '$current_shop_id'";
+// B. Departments & Branches
+// Logic: 
+// - Admin: โหลดทั้งหมด (เพราะต้องเห็นทุกสาขาในร้าน เพื่อเลือกให้พนักงานใหม่)
+// - User:  โหลดเฉพาะของ "สาขาตัวเอง"
+if ($is_admin) {
+    $dept_sql = "SELECT * FROM departments";
+    $branch_sql = "SELECT * FROM branches";
+} else {
+    // User ทั่วไป: กรองด้วย branch_id ที่หามาได้
+    // *สำคัญ: ตาราง departments ต้องมีคอลัมน์ branches_branch_id
+    $dept_sql = "SELECT * FROM departments WHERE branches_branch_id = '$current_branch_id'";
+    
+    // สาขาก็ต้องล็อคไว้ที่สาขาตัวเองเช่นกัน
+    $branch_sql = "SELECT * FROM branches WHERE branch_id = '$current_branch_id'";
+}
 
 $depts_res = $conn->query($dept_sql);
 $depts_data = [];
@@ -39,17 +64,17 @@ $branches_res = $conn->query($branch_sql);
 $branches_data = [];
 while ($row = $branches_res->fetch_assoc()) $branches_data[] = $row;
 
-// 3. Roles
-$roles_res = $conn->query("SELECT * FROM roles"); // Admin เห็นหมด User เดี๋ยวไปซ่อนใน HTML
+// C. Roles
+$roles_res = $conn->query("SELECT * FROM roles"); 
 $roles_data = [];
 while ($row = $roles_res->fetch_assoc()) $roles_data[] = $row;
 
-// Other static data
+// D. Other static data
 $prefixs = $conn->query("SELECT * FROM prefixs");
 $religions = $conn->query("SELECT * FROM religions WHERE is_active = 1");
 $provinces = $conn->query("SELECT * FROM provinces ORDER BY province_name_th");
 
-// Location Data (JSON for JS)
+// E. Location Data (JSON for JS)
 $subdistricts_res = $conn->query("SELECT s.subdistrict_id, s.subdistrict_name_th, s.zip_code, d.district_name_th, p.province_id 
                                   FROM subdistricts s 
                                   JOIN districts d ON s.districts_district_id = d.district_id 

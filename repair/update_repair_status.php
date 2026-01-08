@@ -1,7 +1,8 @@
 <?php
+// ไฟล์: update_repair_status.php
 session_start();
 require '../config/config.php';
-require '../vendor/autoload.php'; 
+require '../vendor/autoload.php';
 checkPageAccess($conn, 'update_repair_status');
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -25,6 +26,7 @@ function sendStatusUpdateEmail($to_email, $customer_name, $repair_id, $device_na
     $color = $status_colors[$new_status] ?? '#000';
 
     try {
+        // Server settings
         $mail->isSMTP();
         $mail->Host       = 'smtp.gmail.com';
         $mail->SMTPAuth   = true;
@@ -34,9 +36,11 @@ function sendStatusUpdateEmail($to_email, $customer_name, $repair_id, $device_na
         $mail->Port       = 587;
         $mail->CharSet    = 'UTF-8';
 
+        // Recipients
         $mail->setFrom($sender_email, $shop_name);
         $mail->addAddress($to_email, $customer_name);
 
+        // Content
         $mail->isHTML(true);
         $mail->Subject = "อัปเดตสถานะงานซ่อม / Repair Status Update (JOB #$repair_id)";
 
@@ -60,6 +64,9 @@ function sendStatusUpdateEmail($to_email, $customer_name, $repair_id, $device_na
                     
                     <p>ขอบคุณที่ใช้บริการครับ</p>
                 </div>
+                <div style='text-align: center; font-size: 12px; color: #999; margin-top: 20px;'>
+                    อีเมลฉบับนี้ส่งโดยระบบอัตโนมัติ กรุณาอย่าตอบกลับ
+                </div>
             </div>
         </body>
         </html>";
@@ -69,6 +76,7 @@ function sendStatusUpdateEmail($to_email, $customer_name, $repair_id, $device_na
         $mail->send();
         return true;
     } catch (Exception $e) {
+        // สามารถเปิด error_log($mail->ErrorInfo); เพื่อดู log ใน server ได้
         return false;
     }
 }
@@ -87,7 +95,7 @@ $repair_id = (int)$_GET['id'];
 $current_emp_id = $_SESSION['emp_id'] ?? 1;
 $current_user_id = $_SESSION['user_id']; 
 
-// ดึงข้อมูลงานซ่อม + สถานะบิล (รวมถึงสาขาของงานซ่อม branches_branch_id)
+// ดึงข้อมูลงานซ่อม + สถานะบิล + สาขา (branches_branch_id)
 $sql = "SELECT r.*, 
         c.firstname_th AS cus_name, c.lastname_th AS cus_lastname, c.cs_email,
         p.prod_name, p.model_name, b.brand_name_th, s.serial_no,
@@ -108,7 +116,7 @@ if (!$repair) {
     exit;
 }
 
-// --- [แก้ไข] ตรวจสอบ Admin เพื่อกำหนดการดึงรายชื่อช่าง ---
+// --- ตรวจสอบ Admin เพื่อกำหนดการดึงรายชื่อช่าง ---
 $is_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
             JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -122,19 +130,21 @@ if ($stmt = $conn->prepare($chk_sql)) {
 
 // กำหนดสาขาที่จะดึงพนักงาน
 if ($is_admin) {
-    // ถ้าเป็น Admin ให้ดึงพนักงานจาก "สาขาของงานซ่อมนี้"
     $target_branch_id = $repair['branches_branch_id'];
 } else {
-    // ถ้าเป็น User ทั่วไป ให้ดึงพนักงานจาก "สาขาตัวเอง"
     $target_branch_id = $_SESSION['branch_id'];
 }
 
-// ดึงรายชื่อช่าง (ตามเงื่อนไขสาขา)
+// ดึงรายชื่อช่าง
 $emp_sql = "SELECT emp_id, firstname_th, lastname_th, emp_code 
             FROM employees 
             WHERE emp_status = 'Active' AND branches_branch_id = '$target_branch_id'";
 $emp_result = mysqli_query($conn, $emp_sql);
 
+// ตัวแปรสำหรับ SweetAlert
+$alert_status = null; 
+$alert_message = "";
+$redirect_url = "view_repair.php?id=$repair_id";
 
 // ============================================================================
 // HANDLE POST REQUEST
@@ -147,94 +157,119 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $old_status = $repair['repair_status'];
 
     // ตรวจสอบก่อนส่งมอบ
+    $error_occurred = false;
     if ($new_status === 'ส่งมอบ') {
-        // ถ้าสถานะเดิมคือ 'ยกเลิก' อนุญาตให้ส่งมอบคืนได้เลย
         $is_cancelled = ($old_status === 'ยกเลิก');
-
-        // ถ้างานปกติ (ไม่ยกเลิก) ต้องเช็คว่าจ่ายเงินหรือยัง
         $is_paid = ($repair['bill_status'] === 'Completed');
 
         if (!$is_cancelled && !$is_paid) {
-            $_SESSION['error'] = "❌ ไม่สามารถส่งมอบได้: ลูกค้ายังไม่ได้ชำระเงิน";
-            header("Location: update_repair_status.php?id=$repair_id");
-            exit;
+            $alert_status = 'error';
+            $alert_message = "❌ ไม่สามารถส่งมอบได้: ลูกค้ายังไม่ได้ชำระเงิน";
+            $redirect_url = ""; // ไม่ Redirect เพื่อให้แก้ข้อมูล
+            $error_occurred = true;
         }
     }
 
-    mysqli_autocommit($conn, false);
-    try {
-        //  อัปเดตสถานะงานซ่อม
-        $sql_update = "UPDATE repairs SET 
-                       repair_status = ?, 
-                       assigned_employee_id = ?, 
-                       estimated_cost = ?, 
-                       update_at = NOW() 
-                       WHERE repair_id = ?";
-        $stmt = $conn->prepare($sql_update);
-        $stmt->bind_param("sidi", $new_status, $assigned_emp, $cost, $repair_id);
-        if (!$stmt->execute()) throw new Exception("อัปเดตสถานะไม่สำเร็จ");
-        $stmt->close();
+    if (!$error_occurred) {
+        mysqli_autocommit($conn, false);
+        try {
+            // 1. อัปเดตสถานะงานซ่อม
+            $sql_update = "UPDATE repairs SET 
+                           repair_status = ?, 
+                           assigned_employee_id = ?, 
+                           estimated_cost = ?, 
+                           update_at = NOW() 
+                           WHERE repair_id = ?";
+            $stmt = $conn->prepare($sql_update);
+            $stmt->bind_param("sidi", $new_status, $assigned_emp, $cost, $repair_id);
+            if (!$stmt->execute()) throw new Exception("อัปเดตสถานะไม่สำเร็จ");
+            $stmt->close();
 
-        //บันทึก Log
-        if ($new_status !== $old_status || !empty($comment)) {
-            $log_sql = "INSERT INTO repair_status_log 
-                        (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
-                        VALUES (?, ?, ?, ?, ?, NOW())";
-            $stmt_log = $conn->prepare($log_sql);
-            $stmt_log->bind_param("issis", $repair_id, $old_status, $new_status, $current_emp_id, $comment);
-            $stmt_log->execute();
-            $stmt_log->close();
-        }
-
-        // ตัดสต็อก เมื่อส่งมอบสำเร็จ 
-        if ($new_status === 'ส่งมอบ') {
-            $stock_id = $repair['prod_stocks_stock_id'];
-
-            // เปลี่ยนสถานะสต็อกเป็น 'Sold' 
-            $conn->query("UPDATE prod_stocks SET stock_status = 'Sold', update_at = NOW() WHERE stock_id = $stock_id");
-
-            //  บันทึก Movement (OUT)
-            $sql_move_id = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
-            $move_id = mysqli_fetch_assoc(mysqli_query($conn, $sql_move_id))['next_id'];
-
-            // ระบุเหตุผลใน Log ว่าเป็นการคืนเครื่องแบบไหน
-            $ref_remark = ($old_status === 'ยกเลิก') ? 'return_cancelled_device' : 'deliver_repaired_job';
-
-            $move_sql = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) 
-                         VALUES (?, 'OUT', ?, ?, NOW(), ?)";
-            $stmt_move = $conn->prepare($move_sql);
-            $stmt_move->bind_param("isii", $move_id, $ref_remark, $repair_id, $stock_id);
-            $stmt_move->execute();
-        }
-
-        mysqli_commit($conn);
-
-        //  ส่งอีเมล 
-        if ($new_status !== $old_status && !empty($repair['cs_email'])) {
-            $shop_res = mysqli_query($conn, "SELECT shop_name, shop_email, shop_app_password FROM shop_info LIMIT 1");
-            $shop_data = mysqli_fetch_assoc($shop_res);
-            if ($shop_data && !empty($shop_data['shop_email'])) {
-                $cust_name = $repair['cus_name'] . ' ' . $repair['cus_lastname'];
-                @sendStatusUpdateEmail(
-                    $repair['cs_email'],
-                    $cust_name,
-                    $repair_id,
-                    $repair['prod_name'],
-                    $new_status,
-                    $comment,
-                    $shop_data['shop_name'],
-                    $shop_data['shop_email'],
-                    $shop_data['shop_app_password']
-                );
+            // 2. บันทึก Log
+            if ($new_status !== $old_status || !empty($comment)) {
+                $log_sql = "INSERT INTO repair_status_log 
+                            (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
+                            VALUES (?, ?, ?, ?, ?, NOW())";
+                $stmt_log = $conn->prepare($log_sql);
+                $stmt_log->bind_param("issis", $repair_id, $old_status, $new_status, $current_emp_id, $comment);
+                $stmt_log->execute();
+                $stmt_log->close();
             }
-        }
 
-        $_SESSION['success'] = "✅ อัปเดตสถานะเป็น '$new_status' เรียบร้อยแล้ว";
-        header("Location: view_repair.php?id=$repair_id");
-        exit;
-    } catch (Exception $e) {
-        mysqli_rollback($conn);
-        $_SESSION['error'] = "เกิดข้อผิดพลาด: " . $e->getMessage();
+            // 3. ตัดสต็อก เมื่อส่งมอบสำเร็จ 
+            if ($new_status === 'ส่งมอบ') {
+                $stock_id = $repair['prod_stocks_stock_id'];
+
+                $conn->query("UPDATE prod_stocks SET stock_status = 'Sold', update_at = NOW() WHERE stock_id = $stock_id");
+
+                $sql_move_id = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
+                $move_id = mysqli_fetch_assoc(mysqli_query($conn, $sql_move_id))['next_id'];
+
+                $ref_remark = ($old_status === 'ยกเลิก') ? 'return_cancelled_device' : 'deliver_repaired_job';
+
+                $move_sql = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) 
+                             VALUES (?, 'OUT', ?, ?, NOW(), ?)";
+                $stmt_move = $conn->prepare($move_sql);
+                $stmt_move->bind_param("isii", $move_id, $ref_remark, $repair_id, $stock_id);
+                $stmt_move->execute();
+            }
+
+            mysqli_commit($conn);
+
+            // 4. ส่งอีเมล (ทำงานหลังจาก Commit สำเร็จ)
+            $mail_msg = "";
+            // ต้องเช็คด้วยว่ามีอีเมลลูกค้าไหม
+            if ($new_status !== $old_status && !empty($repair['cs_email'])) {
+                
+                // [แก้ไข] ดึงข้อมูล Shop ตามสาขาที่งานซ่อมสังกัดอยู่ เพื่อให้ได้อีเมลผู้ส่งที่ถูกต้อง
+                // โดยการ Join กับตาราง branches ด้วย branches_branch_id จากตัวแปร $repair
+                $shop_query = "SELECT s.shop_name, s.shop_email, s.shop_app_password 
+                               FROM shop_info s
+                               JOIN branches b ON s.shop_id = b.shop_info_shop_id
+                               WHERE b.branch_id = ?";
+                
+                $stmt_shop = $conn->prepare($shop_query);
+                $stmt_shop->bind_param("i", $repair['branches_branch_id']);
+                $stmt_shop->execute();
+                $shop_res = $stmt_shop->get_result();
+                $shop_data = $shop_res->fetch_assoc();
+                $stmt_shop->close();
+                
+                if ($shop_data && !empty($shop_data['shop_email'])) {
+                    $cust_name = $repair['cus_name'] . ' ' . $repair['cus_lastname'];
+                    
+                    // [แก้ไข] ลบเครื่องหมาย @ ออก และรับค่าผลลัพธ์มาเช็ค
+                    $mail_sent = sendStatusUpdateEmail(
+                        $repair['cs_email'],
+                        $cust_name,
+                        $repair_id,
+                        $repair['prod_name'],
+                        $new_status,
+                        $comment,
+                        $shop_data['shop_name'],
+                        $shop_data['shop_email'],
+                        $shop_data['shop_app_password']
+                    );
+
+                    if ($mail_sent) {
+                        $mail_msg = " และส่งอีเมลแจ้งลูกค้าเรียบร้อยแล้ว";
+                    } else {
+                        $mail_msg = " <br><span class='text-warning'>(แต่ส่งอีเมลไม่สำเร็จ กรุณาตรวจสอบการตั้งค่า Email)</span>";
+                    }
+                }
+            }
+
+            // ตั้งค่า SweetAlert Success
+            $alert_status = 'success';
+            $alert_message = "บันทึกสถานะเป็น '$new_status' สำเร็จ" . $mail_msg;
+
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            // ตั้งค่า SweetAlert Error
+            $alert_status = 'error';
+            $alert_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
+            $redirect_url = "";
+        }
     }
 }
 ?>
@@ -245,12 +280,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <title>Job Order #<?= $repair_id ?></title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
+
     <?php require '../config/load_theme.php'; ?>
 
     <style>
@@ -258,26 +295,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --theme-color: <?= $theme_color ?>;
             --bg-color: <?= $background_color ?>;
         }
-        
-        *, *::before, *::after {
-            box-sizing: border-box; 
-        }
-
         body {
             background-color: var(--bg-color);
             color: #333;
-            margin: 0; 
-            overflow-x: hidden; 
         }
-
         .card-custom {
             border: none;
             border-radius: 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             background: #fff;
-            transition: transform 0.2s;
         }
-
         .card-header-custom {
             background: linear-gradient(45deg, var(--theme-color), #146c43);
             color: white;
@@ -285,46 +312,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             padding: 15px;
             font-weight: 600;
         }
-
-        .info-label {
-            font-weight: 600;
-            color: #666;
-            font-size: 0.9rem;
-        }
-
-        .info-value {
-            font-weight: 500;
-            color: #000;
-            font-size: 1rem;
-        }
-
-        .timeline {
-            border-left: 2px solid #e9ecef;
-            padding-left: 20px;
-            margin-left: 10px;
-        }
-
-        .timeline-item {
-            position: relative;
-            margin-bottom: 25px;
-        }
-
-        .timeline-item::before {
-            content: '';
-            position: absolute;
-            left: -26px;
-            top: 5px;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: var(--theme-color);
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 2px #e9ecef;
-        }
-        
         /* Select2 Style Override */
         .select2-container .select2-selection--single {
-            height: 48px; /* Match form-select-lg */
+            height: 48px;
             border: 1px solid #dee2e6;
             border-radius: 0.375rem;
         }
@@ -335,107 +325,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
             height: 46px;
         }
-
-        @media (max-width: 767.98px) {
-            .container {
-                max-width: 100%;
-                padding: 0 15px !important;
-            }
-
-            .card-custom {
-                border-radius: 0;
-                box-shadow: none;
-                margin-top: 10px;
-                margin-bottom: 10px;
-            }
-
-            .card-body {
-                padding: 15px;
-            }
-            
-            .card-header-custom {
-                font-size: 1rem;
-                padding: 10px 15px;
-            }
-
-            .row > div[class*='col-'] {
-                margin-bottom: 5px; 
-            }
-            
-            .info-label {
-                font-size: 0.8rem;
-            }
-
-            .info-value {
-                font-size: 0.9rem;
-            }
-            
-            .timeline {
-                 margin-left: 0;
-                 padding-left: 15px;
-            }
-            
-            .timeline-item {
-                 margin-bottom: 15px;
-            }
-            
-            .timeline-item::before {
-                 left: -17px;
-            }
-            
-            .d-flex.justify-content-end.no-print {
-                flex-direction: column;
-                gap: 10px;
-                margin-top: 10px !important;
-            }
-            
-            .d-flex.justify-content-end.no-print .btn {
-                 width: 100%;
-            }
-        }
-
-        @media print {
-            @page {
-                size: A4;
-                margin: 10mm;
-            }
-
-            body {
-                background: #fff;
-                font-size: 12pt;
-                line-height: 1.3;
-                color: #000;
-            }
-
-            .no-print,
-            .btn,
-            .navbar,
-            .card-header-custom,
-            .timeline {
-                display: none !important;
-            }
-
-            .container {
-                max-width: 100% !important;
-                padding: 0 !important;
-                margin: 0 !important;
-                width: 100%;
-            }
-
-            .card-custom {
-                box-shadow: none;
-                border: 1px solid #000 !important;
-                border-radius: 0;
-                margin-bottom: 15px;
-            }
-
-            .card-body {
-                padding: 10px !important;
-            }
-        }
     </style>
 </head>
-
 
 <body>
     <div class="d-flex" id="wrapper">
@@ -448,8 +339,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                             <?php if (isset($_SESSION['error'])): ?>
                                 <div class="alert alert-danger alert-dismissible fade show">
-                                    <i class="fas fa-exclamation-circle me-2"></i> <?= $_SESSION['error'];
-                                                                                    unset($_SESSION['error']); ?>
+                                    <i class="fas fa-exclamation-circle me-2"></i> <?= $_SESSION['error']; unset($_SESSION['error']); ?>
                                     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                                 </div>
                             <?php endif; ?>
@@ -548,10 +438,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
         $(document).ready(function() {
-            // Initialize Select2
             $('.select2').select2({
                 theme: 'bootstrap-5',
                 width: '100%',
@@ -560,32 +450,73 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
+        // --------------------------------------------------------
+        // ส่วนจัดการ SweetAlert หลังจาก PHP ทำงานเสร็จ
+        // --------------------------------------------------------
+        <?php if ($alert_status): ?>
+            Swal.fire({
+                icon: '<?= $alert_status ?>',
+                title: '<?= $alert_status == 'success' ? 'สำเร็จ' : 'แจ้งเตือน' ?>',
+                html: '<?= $alert_message ?>', // ใช้ html เพื่อรองรับ tag <br>
+                confirmButtonText: 'ตกลง',
+                confirmButtonColor: '#198754'
+            }).then((result) => {
+                <?php if (!empty($redirect_url)): ?>
+                    if (result.isConfirmed || result.isDismissed) {
+                        window.location.href = '<?= $redirect_url ?>';
+                    }
+                <?php endif; ?>
+            });
+        <?php endif; ?>
+
+        // --------------------------------------------------------
+        // ส่วนตรวจสอบก่อนกด Submit (Frontend)
+        // --------------------------------------------------------
         const isPaid = <?= $repair['bill_status'] == 'Completed' ? 'true' : 'false' ?>;
         const isCancelled = <?= $repair['repair_status'] == 'ยกเลิก' ? 'true' : 'false' ?>;
 
         document.getElementById('updateStatusForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // หยุดการส่งฟอร์มไว้ก่อน
+
             const status = document.getElementById('statusSelect').value;
 
             if (status === 'ส่งมอบ') {
-                // ถ้างานซ่อมปกติ แต่ยังไม่จ่ายเงิน -> ห้ามส่งมอบ
+                // Validation: งานซ่อมปกติ แต่ยังไม่จ่ายเงิน -> ห้ามส่งมอบ
                 if (!isCancelled && !isPaid) {
-                    alert('⚠️ ไม่สามารถส่งมอบเครื่องได้!\n\nลูกค้ายังไม่ได้ชำระเงิน\n(กรุณาไปทำรายการชำระเงินก่อนส่งมอบ)');
-                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'ไม่สามารถส่งมอบได้',
+                        html: 'ลูกค้ายังไม่ได้ชำระเงิน<br>(กรุณาไปทำรายการชำระเงินก่อนส่งมอบ)',
+                        confirmButtonText: 'เข้าใจแล้ว'
+                    });
                     return;
                 }
 
-                let confirmMsg = "⚠️ ยืนยันการ 'ส่งมอบ' เครื่องคืนลูกค้า?\n\n" +
-                    "- เครื่องซ่อมจะถูกตัดออกจากสต็อกทันที\n";
-
+                let confirmText = "- เครื่องซ่อมจะถูกตัดออกจากสต็อกทันที";
                 if (isCancelled) {
-                    confirmMsg += "- เป็นการคืนเครื่องงานที่ 'ยกเลิก' (ไม่มีค่าใช้จ่าย)";
+                    confirmText += "<br>- เป็นการคืนเครื่องงานที่ 'ยกเลิก' (ไม่มีค่าใช้จ่าย)";
                 } else {
-                    confirmMsg += "- ระบบจะปิดงานซ่อมอย่างสมบูรณ์";
+                    confirmText += "<br>- ระบบจะปิดงานซ่อมอย่างสมบูรณ์";
                 }
 
-                if (!confirm(confirmMsg)) {
-                    e.preventDefault();
-                }
+                // ใช้ SweetAlert Confirm แทน window.confirm
+                Swal.fire({
+                    title: 'ยืนยันการ "ส่งมอบ" คืนลูกค้า?',
+                    html: confirmText,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#198754',
+                    cancelButtonColor: '#d33',
+                    confirmButtonText: 'ยืนยันส่งมอบ',
+                    cancelButtonText: 'ยกเลิก'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        this.submit(); // ส่งฟอร์มจริง
+                    }
+                });
+            } else {
+                // กรณีสถานะอื่นๆ บันทึกได้เลย
+                this.submit();
             }
         });
     </script>

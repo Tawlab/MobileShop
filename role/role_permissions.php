@@ -82,17 +82,20 @@ if (isset($_GET['ajax'])) {
         while ($perm = $result_perms->fetch_assoc()) {
             // เช็คว่ามีสิทธิ์ใน DB หรือไม่ (JS จะมาจัดการเรื่องสิทธิ์ที่เพิ่งติ๊กให้อีกที)
             $is_checked_db = in_array($perm['permission_id'], $checked_permissions) ? 'checked' : '';
+            
+            // [แก้ไข] Logic การแสดงผลชื่อ: ใช้ permission_desc ถ้ามี ถ้าไม่มีใช้ permission_name
+            $display_name = !empty($perm['permission_desc']) ? $perm['permission_desc'] : $perm['permission_name'];
             ?>
             <div class="col">
-                <div class="form-check">
+                <div class="form-check" title="System Name: <?= htmlspecialchars($perm['permission_name']) ?>">
                     <input class="form-check-input permission-checkbox" type="checkbox"
                         name="permissions[]"
                         value="<?= $perm['permission_id'] ?>"
                         id="perm_<?= $perm['permission_id'] ?>"
                         <?= $is_checked_db ?>>
 
-                    <label class="form-check-label" for="perm_<?= $perm['permission_id'] ?>">
-                        <?= htmlspecialchars($perm['permission_name']) ?>
+                    <label class="form-check-label text-truncate" for="perm_<?= $perm['permission_id'] ?>">
+                        <?= htmlspecialchars($display_name) ?>
                     </label>
                 </div>
             </div>
