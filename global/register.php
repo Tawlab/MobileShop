@@ -129,10 +129,14 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
             transform: translateY(-2px);
         }
 
-        /* Select2 Override */
         .select2-container--bootstrap-5 .select2-selection {
             border-radius: 10px;
             padding: 5px;
+        }
+        
+        .is-valid-custom {
+            border-color: #198754 !important;
+            background-image: url("data:image/svg+xml,..."); /* Optional: Success Icon */
         }
     </style>
 </head>
@@ -159,7 +163,8 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
                         </div>
 
                         <form id="registerForm" novalidate>
-                            
+                            <input type="hidden" name="existing_shop_id" id="existing_shop_id" value="">
+
                             <div class="form-step active" id="step1">
                                 <h5 class="text-success mb-4 border-bottom pb-2"><i class="bi bi-person-lines-fill me-2"></i>ข้อมูลส่วนตัว</h5>
                                 
@@ -174,17 +179,20 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">ชื่อจริง <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control" name="firstname" id="firstname" required placeholder="ภาษาไทย">
+                                        <input type="text" class="form-control" name="firstname" id="firstname" required>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">นามสกุล <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control" name="lastname" id="lastname" required placeholder="ภาษาไทย">
+                                        <input type="text" class="form-control" name="lastname" id="lastname" required>
                                     </div>
                                     <div class="col-md-12">
                                         <label class="form-label">ชื่อผู้ใช้งาน (Username) <span class="text-danger">*</span></label>
-                                        <div class="input-group">
+                                        <div class="input-group has-validation">
                                             <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
-                                            <input type="text" class="form-control" name="username" id="username" required placeholder="สำหรับเข้าสู่ระบบ (ภาษาอังกฤษ)">
+                                            <input type="text" class="form-control" name="username" id="username" required placeholder="ภาษาอังกฤษเท่านั้น">
+                                            <div class="invalid-feedback" id="username-feedback">
+                                                กรุณากรอกชื่อผู้ใช้งาน
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="col-md-12">
@@ -197,7 +205,7 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
                                 </div>
 
                                 <div class="d-flex justify-content-end mt-4">
-                                    <button type="button" class="btn btn-success btn-nav" onclick="nextStep()"><i class="bi bi-arrow-right me-2"></i>ถัดไป</button>
+                                    <button type="button" class="btn btn-success btn-nav" onclick="validateStep1()"><i class="bi bi-arrow-right me-2"></i>ถัดไป</button>
                                 </div>
                             </div>
 
@@ -208,14 +216,15 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
                                     <div class="col-md-6">
                                         <label class="form-label">ชื่อร้านค้า <span class="text-danger">*</span></label>
                                         <input type="text" class="form-control" name="shop_name" id="shop_name" required placeholder="ชื่อร้านของคุณ">
+                                        <div id="shop_name_feedback" class="form-text"></div>
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">เลขประจำตัวผู้เสียภาษี (ถ้ามี)</label>
-                                        <input type="text" class="form-control" name="shop_tax_id" placeholder="13 หลัก">
+                                        <label class="form-label">เลขประจำตัวผู้เสียภาษี</label>
+                                        <input type="text" class="form-control" name="shop_tax_id" id="shop_tax_id" placeholder="13 หลัก">
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">เบอร์โทรร้าน <span class="text-danger">*</span></label>
-                                        <input type="tel" class="form-control" name="shop_phone" id="shop_phone" required placeholder="08xxxxxxxx">
+                                        <input type="tel" class="form-control" name="shop_phone" id="shop_phone" required>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">ชื่อสาขาแรก <span class="text-danger">*</span></label>
@@ -227,7 +236,7 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
                                 <div class="row g-3">
                                     <div class="col-md-12">
                                         <label class="form-label">บ้านเลขที่ / ถนน / ซอย</label>
-                                        <input type="text" class="form-control" name="home_no" placeholder="รายละเอียดที่ตั้ง">
+                                        <input type="text" class="form-control" name="home_no">
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">จังหวัด</label>
@@ -277,50 +286,36 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
 
     <script>
         $(document).ready(function() {
-            // Init Select2 with Bootstrap 5 theme
-            $('.select2').select2({
-                theme: 'bootstrap-5'
-            });
+            // Select2 Init
+            $('.select2').select2({ theme: 'bootstrap-5' });
 
-            // Load Provinces
+            // Load Address Data (เหมือนเดิม)
             $.get('get_locations.php?action=get_provinces', function(data) {
                 data.forEach(function(item) {
                     $('#province_select').append(new Option(item.province_name_th, item.province_id));
                 });
             });
 
-            // Chain Select: Province -> District
             $('#province_select').change(function() {
                 let id = $(this).val();
-                let dist = $('#district_select');
-                let subdist = $('#subdistrict_select');
-                
-                dist.empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', true);
-                subdist.empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
+                let dist = $('#district_select').empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', true);
+                $('#subdistrict_select').empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
                 $('#zipcode').val('');
-
                 if(id) {
                     $.get('get_locations.php?action=get_districts&id=' + id, function(data) {
-                        data.forEach(function(item) {
-                            dist.append(new Option(item.district_name_th, item.district_id));
-                        });
+                        data.forEach(function(item) { dist.append(new Option(item.district_name_th, item.district_id)); });
                         dist.prop('disabled', false);
                     });
                 }
             });
 
-            // Chain Select: District -> Subdistrict
             $('#district_select').change(function() {
                 let id = $(this).val();
-                let subdist = $('#subdistrict_select');
-                
-                subdist.empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
+                let subdist = $('#subdistrict_select').empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
                 $('#zipcode').val('');
-
                 if(id) {
                     $.get('get_locations.php?action=get_subdistricts&id=' + id, function(data) {
                         data.forEach(function(item) {
-                            // เก็บ Zipcode ไว้ใน attribute data-zip
                             let option = new Option(item.subdistrict_name_th, item.subdistrict_id);
                             $(option).attr('data-zip', item.zip_code);
                             subdist.append(option);
@@ -330,77 +325,140 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
                 }
             });
 
-            // Auto Zipcode
             $('#subdistrict_select').change(function() {
-                let zip = $(this).find(':selected').data('zip');
-                $('#zipcode').val(zip || '');
+                $('#zipcode').val($(this).find(':selected').data('zip') || '');
+            });
+
+            // --- Logic: ตรวจสอบชื่อร้านค้าเมื่อพิมพ์เสร็จ (Blur) ---
+            $('#shop_name').on('blur', function() {
+                let shopName = $(this).val().trim();
+                if(shopName.length > 0) {
+                    checkShopName(shopName);
+                }
             });
         });
 
-        // Navigation Logic
-        function nextStep() {
-            // Validate Step 1
-            const step1Inputs = document.querySelectorAll('#step1 input[required]');
-            let valid = true;
-            step1Inputs.forEach(input => {
-                if (!input.value.trim()) {
-                    input.classList.add('is-invalid');
-                    valid = false;
-                } else {
-                    input.classList.remove('is-invalid');
-                }
+        // ============================
+        // STEP 1 VALIDATION & CHECK USERNAME
+        // ============================
+        function validateStep1() {
+            // Check Empty Fields
+            const inputs = document.querySelectorAll('#step1 input[required]');
+            let empty = false;
+            inputs.forEach(input => {
+                if(!input.value.trim()) { input.classList.add('is-invalid'); empty = true; }
+                else { input.classList.remove('is-invalid'); }
             });
 
-            if(valid) {
-                $('#step1').removeClass('active');
-                $('#step2').addClass('active');
-                $('#indicator2').addClass('active');
-                $('#stepLabel').text('ข้อมูลร้านค้า');
-            } else {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'ข้อมูลไม่ครบ',
-                    text: 'กรุณากรอกข้อมูลส่วนตัวให้ครบถ้วน',
-                    confirmButtonColor: '#198754'
-                });
-            }
-        }
-
-        function prevStep() {
-            $('#step2').removeClass('active');
-            $('#step1').addClass('active');
-            $('#indicator2').removeClass('active');
-            $('#stepLabel').text('ข้อมูลส่วนตัว');
-        }
-
-        // Form Submission
-        $('#registerForm').on('submit', function(e) {
-            e.preventDefault();
-            
-            // Validate Step 2 inputs
-            const step2Inputs = document.querySelectorAll('#step2 input[required]');
-            let valid = true;
-            step2Inputs.forEach(input => {
-                if (!input.value.trim()) {
-                    input.classList.add('is-invalid');
-                    valid = false;
-                } else {
-                    input.classList.remove('is-invalid');
-                }
-            });
-
-            if(!valid) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'ข้อมูลไม่ครบ',
-                    text: 'กรุณากรอกข้อมูลร้านค้าที่จำเป็น',
-                    confirmButtonColor: '#198754'
-                });
+            if(empty) {
+                Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลให้ครบ', confirmButtonColor: '#198754' });
                 return;
             }
 
-            // AJAX Submission
-            let formData = new FormData(this);
+            // AJAX Check Username
+            const username = $('#username').val().trim();
+            $.post('check_availability.php', { action: 'check_username', username: username }, function(data) {
+                if(data.status === 'available') {
+                    // ผ่าน -> ไป Step 2
+                    $('#username').removeClass('is-invalid').addClass('is-valid-custom');
+                    goToStep(2);
+                } else {
+                    // ไม่ผ่าน
+                    $('#username').addClass('is-invalid');
+                    $('#username-feedback').text(data.message);
+                    Swal.fire({ icon: 'error', title: 'ขออภัย', text: data.message, confirmButtonColor: '#dc3545' });
+                }
+            }, 'json');
+        }
+
+        // ============================
+        // STEP 2 LOGIC & SHOP CHECK
+        // ============================
+        function checkShopName(shopName) {
+            $.post('check_availability.php', { action: 'check_shop_name', shop_name: shopName }, function(data) {
+                
+                if (data.status === 'exists') {
+                    // พบชื่อร้านซ้ำ -> ถามผู้ใช้
+                    Swal.fire({
+                        title: 'พบชื่อร้านค้านี้ในระบบ!',
+                        html: `มีร้านค้าชื่อ <b>"${data.shop_name}"</b> อยู่แล้ว<br>คุณต้องการเพิ่มสาขาใหม่ในร้านค้านี้ใช่หรือไม่?`,
+                        icon: 'info',
+                        showCancelButton: true,
+                        confirmButtonText: 'ใช่, เพิ่มสาขาในร้านนี้',
+                        cancelButtonText: 'ไม่, ฉันจะเปลี่ยนชื่อร้าน',
+                        confirmButtonColor: '#198754',
+                        cancelButtonColor: '#6c757d'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // เลือกใช้ร้านเดิม
+                            $('#existing_shop_id').val(data.shop_id);
+                            $('#shop_tax_id').val(data.tax_id).prop('readonly', true); // ล็อคเลขผู้เสียภาษี
+                            $('#shop_name').addClass('is-valid-custom');
+                            $('#shop_name_feedback').html('<span class="text-success"><i class="bi bi-check-circle"></i> เชื่อมต่อกับร้านค้าเดิมแล้ว</span>');
+                        } else {
+                            // เปลี่ยนชื่อร้าน
+                            $('#existing_shop_id').val(''); // เคลียร์ค่า
+                            $('#shop_tax_id').val('').prop('readonly', false);
+                            $('#shop_name').val('').focus(); // ล้างชื่อเพื่อให้กรอกใหม่
+                            $('#shop_name_feedback').text('');
+                        }
+                    });
+                } else {
+                    // ชื่อร้านใหม่
+                    $('#existing_shop_id').val('');
+                    $('#shop_tax_id').prop('readonly', false);
+                    $('#shop_name').removeClass('is-invalid');
+                    $('#shop_name_feedback').text('');
+                }
+            }, 'json');
+        }
+
+        // ============================
+        // FINAL SUBMIT
+        // ============================
+        $('#registerForm').on('submit', function(e) {
+            e.preventDefault();
+
+            // Validate Step 2 inputs
+            const inputs = document.querySelectorAll('#step2 input[required]');
+            let empty = false;
+            inputs.forEach(input => {
+                if(!input.value.trim()) { input.classList.add('is-invalid'); empty = true; }
+                else { input.classList.remove('is-invalid'); }
+            });
+
+            if(empty) {
+                Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูลร้านค้า', confirmButtonColor: '#198754' });
+                return;
+            }
+
+            // AJAX Check Branch Duplicate
+            const shopId = $('#existing_shop_id').val(); // ค่าอาจเป็นว่าง (ร้านใหม่) หรือ ID (ร้านเดิม)
+            const branchName = $('#branch_name').val().trim();
+
+            $.post('check_availability.php', { 
+                action: 'check_branch_duplicate', 
+                shop_id: shopId, 
+                branch_name: branchName 
+            }, function(data) {
+                if(data.status === 'taken') {
+                    // ชื่อสาขาซ้ำในร้านเดิม
+                    Swal.fire({ 
+                        icon: 'error', 
+                        title: 'ชื่อสาขาซ้ำ!', 
+                        text: `ร้านค้านี้มีสาขาชื่อ "${branchName}" อยู่แล้ว กรุณาตั้งชื่อสาขาใหม่`, 
+                        confirmButtonColor: '#dc3545' 
+                    });
+                    $('#branch_name').addClass('is-invalid');
+                } else {
+                    // ผ่านทุกอย่าง -> ส่งข้อมูลสมัคร
+                    submitRegister();
+                }
+            }, 'json');
+        });
+
+        function submitRegister() {
+            let formData = new FormData(document.getElementById('registerForm'));
             
             Swal.fire({
                 title: 'กำลังบันทึกข้อมูล...',
@@ -409,41 +467,40 @@ $prefixes = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs ORDER 
                 didOpen: () => { Swal.showLoading(); }
             });
 
-            fetch('register_process.php', {
-                method: 'POST',
-                body: formData
-            })
+            fetch('register_process.php', { method: 'POST', body: formData })
             .then(response => response.json())
             .then(data => {
                 if(data.status === 'success') {
                     Swal.fire({
                         icon: 'success',
-                        title: 'สำเร็จ!',
-                        text: 'ลงทะเบียนเรียบร้อยแล้ว คุณสามารถเข้าสู่ระบบได้ทันที',
-                        confirmButtonText: 'เข้าสู่ระบบ',
+                        title: 'ลงทะเบียนสำเร็จ!',
+                        text: 'คุณสามารถเข้าสู่ระบบได้ทันที',
+                        confirmButtonText: 'ไปหน้าเข้าสู่ระบบ',
                         confirmButtonColor: '#198754'
-                    }).then((result) => {
+                    }).then(() => {
                         window.location.href = '../global/login.php';
                     });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'เกิดข้อผิดพลาด',
-                        text: data.message,
-                        confirmButtonColor: '#dc3545'
-                    });
+                    Swal.fire({ icon: 'error', title: 'เกิดข้อผิดพลาด', text: data.message });
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'System Error',
-                    text: 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้',
-                    confirmButtonColor: '#dc3545'
-                });
+                Swal.fire({ icon: 'error', title: 'Error', text: 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์' });
             });
-        });
+        }
+
+        // Navigation Helpers
+        function goToStep(step) {
+            $('.form-step').removeClass('active');
+            $(`#step${step}`).addClass('active');
+            
+            $('.step-item').removeClass('active');
+            for(let i=1; i<=step; i++) $(`#indicator${i}`).addClass('active');
+            
+            $('#stepLabel').text(step === 1 ? 'ข้อมูลส่วนตัว' : 'ข้อมูลร้านค้า');
+        }
+
+        function prevStep() { goToStep(1); }
     </script>
 
 </body>

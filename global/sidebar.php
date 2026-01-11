@@ -51,7 +51,8 @@ function isGroupActive($keywords) //
 
     /* ปรับ Layout ให้เป็น Flex Column เพื่อทำ Scroll เฉพาะส่วนกลาง */
     #sidebar-wrapper {
-        height: 100vh; /* เต็มความสูงจอ */
+        height: 100vh;
+        /* เต็มความสูงจอ */
         width: var(--sidebar-width);
         margin-left: 0;
         transition: margin 0.25s ease-out;
@@ -62,17 +63,22 @@ function isGroupActive($keywords) //
         top: 0;
         left: 0;
         z-index: 1000;
-        display: flex; /* ใช้ Flexbox */
-        flex-direction: column; /* เรียงแนวตั้ง */
-        overflow: hidden; /* ซ่อน Scroll ของ Wrapper หลัก */
+        display: flex;
+        /* ใช้ Flexbox */
+        flex-direction: column;
+        /* เรียงแนวตั้ง */
+        overflow: hidden;
+        /* ซ่อน Scroll ของ Wrapper หลัก */
     }
 
     /* ส่วนรายการเมนู (ส่วนกลาง) ให้ขยายเต็มพื้นที่และเลื่อนได้ */
     .sidebar-content {
         flex-grow: 1;
-        overflow-y: auto; /* ให้เลื่อนได้เฉพาะส่วนนี้ */
+        overflow-y: auto;
+        /* ให้เลื่อนได้เฉพาะส่วนนี้ */
         overflow-x: hidden;
-        scrollbar-width: thin; /* Firefox */
+        scrollbar-width: thin;
+        /* Firefox */
         padding-top: 1rem;
         padding-bottom: 1rem;
     }
@@ -81,10 +87,12 @@ function isGroupActive($keywords) //
     .sidebar-content::-webkit-scrollbar {
         width: 6px;
     }
+
     .sidebar-content::-webkit-scrollbar-thumb {
         background-color: rgba(255, 255, 255, 0.3);
         border-radius: 3px;
     }
+
     .sidebar-content::-webkit-scrollbar-thumb:hover {
         background-color: rgba(255, 255, 255, 0.5);
     }
@@ -270,12 +278,14 @@ function isGroupActive($keywords) //
                 <span><i class="fas fa-user-tie"></i> ข้อมูลพนักงาน</span>
             </a>
             <div class="collapse submenu <?= isExpanded(['department.php', 'employee.php']) ?>" id="sub-emp">
-                
-                <?php if (hasPermission($conn, $sidebar_uid, 'department')): // 1. แผนก ?>
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'department')): // 1. แผนก 
+                ?>
                     <a href="../department/department.php" class="list-group-item list-group-item-action <?= isActive('department.php') ?>">แผนก</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'employee')): // 2. พนักงาน ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'employee')): // 2. พนักงาน 
+                ?>
                     <a href="../employee/employee.php" class="list-group-item list-group-item-action <?= isActive('employee.php') ?>">พนักงาน</a>
                 <?php endif; ?>
 
@@ -299,24 +309,29 @@ function isGroupActive($keywords) //
                 <span><i class="fas fa-globe"></i> ข้อมูลทั่วไป</span>
             </a>
             <div class="collapse submenu <?= isExpanded(['prename.php', 'religion.php', 'province.php', 'districts.php', 'subdistricts.php']) ?>" id="sub-gen">
-                
-                <?php if (hasPermission($conn, $sidebar_uid, 'prename')): // 3. คำนำหน้านาม ?>
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'prename')): // 3. คำนำหน้านาม 
+                ?>
                     <a href="../prename/prename.php" class="list-group-item list-group-item-action <?= isActive('prename.php') ?>">คำนำหน้านาม</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'religion')): // 4. ศาสนา ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'religion')): // 4. ศาสนา 
+                ?>
                     <a href="../religion/religion.php" class="list-group-item list-group-item-action <?= isActive('religion.php') ?>">ศาสนา</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'province')): // 5. จังหวัด ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'province')): // 5. จังหวัด 
+                ?>
                     <a href="../provinces/province.php" class="list-group-item list-group-item-action <?= isActive('province.php') ?>">จังหวัด</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'districts')): // 6. อำเภอ ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'districts')): // 6. อำเภอ 
+                ?>
                     <a href="../districts/districts.php" class="list-group-item list-group-item-action <?= isActive('/districts.php') ?>">อำเภอ</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'subdistricts')): // 7. ตำบล ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'subdistricts')): // 7. ตำบล 
+                ?>
                     <a href="../subdistricts/subdistricts.php" class="list-group-item list-group-item-action <?= isActive('subdistricts.php') ?>">ตำบล</a>
                 <?php endif; ?>
 
@@ -328,16 +343,19 @@ function isGroupActive($keywords) //
                 <span><i class="fas fa-mobile"></i> สินค้า</span>
             </a>
             <div class="collapse submenu <?= isExpanded(['product.php', 'prodtype.php', 'prodbrand.php']) ?>" id="sub-prod">
-                
-                <?php if (hasPermission($conn, $sidebar_uid, 'product')): // 8. สินค้า ?>
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'product')): // 8. สินค้า 
+                ?>
                     <a href="../product/product.php" class="list-group-item list-group-item-action <?= isActive('product.php') ?>">สินค้า</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'prodtype')): // 9. ประเภทสินค้า ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'prodtype')): // 9. ประเภทสินค้า 
+                ?>
                     <a href="../prod_type/prodtype.php" class="list-group-item list-group-item-action <?= isActive('prodtype.php') ?>">ประเภทสินค้า</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'prodbrand')): // 10. ยี่ห้อสินค้า ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'prodbrand')): // 10. ยี่ห้อสินค้า 
+                ?>
                     <a href="../prod_brand/prodbrand.php" class="list-group-item list-group-item-action <?= isActive('prodbrand.php') ?>">ยี่ห้อสินค้า</a>
                 <?php endif; ?>
 
@@ -367,13 +385,33 @@ function isGroupActive($keywords) //
                 <span><i class="fas fa-tools"></i> การซ่อม</span>
             </a>
             <div class="collapse submenu <?= isExpanded(['repair_list.php', 'symptoms.php']) ?>" id="sub-repair">
-                
-                <?php if (hasPermission($conn, $sidebar_uid, 'repair_list')): // 11. รายการซ่อม ?>
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'repair_list')): // 11. รายการซ่อม 
+                ?>
                     <a href="../repair/repair_list.php" class="list-group-item list-group-item-action <?= isActive('repair_list.php') ?>">รายการซ่อม</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'symptoms')): // 12. อาการเสีย ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'symptoms')): // 12. อาการเสีย 
+                ?>
                     <a href="../symptom/symptoms.php" class="list-group-item list-group-item-action <?= isActive('symptoms.php') ?>">อาการเสีย</a>
+                <?php endif; ?>
+
+            </div>
+        <?php endif; ?>
+
+        <?php if (hasPermission($conn, $sidebar_uid, 'menu_report') || hasPermission($conn, $sidebar_uid, 'report_sales') || hasPermission($conn, $sidebar_uid, 'report_repairs')):
+        ?>
+            <a href="#sub-report" class="list-group-item list-group-item-action menu-toggle <?= isGroupActive(['report_sales.php', 'report_repairs.php']) ?>" data-bs-toggle="collapse" aria-expanded="<?= !empty(isExpanded(['report_sales.php', 'report_repairs.php'])) ? 'true' : 'false' ?>">
+                <span><i class="fas fa-chart-line"></i> รายงาน (Reports)</span>
+            </a>
+            <div class="collapse submenu <?= isExpanded(['report_sales.php', 'report_repairs.php']) ?>" id="sub-report">
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'report_sales')): ?>
+                    <a href="../report/report_sales.php" class="list-group-item list-group-item-action <?= isActive('report_sales.php') ?>">รายงานยอดขาย</a>
+                <?php endif; ?>
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'report_repairs')): ?>
+                    <a href="../report/report_repairs.php" class="list-group-item list-group-item-action <?= isActive('report_repairs.php') ?>">รายงานยอดซ่อม</a>
                 <?php endif; ?>
 
             </div>
@@ -384,12 +422,14 @@ function isGroupActive($keywords) //
                 <span><i class="fas fa-store"></i> ข้อมูลร้านค้า</span>
             </a>
             <div class="collapse submenu <?= isExpanded(['shop.php', 'branch.php']) ?>" id="sub-shop">
-                
-                <?php if (hasPermission($conn, $sidebar_uid, 'shop')): // 13. ข้อมูลร้านค้า ?>
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'shop')): // 13. ข้อมูลร้านค้า 
+                ?>
                     <a href="../shop/shop.php" class="list-group-item list-group-item-action <?= isActive('shop.php') ?>">ข้อมูลร้านค้า</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'branch')): // 14. สาขา ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'branch')): // 14. สาขา 
+                ?>
                     <a href="../branch/branch.php" class="list-group-item list-group-item-action <?= isActive('branch.php') ?>">สาขา</a>
                 <?php endif; ?>
 
@@ -401,16 +441,19 @@ function isGroupActive($keywords) //
                 <span><i class="fas fa-user-shield"></i> จัดการผู้ใช้</span>
             </a>
             <div class="collapse submenu <?= isExpanded(['permission.php', 'role.php']) ?>" id="sub-users">
-                
-                <?php if (hasPermission($conn, $sidebar_uid, 'permission')): // 15. สิทธิ์การใช้งาน ?>
+
+                <?php if (hasPermission($conn, $sidebar_uid, 'permission')): // 15. สิทธิ์การใช้งาน 
+                ?>
                     <a href="../permission/permission.php" class="list-group-item list-group-item-action <?= isActive('permission.php') ?>">สิทธิ์การใช้งาน</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'role')): // 16. บทบาทผู้ใช้ ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'role')): // 16. บทบาทผู้ใช้ 
+                ?>
                     <a href="../role/role.php" class="list-group-item list-group-item-action <?= isActive('role.php') ?>">บทบาทผู้ใช้</a>
                 <?php endif; ?>
 
-                <?php if (hasPermission($conn, $sidebar_uid, 'user_list')): // 17. รายชื่อผู้ใช้ ?>
+                <?php if (hasPermission($conn, $sidebar_uid, 'user_list')): // 17. รายชื่อผู้ใช้ 
+                ?>
                     <a href="../users/user_list.php" class="list-group-item list-group-item-action <?= isActive('user_list.php') ?>">รายชื่อผู้ใช้</a>
                 <?php endif; ?>
 
