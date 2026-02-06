@@ -44,7 +44,7 @@ if (isset($_GET['ajax'])) {
     }
 
     if (!empty($search)) {
-        $conditions[] = "(po.purchase_id LIKE '%$search%' OR s.co_name LIKE '%$search%' OR e.firstname_th LIKE '%$search%')";
+        $conditions[] = "(po.po_code LIKE '%$search%' OR s.co_name LIKE '%$search%' OR e.firstname_th LIKE '%$search%')";
     }
     if (!empty($status_f)) $conditions[] = "po.po_status = '$status_f'";
     if (!empty($supplier_f)) $conditions[] = "po.suppliers_supplier_id = '$supplier_f'";
@@ -99,7 +99,7 @@ if (isset($_GET['ajax'])) {
                         };
                 ?>
                         <tr>
-                            <td class="text-center fw-bold">#<?= $row['purchase_id'] ?></td>
+                            <td class="text-center fw-bold text-primary"><?= htmlspecialchars(!empty($row['po_code']) ? $row['po_code'] : $row['purchase_id']) ?></td>
                             <td class="small"><?= date('d/m/Y H:i', strtotime($row['purchase_date'])) ?></td>
                             <td class="small fw-bold text-truncate" style="max-width: 150px;"><?= htmlspecialchars($row['supplier_name'] ?? 'N/A') ?></td>
                             <?php if ($is_super_admin): ?>
