@@ -69,7 +69,7 @@ if (isset($_GET['ajax'])) {
                     <th class="text-center" width="5%">#</th>
                     <th width="25%">ชื่ออาการเสีย</th>
                     <th width="30%">รายละเอียด</th>
-                    <th width="15%" class="text-center">ประเภท</th>
+                    <th width="15%" class="text-center">ผู้เพิ่ม</th>
                     <th width="10%" class="text-center">สถานะ</th>
                     <th width="15%" class="text-center">จัดการ</th>
                 </tr>

@@ -35,7 +35,7 @@ if (isset($_GET['ajax'])) {
 
     // 2. เงื่อนไขการกรอง
     $conditions = [];
-    
+
     // กรองตามสิทธิ์ (ร้านใครร้านมัน หรือ Admin เลือกดู)
     if (!$is_super_admin) {
         $conditions[] = "(p.shop_info_shop_id = '$shop_id' OR p.shop_info_shop_id = 0)";
@@ -47,7 +47,7 @@ if (isset($_GET['ajax'])) {
     if (!empty($search)) {
         $conditions[] = "(p.prod_code LIKE '%$search%' OR p.prod_name LIKE '%$search%' OR p.model_name LIKE '%$search%')";
     }
-    
+
     if (!empty($brand_f)) $conditions[] = "p.prod_brands_brand_id = '$brand_f'";
     if (!empty($type_f)) $conditions[] = "p.prod_types_type_id = '$type_f'";
     if ($p_min !== '') $conditions[] = "p.prod_price >= $p_min";
@@ -81,9 +81,7 @@ if (isset($_GET['ajax'])) {
                     <th width="25%">ชื่อสินค้า / รุ่น</th>
                     <th width="15%">แบรนด์/ประเภท</th>
                     <th width="12%" class="text-end">ราคา</th>
-                    <?php if ($is_super_admin): ?>
-                        <th width="15%" class="text-center">สาขา/ร้าน</th>
-                    <?php endif; ?>
+                    <th width="15%" class="text-center">สาขา/ร้าน</th>
                     <th width="13%" class="text-center">จัดการ</th>
                 </tr>
             </thead>
@@ -205,21 +203,25 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
             background-color: #f8fafc;
             font-family: 'Prompt', sans-serif;
         }
+
         .main-card {
             border-radius: 15px;
             border: none;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
             overflow: hidden;
         }
+
         .card-header-custom {
             background: linear-gradient(135deg, #198754 0%, #14532d 100%);
             padding: 1.5rem;
         }
+
         .card-header-custom h4 {
             color: #ffffff !important;
             font-weight: 600;
             margin-bottom: 0;
         }
+
         .pagination .page-link {
             border-radius: 8px;
             margin: 0 3px;
@@ -227,10 +229,12 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
             font-weight: 600;
             border: none;
         }
+
         .pagination .page-item.active .page-link {
             background-color: #198754;
             color: white;
         }
+
         .filter-section {
             background-color: #f8f9fa;
             border-radius: 12px;
@@ -257,7 +261,7 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
                         </div>
 
                         <div class="card-body p-4">
-                            
+
                             <div class="d-flex justify-content-between mb-3">
                                 <button class="btn btn-outline-primary" type="button" data-bs-toggle="collapse" data-bs-target="#filterCollapse" aria-expanded="true" aria-controls="filterCollapse">
                                     <i class="bi bi-funnel-fill me-2"></i> แสดง/ซ่อน ตัวกรอง
@@ -375,8 +379,8 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
             document.getElementById('typeFilter').value = '';
             document.getElementById('pMinInput').value = '';
             document.getElementById('pMaxInput').value = '';
-            if(document.getElementById('shopFilter')) document.getElementById('shopFilter').value = '';
-            
+            if (document.getElementById('shopFilter')) document.getElementById('shopFilter').value = '';
+
             fetchProductData(1); // โหลดข้อมูลใหม่
         }
 

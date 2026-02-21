@@ -459,7 +459,9 @@ function isGroupActive($keywords) //
 
             </div>
         <?php endif; ?>
-
+        <a href="../manual/index.php" class="list-group-item list-group-item-action <?= isActive('manual/') ?>">
+            <i class="fas fa-book"></i> คู่มือ
+        </a>
         <div style="height: 20px;"></div>
     </div>
 
@@ -481,6 +483,7 @@ function isGroupActive($keywords) //
                 </li>
                 <li><a class="dropdown-item rounded text-danger" href="../global/logout.php"><i class="fas fa-sign-out-alt me-2"></i> ออกจากระบบ</a></li>
             </ul>
+
         </div>
     </div>
 </div>

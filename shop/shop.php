@@ -21,7 +21,7 @@ if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
     $res_user = mysqli_stmt_get_result($stmt_user);
     if ($row = mysqli_fetch_assoc($res_user)) {
         // อ้างอิงชื่อบทบาท 'Admin' จากฐานข้อมูลสำหรับสิทธิ์สูงสุด
-        if ($row['role_name'] === 'Admin') { 
+        if ($row['role_name'] === 'Admin') {
             $is_super_admin = true;
         }
     }
@@ -62,14 +62,16 @@ $sql .= " ORDER BY s.shop_id DESC";
 $result = mysqli_query($conn, $sql);
 
 // --- ฟังก์ชันสำหรับการแสดงผลคงเดิม ---
-function truncateText($text, $length = 50) {
+function truncateText($text, $length = 50)
+{
     if (mb_strlen($text) > $length) {
         return mb_substr($text, 0, $length) . '...';
     }
     return $text;
 }
 
-function formatAddress($shop) {
+function formatAddress($shop)
+{
     $address_parts = [];
     if (!empty($shop['home_no'])) $address_parts[] = "เลขที่ " . $shop['home_no'];
     if (!empty($shop['moo'])) $address_parts[] = "หมู่ " . $shop['moo'];
@@ -316,19 +318,24 @@ function formatAddress($shop) {
             <div class="container-fluid py-4">
 
                 <div class="container my-4">
-                    <div class="page-header">
-                        <div class="d-flex justify-content-between align-items-center flex-wrap">
-                            <div>
-                                <h4 class="text-light"><i class="fas fa-store me-2 text-light"></i>รายการร้านค้า</h4>
-                            </div>
-                            <div class="col-md-2">
-                                <a href="add_shop.php" class="btn btn-add w-100">
-                                    <i class="fas fa-plus me-2"></i>เพิ่มร้านค้า
-                                </a>
+                    <div class="container my-4">
+                        <div class="page-header">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                <div>
+                                    <h4 class="text-light"><i class="fas fa-store me-2 text-light"></i>รายการร้านค้า</h4>
+                                </div>
+
+                                <?php if ($is_super_admin): ?> <div class="col-md-2">
+                                        <a href="add_shop.php" class="btn btn-add w-100">
+                                            <i class="fas fa-plus me-2"></i>เพิ่มร้านค้า
+                                        </a>
+                                    </div>
+                                <?php endif; ?>
                             </div>
                         </div>
                     </div>
 
+                    <?php if ($is_super_admin): ?>
                     <div class="search-section">
                         <form method="GET" action="shop.php">
                             <div class="input-group">
@@ -346,6 +353,7 @@ function formatAddress($shop) {
                             </div>
                         </form>
                     </div>
+                    <?php endif; ?>
 
                     <?php if (mysqli_num_rows($result) > 0): ?>
                         <div class="shop-grid">
