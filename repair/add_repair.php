@@ -217,7 +217,8 @@ if ($is_admin) {
     $prod_sql = "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th 
                  FROM products p 
                  LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id 
-                 WHERE p.prod_types_type_id NOT IN (3, 4) AND p.shop_info_shop_id = '$current_shop_id' 
+                 WHERE p.prod_types_type_id NOT IN (3, 4) 
+                 AND (p.shop_info_shop_id = '$current_shop_id' OR p.shop_info_shop_id = 0) 
                  ORDER BY p.prod_name";
 }
 $products_result = mysqli_query($conn, $prod_sql);
