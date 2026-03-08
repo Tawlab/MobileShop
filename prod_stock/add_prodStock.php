@@ -171,10 +171,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             // Movement
             $move_id = getNextMovementId($conn);
             $move_stmt = $conn->prepare(
-                "INSERT INTO stock_movements 
-                    (movement_id, movement_type, ref_table, ref_id, prod_stocks_stock_id, prodout_types_outtype_id, create_at) 
-                 VALUES (?, 'IN', ?, NULL, ?, NULL, NOW())"
-            );
+    "INSERT INTO stock_movements 
+        (movement_id, movement_type, ref_table, ref_id, prod_stocks_stock_id, create_at) 
+     VALUES (?, 'IN', ?, NULL, ?, NOW())"
+);
             $move_stmt->bind_param("isi", $move_id, $ref_table, $stock_id);
             if (!$move_stmt->execute()) throw new Exception('ไม่สามารถบันทึก Movement ได้: ' . $move_stmt->error);
             $move_stmt->close();
