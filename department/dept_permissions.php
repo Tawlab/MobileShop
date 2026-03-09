@@ -5,6 +5,7 @@ require '../config/config.php';
 
 // [1] รับค่าพื้นฐาน
 $current_shop_id = $_SESSION['shop_id'] ?? 0;
+$current_branch_id = $_SESSION['branch_id'] ?? 0;
 $current_user_id = $_SESSION['user_id'] ?? 0;
 
 // ตรวจสอบสิทธิ์ Super Admin
@@ -50,11 +51,17 @@ if (isset($_GET['ajax_action'])) {
 
         $conditions = [];
         if (!$is_super_admin) {
-            $conditions[] = "(d.shop_info_shop_id = 0 OR d.shop_info_shop_id = '$current_shop_id')";
-        } elseif (!empty($shop_f)) {
-            $conditions[] = "d.shop_info_shop_id = '$shop_f'";
+            // ถ้าไม่ใช่ผู้ดูแลระบบ บังคับให้ดูได้แค่สาขาของตัวเองเท่านั้น
+            $conditions[] = "d.branches_branch_id = '$current_branch_id'";
+        } else {
+            // ถ้าเป็นผู้ดูแลระบบ (Admin) ค่อยให้กรองตามร้านค้า/สาขาที่เลือกได้
+            if (!empty($shop_f)) {
+                $conditions[] = "d.shop_info_shop_id = '$shop_f'";
+            }
+            if (!empty($branch_f)) {
+                $conditions[] = "d.branches_branch_id = '$branch_f'";
+            }
         }
-        if (!empty($branch_f)) $conditions[] = "d.branches_branch_id = '$branch_f'";
         if (!empty($search)) $conditions[] = "(d.dept_name LIKE '%$search%' OR sh.shop_name LIKE '%$search%' OR b.branch_name LIKE '%$search%')";
 
         $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
@@ -246,15 +253,16 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
                                         <?php endwhile; ?>
                                     </select>
                                 </div>
-                                <?php else: ?>
-                                    <input type="hidden" id="shopFilter" value="<?= $current_shop_id ?>">
-                                <?php endif; ?>
                                 <div class="col-md-3">
                                     <label class="form-label small fw-bold text-muted">สาขา</label>
                                     <select id="branchFilter" class="form-select select2" onchange="loadTable(1);">
                                         <option value="">-- ทุกสาขา --</option>
                                     </select>
                                 </div>
+                                <?php else: ?>
+                                    <input type="hidden" id="shopFilter" value="<?= $current_shop_id ?>">
+                                    <input type="hidden" id="branchFilter" value="<?= $current_branch_id ?>">
+                                <?php endif; ?>
                                 <div class="col-md-6">
                                     <label class="form-label small fw-bold text-muted">ค้นหา</label>
                                     <div class="input-group">

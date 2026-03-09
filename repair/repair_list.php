@@ -446,7 +446,7 @@ if ($is_super_admin) {
     <div class="modal fade" id="cancelModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg">
-                <form id="cancelForm" method="POST" action="cancel_repair_logic.php">
+                <form id="cancelForm" method="POST" action="cancel_repair.php">
                     <div class="modal-header bg-danger text-white border-0">
                         <h5 class="modal-title fw-bold"><i class="bi bi-x-circle me-2"></i>ยกเลิกรายการซ่อม</h5>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>

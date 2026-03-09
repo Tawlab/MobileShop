@@ -34,9 +34,37 @@ if (!$is_super_admin) {
     }
 }
 
-// ==========================================
-// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
-// ==========================================
+// =========================================================================
+// [3] ส่วนประมวลผล AJAX: ตรวจสอบประวัติการสั่งซื้อก่อนลบ
+// =========================================================================
+if (isset($_GET['action']) && $_GET['action'] === 'check_po') {
+    header('Content-Type: application/json');
+    $id = (int)$_GET['id'];
+    
+    // 🛑 ⚠️ หมายเหตุสำคัญ: 
+    // กรุณาเปลี่ยนชื่อตาราง 'purchase_orders' และคอลัมน์ 'suppliers_supplier_id' 
+    // ให้ตรงกับตารางที่คุณใช้เก็บข้อมูลการสั่งซื้อสินค้าจากซัพพลายเออร์ใน Database จริงๆ
+    $table_name = "purchase_orders"; // <- เปลี่ยนตรงนี้ (เช่น purchases, purchase_orders)
+    $column_name = "suppliers_supplier_id"; // <- เปลี่ยนตรงนี้ (เช่น supplier_id)
+    
+    $check_sql = "SELECT COUNT(*) as total FROM $table_name WHERE $column_name = $id";
+    $res = @mysqli_query($conn, $check_sql); // ใช้ @ ป้องกัน Error แจ้งหน้าเว็บกรณีชื่อตารางผิด
+    
+    $has_po = false;
+    if ($res) {
+        $row = mysqli_fetch_assoc($res);
+        if ($row['total'] > 0) {
+            $has_po = true;
+        }
+    }
+    
+    echo json_encode(['has_po' => $has_po]);
+    exit;
+}
+
+// =========================================================================
+// [4] ส่วนประมวลผล AJAX: โหลดตาราง (ทำงานเมื่อเรียกผ่าน Fetch API)
+// =========================================================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
     
@@ -49,12 +77,8 @@ if (isset($_GET['ajax'])) {
 
     // --- จุดที่แก้ไข: กรองตามสิทธิ์ ---
     if (!$is_super_admin) {
-        // User ทั่วไป: เห็นแค่สาขาตัวเอง
-        // (ตาราง suppliers ต้องมีคอลัมน์ branches_branch_id)
         $conditions[] = "s.branches_branch_id = '$current_user_branch_id'";
     }
-    // กรณี Admin: ไม่ต้องเพิ่มเงื่อนไขนี้ (เห็นทั้งหมด)
-    // --------------------------------
 
     if (!empty($search)) {
         $conditions[] = "(s.supplier_id LIKE '%$search%' OR s.co_name LIKE '%$search%' OR s.contact_firstname LIKE '%$search%' OR s.supplier_phone_no LIKE '%$search%')";
@@ -67,7 +91,7 @@ if (isset($_GET['ajax'])) {
     $total_items = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_items / $limit);
 
-    // ดึงข้อมูลซัพพลายเออร์ (Join ตาราง branches เพิ่มเพื่อแสดงชื่อสาขาได้ถ้าต้องการ)
+    // ดึงข้อมูลซัพพลายเออร์
     $sql = "SELECT s.*, p.prefix_th, sh.shop_name, b.branch_name
             FROM suppliers s
             LEFT JOIN prefixs p ON s.prefixs_prefix_id = p.prefix_id
@@ -89,7 +113,7 @@ if (isset($_GET['ajax'])) {
                     <th width="10%">รหัส</th>
                     <th width="25%">ชื่อบริษัท / ร้านค้า</th>
                     <th width="20%">ผู้ติดต่อ / เบอร์โทร</th>
-                    <?php if ($is_super_admin): // เพิ่มคอลัมน์ระบุร้านสำหรับ Admin ?>
+                    <?php if ($is_super_admin): ?>
                         <th width="15%" class="text-center">สังกัดร้าน</th>
                     <?php endif; ?>
                     <th width="12%" class="text-center">อีเมล</th>
@@ -118,7 +142,7 @@ if (isset($_GET['ajax'])) {
                         <div class="btn-group gap-1">
                             <a href="view_supplier.php?id=<?= $row['supplier_id'] ?>" class="btn btn-outline-info btn-sm border-0" title="ดูรายละเอียด"><i class="bi bi-eye-fill fs-5"></i></a>
                             <a href="edit_supplier.php?id=<?= $row['supplier_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
-                            <button onclick="confirmDelete(<?= $row['supplier_id'] ?>, '<?= addslashes($row['co_name']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash fs-5"></i></button>
+                            <button onclick="checkAndDelete(<?= $row['supplier_id'] ?>, '<?= addslashes($row['co_name']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash fs-5"></i></button>
                         </div>
                     </td>
                 </tr>
@@ -158,6 +182,7 @@ if (isset($_GET['ajax'])) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
 </head>
 <body>
@@ -216,6 +241,8 @@ if (isset($_GET['ajax'])) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <script>
         function fetchSupplierData(page = 1) {
             const search = document.getElementById('searchInput').value;
@@ -234,10 +261,33 @@ if (isset($_GET['ajax'])) {
             }
         });
 
-        function confirmDelete(id, name) {
-            document.getElementById('delName').innerText = name;
-            document.getElementById('confirmDelBtn').href = `delete_supplier.php?id=${id}`;
-            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        // -------------------------------------------------------------
+        // ฟังก์ชันตรวจสอบประวัติใบสั่งซื้อก่อนลบ
+        // -------------------------------------------------------------
+        function checkAndDelete(id, name) {
+            // ยิง AJAX ไปเช็คว่ามีประวัติใบสั่งซื้อ (PO) หรือไม่
+            fetch(`supplier.php?action=check_po&id=${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.has_po) {
+                        // ถ้ามีประวัติการสั่งซื้อ -> แสดงแจ้งเตือน ไม่ยอมให้ลบ
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'ไม่สามารถลบได้!',
+                            text: `ผู้จัดจำหน่าย "${name}" มีประวัติบิลสั่งซื้อสินค้า (PO) ค้างอยู่ในระบบ`,
+                            confirmButtonColor: '#198754'
+                        });
+                    } else {
+                        // ถ้าไม่มีประวัติ -> อนุญาตให้โชว์ Modal เพื่อยืนยันลบปกติ
+                        document.getElementById('delName').innerText = name;
+                        document.getElementById('confirmDelBtn').href = `delete_supplier.php?id=${id}`;
+                        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถตรวจสอบข้อมูลได้ (โปรดเช็คชื่อตาราง purchase_orders ในโค้ด PHP)', 'error');
+                });
         }
 
         window.onload = () => fetchSupplierData();

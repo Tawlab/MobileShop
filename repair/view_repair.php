@@ -56,7 +56,7 @@ if (in_array($data['repair_status'], ['ส่งมอบ', 'ยกเลิก'
     $is_locked = true;
 }
 
-// 5. ดึงอาการเสีย
+// ดึงอาการเสีย
 $sql_sym = "SELECT s.symptom_name FROM repair_symptoms rs JOIN symptoms s ON rs.symptoms_symptom_id = s.symptom_id WHERE rs.repairs_repair_id = '$repair_id'";
 $result_sym = mysqli_query($conn, $sql_sym);
 $symptoms_arr = [];
@@ -85,7 +85,7 @@ function getStatusColor($status)
         case 'ส่งมอบ':
             return 'dark';
         case 'ยกเลิก':
-            return 'secondary'; 
+            return 'secondary';
         default:
             return 'light text-dark border';
     }
@@ -108,17 +108,16 @@ function getStatusColor($status)
             --theme-color: <?= $theme_color ?>;
             --bg-color: <?= $background_color ?>;
         }
-        
-        /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
+
         *, *::before, *::after {
-            box-sizing: border-box; 
+            box-sizing: border-box;
         }
 
         body {
             background-color: var(--bg-color);
             color: #333;
-            margin: 0; 
-            overflow-x: hidden; 
+            margin: 0;
+            overflow-x: hidden;
         }
 
         .card-custom {
@@ -173,9 +172,7 @@ function getStatusColor($status)
             box-shadow: 0 0 0 2px #e9ecef;
         }
 
-        /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
-        /* -------------------------------------------------------------------- */
+        /* Responsive Mobile */
         @media (max-width: 767.98px) {
             .container {
                 max-width: 100%;
@@ -183,28 +180,25 @@ function getStatusColor($status)
             }
 
             .card-custom {
-                border-radius: 0; /* ทำให้เต็มขอบจอ */
+                border-radius: 0;
                 box-shadow: none;
                 margin-top: 10px;
                 margin-bottom: 10px;
             }
 
             .card-body {
-                padding: 15px; /* ลด Padding ใน Body Card */
+                padding: 15px;
             }
-            
-            /* 2. จัดการ Header/Title */
+
             .card-header-custom {
                 font-size: 1rem;
                 padding: 10px 15px;
             }
 
-            /* 3. จัดการ Info Row */
             .row > div[class*='col-'] {
-                margin-bottom: 5px; 
+                margin-bottom: 5px;
             }
-            
-            /* 4. จัดการ Info Label/Value */
+
             .info-label {
                 font-size: 0.8rem;
             }
@@ -212,161 +206,80 @@ function getStatusColor($status)
             .info-value {
                 font-size: 0.9rem;
             }
-            
-            /* 5. จัดการ Timeline */
+
             .timeline {
-                 margin-left: 0; /* ลบ margin เพื่อให้ Timeline ชิดซ้ายมากขึ้น */
-                 padding-left: 15px;
+                margin-left: 0;
+                padding-left: 15px;
             }
-            
+
             .timeline-item {
-                 margin-bottom: 15px; /* ลดระยะห่าง Timeline Item */
+                margin-bottom: 15px;
             }
-            
+
             .timeline-item::before {
-                 left: -17px; /* ปรับตำแหน่งวงกลม */
+                left: -17px;
             }
-            
-            /* 6. ทำให้ปุ่มหลัก (ถ้ามี) เรียงเป็นแนวตั้ง */
+
             .d-flex.justify-content-end.no-print {
                 flex-direction: column;
                 gap: 10px;
                 margin-top: 10px !important;
             }
-            
+
             .d-flex.justify-content-end.no-print .btn {
-                 width: 100%;
+                width: 100%;
             }
         }
 
-
-        /* --- PRINT CSS (A4 Standard) --- */
+        /* =====================================================
+           PRINT CSS — ใบรับซ่อม (A4) — ออกแบบใหม่ สวยงาม
+        ====================================================== */
         @media print {
-            /* ... โค้ด Print เดิม ... */
             @page {
                 size: A4;
-                margin: 10mm;
+                margin: 10mm 12mm;
+            }
+
+            * {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
             }
 
             body {
-                background: #fff;
-                font-size: 12pt;
-                line-height: 1.3;
-                color: #000;
+                background: #fff !important;
+                font-size: 10pt;
+                line-height: 1.5;
+                color: #1a1a1a;
+                font-family: 'Sarabun', 'TH SarabunPSK', Arial, sans-serif;
             }
 
             .no-print,
             .btn,
             .navbar,
+            .sidebar,
             .card-header-custom,
-            .timeline {
+            .timeline,
+            #wrapper > .main-content > .container-fluid > .container.py-4.no-print {
                 display: none !important;
             }
 
-            .container {
+            .container,
+            .container-fluid {
                 max-width: 100% !important;
                 padding: 0 !important;
                 margin: 0 !important;
-                width: 100%;
+                width: 100% !important;
             }
 
-            .card-custom {
-                box-shadow: none;
-                border: 1px solid #000 !important;
-                border-radius: 0;
-                margin-bottom: 15px;
+            /* ซ่อน card ปกติทั้งหมด เหลือแค่ print-only */
+            .card-custom,
+            .row.g-4 {
+                display: none !important;
             }
 
-            .card-body {
-                padding: 10px !important;
-            }
-
-            .print-header {
-                display: flex;
-                justify-content: space-between;
-                border-bottom: 2px solid #000;
-                padding-bottom: 10px;
-                margin-bottom: 15px;
-            }
-
-            .shop-info h3 {
-                font-size: 18pt;
-                font-weight: bold;
-                margin: 0;
-            }
-
-            .job-title {
-                font-size: 16pt;
-                font-weight: bold;
-                text-transform: uppercase;
-                background: #eee;
-                padding: 5px 10px;
-                border: 1px solid #000;
-                display: inline-block;
-            }
-
-            .print-row {
-                display: flex;
-                flex-wrap: wrap;
-                margin: 0 -5px;
-            }
-
-            .print-col-6 {
-                width: 50%;
-                padding: 0 5px;
-                box-sizing: border-box;
-            }
-
-            .print-col-12 {
-                width: 100%;
-                padding: 0 5px;
-                box-sizing: border-box;
-            }
-
-            .section-box {
-                border: 1px solid #000;
-                padding: 10px;
-                margin-bottom: 10px;
-            }
-
-            .section-title {
-                font-weight: bold;
-                border-bottom: 1px solid #ccc;
-                padding-bottom: 5px;
-                margin-bottom: 5px;
-                font-size: 12pt;
-            }
-
-            .terms-box {
-                font-size: 9pt;
-                color: #444;
-                margin-top: 15px;
-                border: 1px dotted #999;
-                padding: 8px;
-                text-align: justify;
-            }
-
-            .signature-area {
-                display: flex;
-                justify-content: space-between;
-                margin-top: 40px;
-                margin-bottom: 20px;
-            }
-
-            .sign-box {
-                width: 45%;
-                text-align: center;
-                border-top: 1px solid #000;
-                padding-top: 5px;
-            }
-
-            .print-footer {
-                border-top: 1px dashed #000;
-                padding-top: 10px;
-                margin-top: 10px;
-                font-size: 10pt;
-                text-align: center;
-                font-style: italic;
+            /* แสดง print-only */
+            .print-only {
+                display: block !important;
             }
         }
 
@@ -374,11 +287,364 @@ function getStatusColor($status)
             display: none;
         }
 
+        /* =====================================================
+           PRINT RECEIPT LAYOUT STYLES
+        ====================================================== */
         @media print {
-            .print-only {
+
+            /* --- กรอบหลักทั้งใบ --- */
+            .receipt-wrapper {
+                width: 100%;
+                max-width: 190mm;
+                margin: 0 auto;
+                font-size: 10pt;
+            }
+
+            /* --- HEADER BANNER --- */
+            .receipt-header {
+                background: #1a3c5e !important;
+                color: #fff !important;
+                padding: 12px 16px;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                border-radius: 6px 6px 0 0;
+                margin-bottom: 0;
+            }
+
+            .receipt-header .shop-name {
+                font-size: 18pt;
+                font-weight: bold;
+                letter-spacing: 1px;
+                color: #fff !important;
+            }
+
+            .receipt-header .shop-contact {
+                font-size: 9pt;
+                color: #cce3ff !important;
+                margin-top: 3px;
+            }
+
+            .receipt-header .job-badge {
+                text-align: right;
+            }
+
+            .receipt-header .job-badge .doc-title {
+                background: #f59e0b !important;
+                color: #1a1a1a !important;
+                font-size: 13pt;
+                font-weight: bold;
+                padding: 4px 14px;
+                border-radius: 4px;
+                display: inline-block;
+                letter-spacing: 1px;
+                text-transform: uppercase;
+            }
+
+            .receipt-header .job-badge .doc-meta {
+                font-size: 9pt;
+                color: #cce3ff !important;
+                margin-top: 5px;
+                text-align: right;
+            }
+
+            /* --- สายสี accent ใต้ header --- */
+            .receipt-accent-bar {
+                height: 4px;
+                background: linear-gradient(to right, #f59e0b, #ef4444, #3b82f6, #10b981) !important;
+                margin-bottom: 12px;
+            }
+
+            /* --- STATUS BADGE แถบสถานะ --- */
+            .receipt-status-bar {
+                display: flex;
+                justify-content: flex-end;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+
+            .receipt-status-bar .status-label {
+                font-size: 9pt;
+                color: #666;
+                margin-right: 6px;
+            }
+
+            .receipt-status-bar .status-pill {
+                background: #1a3c5e !important;
+                color: #fff !important;
+                font-size: 9pt;
+                font-weight: bold;
+                padding: 3px 12px;
+                border-radius: 20px;
+                display: inline-block;
+            }
+
+            /* --- SECTION ROW แบบ 2 คอลัมน์ --- */
+            .receipt-row {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 10px;
+            }
+
+            .receipt-col-6 {
+                width: 50%;
+                flex-shrink: 0;
+            }
+
+            .receipt-col-12 {
+                width: 100%;
+            }
+
+            /* --- กล่องข้อมูล (Section Box) --- */
+            .info-section {
+                border: 1px solid #c8d8e8;
+                border-radius: 5px;
+                overflow: hidden;
+                height: 100%;
+            }
+
+            .info-section-title {
+                background: #1a3c5e !important;
+                color: #fff !important;
+                font-size: 9pt;
+                font-weight: bold;
+                padding: 5px 10px;
+                letter-spacing: 0.5px;
+                text-transform: uppercase;
+            }
+
+            .info-section-body {
+                padding: 8px 10px;
+                background: #fff !important;
+            }
+
+            /* ตารางข้อมูลภายใน section */
+            .info-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 10pt;
+            }
+
+            .info-table td {
+                padding: 3px 4px;
+                vertical-align: top;
+            }
+
+            .info-table td.field-label {
+                font-weight: bold;
+                color: #4a5568;
+                white-space: nowrap;
+                width: 38%;
+            }
+
+            .info-table td.field-value {
+                color: #1a1a1a;
+            }
+
+            /* --- กล่องอาการ/รายละเอียด --- */
+            .detail-section {
+                border: 1px solid #c8d8e8;
+                border-radius: 5px;
+                overflow: hidden;
+                margin-bottom: 10px;
+            }
+
+            .detail-section-title {
+                background: #2563eb !important;
+                color: #fff !important;
+                font-size: 9pt;
+                font-weight: bold;
+                padding: 5px 10px;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+
+            .detail-section-body {
+                padding: 8px 12px;
+                background: #f8fbff !important;
+            }
+
+            .symptom-list {
+                margin: 0;
+                padding-left: 18px;
+            }
+
+            .symptom-list li {
+                margin-bottom: 2px;
+                font-size: 10pt;
+            }
+
+            /* --- กล่องต้นทุน/ราคา --- */
+            .cost-row {
+                display: flex;
+                gap: 10px;
+                margin-bottom: 10px;
+                align-items: stretch;
+            }
+
+            .cost-box {
+                width: 50%;
+                border: 1.5px solid #1a3c5e;
+                border-radius: 5px;
+                overflow: hidden;
+            }
+
+            .cost-box-title {
+                background: #1a3c5e !important;
+                color: #fff !important;
+                font-size: 9pt;
+                font-weight: bold;
+                padding: 5px 10px;
+                text-transform: uppercase;
+            }
+
+            .cost-box-value {
+                background: #f0f7ff !important;
+                padding: 10px 14px;
+                font-size: 16pt;
+                font-weight: bold;
+                color: #1a3c5e !important;
+                text-align: center;
+            }
+
+            .cost-box-value span.currency {
+                font-size: 10pt;
+                color: #555 !important;
+                margin-left: 4px;
+            }
+
+            /* กล่องผู้รับผิดชอบ */
+            .staff-box {
+                width: 50%;
+                border: 1px solid #c8d8e8;
+                border-radius: 5px;
+                overflow: hidden;
+            }
+
+            .staff-box-title {
+                background: #059669 !important;
+                color: #fff !important;
+                font-size: 9pt;
+                font-weight: bold;
+                padding: 5px 10px;
+                text-transform: uppercase;
+            }
+
+            .staff-box-body {
+                padding: 8px 12px;
+                background: #f0fdf4 !important;
+                font-size: 10pt;
+            }
+
+            .staff-box-body .staff-row {
+                margin-bottom: 4px;
+            }
+
+            .staff-box-body .staff-label {
+                font-size: 8pt;
+                color: #6b7280;
                 display: block;
             }
+
+            .staff-box-body .staff-name {
+                font-weight: bold;
+                font-size: 10pt;
+                color: #064e3b;
+            }
+
+            /* --- เส้นแบ่ง Divider --- */
+            .section-divider {
+                border: none;
+                border-top: 1px dashed #b0c4de;
+                margin: 10px 0;
+            }
+
+            /* --- เงื่อนไขการรับบริการ --- */
+            .terms-section {
+                border: 1px dashed #b0c4de;
+                border-radius: 5px;
+                padding: 8px 12px;
+                margin-bottom: 12px;
+                background: #fffbeb !important;
+            }
+
+            .terms-section .terms-title {
+                font-weight: bold;
+                font-size: 9pt;
+                color: #92400e;
+                margin-bottom: 4px;
+            }
+
+            .terms-section ol {
+                margin: 0;
+                padding-left: 18px;
+                font-size: 8.5pt;
+                color: #57534e;
+            }
+
+            .terms-section ol li {
+                margin-bottom: 2px;
+                text-align: justify;
+            }
+
+            /* --- ลายเซ็น --- */
+            .signature-row {
+                display: flex;
+                justify-content: space-between;
+                margin-top: 16px;
+                margin-bottom: 12px;
+            }
+
+            .sign-block {
+                width: 42%;
+                text-align: center;
+            }
+
+            .sign-block .sign-line {
+                border-bottom: 1.5px solid #1a3c5e;
+                width: 80%;
+                margin: 0 auto 6px auto;
+                padding-bottom: 28px;
+            }
+
+            .sign-block .sign-name {
+                font-weight: bold;
+                font-size: 10pt;
+                color: #1a1a1a;
+            }
+
+            .sign-block .sign-role {
+                font-size: 8.5pt;
+                color: #555;
+            }
+
+            .sign-block .sign-date {
+                font-size: 8.5pt;
+                color: #555;
+                margin-top: 2px;
+            }
+
+            /* --- Footer --- */
+            .receipt-footer {
+                background: #1a3c5e !important;
+                color: #cce3ff !important;
+                text-align: center;
+                padding: 6px 10px;
+                font-size: 9pt;
+                border-radius: 0 0 6px 6px;
+                font-style: italic;
+            }
+
+            /* --- Job ID ขนาดใหญ่ใน header --- */
+            .job-id-number {
+                font-size: 15pt;
+                font-weight: bold;
+                color: #f59e0b !important;
+            }
+
         }
+        /* end @media print */
+
     </style>
 </head>
 
@@ -389,6 +655,7 @@ function getStatusColor($status)
         <div class="main-content w-100">
             <div class="container-fluid py-4">
 
+                <!-- =================== SCREEN VIEW (no-print) =================== -->
                 <div class="container py-4 no-print">
 
                     <?php if (isset($_SESSION['success'])): ?>
@@ -543,108 +810,198 @@ function getStatusColor($status)
                         </div>
                     </div>
                 </div>
+                <!-- =================== END SCREEN VIEW =================== -->
 
+
+                <!-- =================== PRINT ONLY — ใบรับซ่อมใหม่ =================== -->
                 <div class="print-only">
-                    <div class="print-header">
-                        <div class="shop-info">
-                            <h3><?= $shop['shop_name'] ?? 'Mobile Shop' ?></h3>
-                            <div style="font-size: 10pt;">
-                                <?= $shop['shop_phone'] ? 'โทร: ' . $shop['shop_phone'] : '' ?> <br>
-                                <?= $shop['tax_id'] ? 'เลขผู้เสียภาษี: ' . $shop['tax_id'] : '' ?>
+                    <div class="receipt-wrapper">
+
+                        <!-- HEADER BANNER -->
+                        <div class="receipt-header">
+                            <div class="shop-left">
+                                <div class="shop-name"><?= htmlspecialchars($shop['shop_name'] ?? 'Mobile Shop') ?></div>
+                                <div class="shop-contact">
+                                    <?php if (!empty($shop['shop_address'])): ?>
+                                        <?= htmlspecialchars($shop['shop_address']) ?><br>
+                                    <?php endif; ?>
+                                    <?php if (!empty($shop['shop_phone'])): ?>
+                                        <i>โทร:</i> <?= htmlspecialchars($shop['shop_phone']) ?>
+                                        <?php if (!empty($shop['tax_id'])): ?> &nbsp;|&nbsp; <?php endif; ?>
+                                    <?php endif; ?>
+                                    <?php if (!empty($shop['tax_id'])): ?>
+                                        เลขผู้เสียภาษี: <?= htmlspecialchars($shop['tax_id']) ?>
+                                    <?php endif; ?>
+                                </div>
+                            </div>
+                            <div class="job-badge">
+                                <div class="doc-title">ใบรับซ่อม / JOB ORDER</div>
+                                <div class="doc-meta">
+                                    เลขที่: <span class="job-id-number">JOB-<?= $data['repair_id'] ?></span><br>
+                                    วันที่รับ: <?= date('d/m/Y', strtotime($data['create_at'])) ?>
+                                    &nbsp;เวลา: <?= date('H:i', strtotime($data['create_at'])) ?> น.
+                                </div>
                             </div>
                         </div>
-                        <div class="job-info">
-                            <div class="job-title">ใบรับซ่อม / JOB ORDER</div>
-                            <div style="margin-top: 5px;"><b>เลขที่ใบงาน:</b> <?= $data['repair_id'] ?></div>
-                            <div><b>วันที่รับ:</b> <?= date('d/m/Y H:i', strtotime($data['create_at'])) ?></div>
-                        </div>
-                    </div>
 
-                    <div class="print-row">
-                        <div class="print-col-6">
-                            <div class="section-box">
-                                <div class="section-title">ข้อมูลลูกค้า (Customer)</div>
-                                <table width="100%" style="font-size: 11pt;">
+                        <!-- Accent Color Bar -->
+                        <div class="receipt-accent-bar"></div>
+
+                        <!-- STATUS BAR -->
+                        <div class="receipt-status-bar">
+                            <span class="status-label">สถานะงาน:</span>
+                            <span class="status-pill"><?= htmlspecialchars($data['repair_status']) ?></span>
+                        </div>
+
+                        <!-- ROW 1: ข้อมูลลูกค้า + ข้อมูลเครื่อง -->
+                        <div class="receipt-row">
+                            <!-- ข้อมูลลูกค้า -->
+                            <div class="receipt-col-6">
+                                <div class="info-section">
+                                    <div class="info-section-title">&#128100; ข้อมูลลูกค้า (Customer)</div>
+                                    <div class="info-section-body">
+                                        <table class="info-table">
+                                            <tr>
+                                                <td class="field-label">ชื่อ-นามสกุล:</td>
+                                                <td class="field-value"><?= htmlspecialchars($data['cus_fname'] . ' ' . $data['cus_lname']) ?></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="field-label">โทรศัพท์:</td>
+                                                <td class="field-value"><?= htmlspecialchars($data['cs_phone_no']) ?></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="field-label">อีเมล:</td>
+                                                <td class="field-value"><?= htmlspecialchars($data['cs_email'] ?: '-') ?></td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- ข้อมูลเครื่อง -->
+                            <div class="receipt-col-6">
+                                <div class="info-section">
+                                    <div class="info-section-title">&#128241; ข้อมูลเครื่อง (Device)</div>
+                                    <div class="info-section-body">
+                                        <table class="info-table">
+                                            <tr>
+                                                <td class="field-label">ยี่ห้อ / รุ่น:</td>
+                                                <td class="field-value"><?= htmlspecialchars($data['brand_name_th'] . ' ' . $data['prod_name']) ?></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="field-label">Serial / IMEI:</td>
+                                                <td class="field-value"><?= htmlspecialchars($data['serial_no'] ?: '-') ?></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="field-label">ประเภท:</td>
+                                                <td class="field-value"><?= htmlspecialchars($data['type_name_th'] ?: '-') ?></td>
+                                            </tr>
+                                            <tr>
+                                                <td class="field-label">อุปกรณ์ที่ให้มา:</td>
+                                                <td class="field-value"><?= htmlspecialchars($data['accessories_list'] ?: 'เครื่องเปล่า') ?></td>
+                                            </tr>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- ROW 2: รายละเอียดการซ่อม -->
+                        <div class="detail-section">
+                            <div class="detail-section-title">&#128295; รายละเอียดการซ่อม (Service Details)</div>
+                            <div class="detail-section-body">
+                                <table class="info-table">
                                     <tr>
-                                        <td width="30%"><b>ชื่อ:</b></td>
-                                        <td><?= $data['cus_fname'] . ' ' . $data['cus_lname'] ?></td>
+                                        <td class="field-label" style="width:20%; vertical-align:top;">อาการเสียที่แจ้ง:</td>
+                                        <td class="field-value">
+                                            <?php if (!empty($symptoms_arr)): ?>
+                                                <ul class="symptom-list">
+                                                    <?php foreach ($symptoms_arr as $sym): ?>
+                                                        <li><?= htmlspecialchars($sym) ?></li>
+                                                    <?php endforeach; ?>
+                                                </ul>
+                                            <?php else: ?>
+                                                -
+                                            <?php endif; ?>
+                                        </td>
                                     </tr>
                                     <tr>
-                                        <td><b>โทร:</b></td>
-                                        <td><?= $data['cs_phone_no'] ?></td>
+                                        <td class="field-label" style="vertical-align:top;">รายละเอียด / Note:</td>
+                                        <td class="field-value"><?= nl2br(htmlspecialchars($data['repair_desc'] ?: '-')) ?></td>
                                     </tr>
                                     <tr>
-                                        <td><b>Email:</b></td>
-                                        <td><?= $data['cs_email'] ?: '-' ?></td>
+                                        <td class="field-label" style="vertical-align:top;">สภาพเครื่องภายนอก:</td>
+                                        <td class="field-value"><?= htmlspecialchars($data['device_description'] ?: '-') ?></td>
                                     </tr>
                                 </table>
                             </div>
                         </div>
-                        <div class="print-col-6">
-                            <div class="section-box">
-                                <div class="section-title">ข้อมูลเครื่อง (Device)</div>
-                                <table width="100%" style="font-size: 11pt;">
-                                    <tr>
-                                        <td width="35%"><b>รุ่น/Model:</b></td>
-                                        <td><?= $data['prod_name'] ?></td>
-                                    </tr>
-                                    <tr>
-                                        <td><b>Serial/IMEI:</b></td>
-                                        <td><?= $data['serial_no'] ?></td>
-                                    </tr>
-                                    <tr>
-                                        <td><b>อุปกรณ์:</b></td>
-                                        <td><?= $data['accessories_list'] ?: 'เครื่องเปล่า' ?></td>
-                                    </tr>
-                                </table>
+
+                        <!-- ROW 3: ราคาประเมิน + ผู้รับผิดชอบ -->
+                        <div class="cost-row">
+                            <!-- ราคาประเมิน -->
+                            <div class="cost-box">
+                                <div class="cost-box-title">&#128176; ราคาประเมิน (Estimated Cost)</div>
+                                <div class="cost-box-value">
+                                    <?= number_format($data['estimated_cost'], 2) ?>
+                                    <span class="currency">บาท (THB)</span>
+                                </div>
+                            </div>
+
+                            <!-- ผู้รับผิดชอบ -->
+                            <div class="staff-box">
+                                <div class="staff-box-title">&#128100; ผู้รับผิดชอบ</div>
+                                <div class="staff-box-body">
+                                    <div class="staff-row">
+                                        <span class="staff-label">ผู้รับเรื่อง / Received By</span>
+                                        <span class="staff-name"><?= htmlspecialchars($data['recv_fname'] . ' ' . $data['recv_lname']) ?></span>
+                                    </div>
+                                    <div class="staff-row" style="margin-top:6px;">
+                                        <span class="staff-label">ช่างผู้รับผิดชอบ / Technician</span>
+                                        <span class="staff-name">
+                                            <?= $data['tech_fname'] ? htmlspecialchars($data['tech_fname'] . ' ' . $data['tech_lname']) : '— รอจ่ายงาน —' ?>
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div class="section-box">
-                        <div class="section-title">รายละเอียดการซ่อม (Service Details)</div>
-                        <div class="print-row">
-                            <div class="print-col-12"><b>อาการเสียที่แจ้ง:</b> <?= implode(', ', $symptoms_arr) ?></div>
-                            <div class="print-col-12" style="margin-top: 5px;"><b>รายละเอียด/Note:</b> <?= $data['repair_desc'] ?: '-' ?></div>
-                            <div class="print-col-12" style="margin-top: 5px;"><b>สภาพเครื่องภายนอก:</b> <?= $data['device_description'] ?></div>
+                        <!-- เงื่อนไขการรับบริการ -->
+                        <div class="terms-section">
+                            <div class="terms-title">&#9888;&#65039; เงื่อนไขการรับบริการ (Terms &amp; Conditions)</div>
+                            <ol>
+                                <li>ใบนัดรับเครื่องนี้เป็นหลักฐานสำคัญ โปรดนำมาแสดงทุกครั้งเมื่อมารับเครื่อง หากสูญหายต้องมีใบแจ้งความ</li>
+                                <li>ทางร้านรับประกันเฉพาะอาการเดิมที่ซ่อม และอะไหล่ชิ้นเดิม ภายในระยะเวลาที่กำหนด</li>
+                                <li>หากพ้นกำหนด 30 วัน นับจากวันที่แจ้งให้มารับเครื่อง ทางร้านขอสงวนสิทธิ์ไม่รับผิดชอบต่อความเสียหายหรือสูญหาย</li>
+                            </ol>
                         </div>
-                    </div>
 
-                    <div class="print-row">
-                        <div class="print-col-6">
-                            <div class="section-box" style="background: #f9f9f9;">
-                                <b>ราคาประเมิน (Estimated Cost):</b>
-                                <span style="float: right; font-weight: bold; font-size: 14pt;"><?= number_format($data['estimated_cost'], 2) ?> ฿</span>
+                        <!-- ลายเซ็น -->
+                        <div class="signature-row">
+                            <div class="sign-block">
+                                <div class="sign-line"></div>
+                                <div class="sign-name">( <?= htmlspecialchars($data['cus_fname'] . ' ' . $data['cus_lname']) ?> )</div>
+                                <div class="sign-role">ลูกค้า / Customer</div>
+                                <div class="sign-date">วันที่: ______ / ______ / ______</div>
+                            </div>
+                            <div class="sign-block">
+                                <div class="sign-line"></div>
+                                <div class="sign-name">( <?= htmlspecialchars($data['recv_fname'] . ' ' . $data['recv_lname']) ?> )</div>
+                                <div class="sign-role">พนักงานรับเครื่อง / Staff</div>
+                                <div class="sign-date">วันที่: <?= date('d/m/Y', strtotime($data['create_at'])) ?></div>
                             </div>
                         </div>
-                        <div class="print-col-6">
-                            <div class="section-box">
-                                <b>ผู้รับเรื่อง:</b> <?= $data['recv_fname'] . ' ' . $data['recv_lname'] ?> <br>
-                                <b>ช่างผู้รับผิดชอบ:</b> <?= $data['tech_fname'] ? $data['tech_fname'] : '-' ?>
-                            </div>
-                        </div>
-                    </div>
 
-                    <div class="terms-box">
-                        <b>เงื่อนไขการรับบริการ (Terms & Conditions):</b>
-                        <ol style="margin: 5px 0 0 15px; padding: 0;">
-                            <li>ใบนัดรับเครื่องนี้เป็นหลักฐานสำคัญ โปรดนำมาแสดงทุกครั้งเมื่อมารับเครื่อง หากสูญหายต้องมีใบแจ้งความ</li>
-                            <li>ทางร้านรับประกันเฉพาะอาการเดิมที่ซ่อม และอะไหล่ชิ้นเดิม ภายในระยะเวลาที่กำหนด</li>
-                            <li>หากพ้นกำหนด 30 วัน นับจากวันที่แจ้งให้มารับเครื่อง ทางร้านขอสงวนสิทธิ์ไม่รับผิดชอบต่อความเสียหายหรือสูญหาย</li>
-                        </ol>
-                    </div>
-
-                    <div class="signature-area">
-                        <div class="sign-box">
-                            <br><br>__________________________<br>( <?= $data['cus_fname'] . ' ' . $data['cus_lname'] ?> )<br>ลูกค้า / Customer<br>วันที่: ____/____/____
+                        <!-- Footer -->
+                        <div class="receipt-footer">
+                            ขอบคุณที่ใช้บริการ <?= htmlspecialchars($shop['shop_name'] ?? '') ?>
+                            &nbsp;|&nbsp; พิมพ์เมื่อ: <?= date('d/m/Y H:i') ?> น.
                         </div>
-                        <div class="sign-box">
-                            <br><br>__________________________<br>( <?= $data['recv_fname'] . ' ' . $data['recv_lname'] ?> )<br>พนักงานรับเครื่อง / Staff<br>วันที่: <?= date('d/m/Y', strtotime($data['create_at'])) ?>
-                        </div>
-                    </div>
 
-                    <div class="print-footer">ขอบคุณที่ใช้บริการ <?= $shop['shop_name'] ?? '' ?></div>
+                    </div><!-- /.receipt-wrapper -->
                 </div>
+                <!-- =================== END PRINT ONLY =================== -->
+
             </div>
         </div>
     </div>

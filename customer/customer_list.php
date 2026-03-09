@@ -19,7 +19,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
     $stmt_admin->close();
 }
 
-// [2.1] เพิ่มเติม: หา Branch ID ของพนักงานปัจจุบัน (เพื่อนำไปกรอง)
+// [2.1] หา Branch ID ของพนักงานปัจจุบัน (เพื่อนำไปกรอง)
 $current_user_branch_id = 0;
 if (!$is_super_admin) {
     $sql_emp_branch = "SELECT branches_branch_id FROM employees WHERE users_user_id = ? LIMIT 1";
@@ -34,9 +34,34 @@ if (!$is_super_admin) {
     }
 }
 
-// ==========================================
-// [3] ส่วนประมวลผล AJAX (เรียกผ่าน Fetch API)
-// ==========================================
+// =========================================================================
+// [3] ส่วนประมวลผล AJAX: ตรวจสอบประวัติการซื้อขายก่อนลบ
+// =========================================================================
+if (isset($_GET['action']) && $_GET['action'] === 'check_transactions') {
+    header('Content-Type: application/json');
+    $id = (int)$_GET['id'];
+    
+    $table_name = "bill_headers"; // <- เปลี่ยนตรงนี้
+    $column_name = "customers_cs_id"; // <- เปลี่ยนตรงนี้
+    
+    $check_sql = "SELECT COUNT(*) as total FROM $table_name WHERE $column_name = $id";
+    $res = @mysqli_query($conn, $check_sql); // ใส่ @ เพื่อซ่อน Error กรณีชื่อตารางไม่ตรง
+    
+    $has_transactions = false;
+    if ($res) {
+        $row = mysqli_fetch_assoc($res);
+        if ($row['total'] > 0) {
+            $has_transactions = true;
+        }
+    }
+    
+    echo json_encode(['has_transactions' => $has_transactions]);
+    exit;
+}
+
+// =========================================================================
+// [4] ส่วนประมวลผล AJAX: สร้างตารางข้อมูลลูกค้า
+// =========================================================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
     $shop_filter = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
@@ -48,19 +73,16 @@ if (isset($_GET['ajax'])) {
     // สร้างเงื่อนไข Query
     $conditions = [];
 
-    // --- จุดที่แก้ไขหลัก ---
     if (!$is_super_admin) {
         // กรณีไม่ใช่ Admin: กรองเฉพาะ "สาขาของฉัน" (branches_branch_id)
-        // (ตาราง customers ต้องมีคอลัมน์ branches_branch_id)
         $conditions[] = "c.branches_branch_id = '$current_user_branch_id'";
     } elseif (!empty($shop_filter)) {
         // กรณี Admin: กรองตามร้านที่เลือก (shop_info_shop_id)
         $conditions[] = "c.shop_info_shop_id = '$shop_filter'";
     }
-    // ----------------------
 
     if (!empty($search)) {
-        $conditions[] = "(c.firstname_th LIKE '%$search%' OR c.lastname_th LIKE '%$search%' OR c.cs_phone_no LIKE '%$search%' OR c.cs_code LIKE '%$search%')";
+        $conditions[] = "(c.firstname_th LIKE '%$search%' OR c.lastname_th LIKE '%$search%' OR c.cs_phone_no LIKE '%$search%' OR c.cs_national_id LIKE '%$search%')";
     }
 
     $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
@@ -81,7 +103,6 @@ if (isset($_GET['ajax'])) {
             LIMIT $limit OFFSET $offset";
             
     $result = $conn->query($sql);
-    
 ?>
 
     <div class="table-responsive">
@@ -121,7 +142,9 @@ if (isset($_GET['ajax'])) {
                                 <div class="btn-group gap-2">
                                     <a href="view_customer.php?id=<?= $row['cs_id'] ?>" class="btn btn-outline-info btn-sm border-0" title="ดูข้อมูล"><i class="bi bi-eye-fill fs-5"></i></a>
                                     <a href="edit_customer.php?id=<?= $row['cs_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square fs-5"></i></a>
-                                    <button onclick="confirmDelete(<?= $row['cs_id'] ?>, '<?= addslashes($row['firstname_th']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash3-fill fs-5"></i></button>
+                                    <button onclick="checkAndDelete(<?= $row['cs_id'] ?>, '<?= addslashes($row['firstname_th']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ">
+                                        <i class="bi bi-trash3-fill fs-5"></i>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
@@ -185,40 +208,12 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body {
-            background-color: #f8fafc;
-        }
-
-        .main-card {
-            border-radius: 15px;
-            border: none;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
-            overflow: hidden;
-        }
-
-        .card-header-custom {
-            background: linear-gradient(135deg, #198754 0%, #14532d 100%);
-            padding: 1.5rem;
-        }
-
-        .card-header-custom h4 {
-            color: #ffffff !important;
-            font-weight: 600;
-            margin-bottom: 0;
-        }
-
-        .pagination .page-link {
-            border-radius: 8px;
-            margin: 0 3px;
-            color: #198754;
-            font-weight: 600;
-            border: none;
-        }
-
-        .pagination .page-item.active .page-link {
-            background-color: #198754;
-            color: white;
-        }
+        body { background-color: #f8fafc; font-family: 'Prompt', sans-serif;}
+        .main-card { border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); overflow: hidden; }
+        .card-header-custom { background: linear-gradient(135deg, #198754 0%, #14532d 100%); padding: 1.5rem; }
+        .card-header-custom h4 { color: #ffffff !important; font-weight: 600; margin-bottom: 0; }
+        .pagination .page-link { border-radius: 8px; margin: 0 3px; color: #198754; font-weight: 600; border: none; }
+        .pagination .page-item.active .page-link { background-color: #198754; color: white; }
     </style>
 </head>
 
@@ -296,6 +291,7 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
+        // โหลดข้อมูลตาราง
         function fetchCustomerData(page = 1) {
             const search = document.getElementById('searchInput').value;
             const shopFilter = document.getElementById('shopFilter')?.value || '';
@@ -320,14 +316,36 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
             }
         });
 
-        function confirmDelete(id, name) {
-            document.getElementById('delName').innerText = name;
-            document.getElementById('confirmDelBtn').href = `delete_customer.php?id=${id}`;
-            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        // -------------------------------------------------------------
+        // ฟังก์ชันตรวจสอบประวัติก่อนลบ
+        // -------------------------------------------------------------
+        function checkAndDelete(id, name) {
+            // ยิง AJAX ไปหา block [3] ที่เราเขียนไว้ด้านบน
+            fetch(`customer_list.php?action=check_transactions&id=${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.has_transactions) {
+                        // ถ้ามีประวัติการซื้อขาย -> แสดงแจ้งเตือน ไม่ยอมให้ลบ
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'ไม่สามารถลบได้!',
+                            text: `ลูกค้าคุณ "${name}" มีประวัติการซื้อขายในระบบแล้ว`,
+                            confirmButtonColor: '#198754'
+                        });
+                    } else {
+                        // ถ้าไม่มีประวัติ -> แสดง Modal ยืนยันการลบปกติ
+                        document.getElementById('delName').innerText = name;
+                        document.getElementById('confirmDelBtn').href = `delete_customer.php?id=${id}`;
+                        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+                    }
+                })
+                .catch(err => {
+                    console.error(err);
+                    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถตรวจสอบข้อมูลได้ (โปรดเช็คชื่อตาราง sales ในโค้ด PHP)', 'error');
+                });
         }
 
         window.onload = () => fetchCustomerData();
     </script>
 </body>
-
 </html>

@@ -112,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // --- ผู้ใช้งาน ---
     $username = trim($_POST['username']);
-    $password = $_POST['password']; 
+    $password = $_POST['password'];
     $confirm_password = $_POST['confirm_password'];
     $user_status = $_POST['user_status'] ?? '';
     $role_id = isset($_POST['role_id']) ? (int)$_POST['role_id'] : 0;
@@ -170,7 +170,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     // --- จัดการอัปโหลดรูป  ---
-    $emp_image_filename = $existing_image; 
+    $emp_image_filename = $existing_image;
     $old_image_to_delete = null;
 
     if (isset($_FILES['emp_image']) && $_FILES['emp_image']['error'] == 0) {
@@ -228,7 +228,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         prefixs_prefix_id = ?, religions_religion_id = ?, departments_dept_id = ?, branches_branch_id = ?, emp_image = ?
                                         WHERE emp_id = ?");
             $stmt_emp->bind_param(
-                "ssssssssssssiiiisi", 
+                "ssssssssssssiiiisi",
                 $emp_code,
                 $emp_national_id,
                 $firstname_th,
@@ -246,7 +246,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $departments_dept_id,
                 $branches_branch_id,
                 $emp_image_filename,
-                $emp_id 
+                $emp_id
             );
             if (!$stmt_emp->execute()) throw new Exception("อัปเดตข้อมูลพนักงานล้มเหลว: " . $stmt_emp->error);
             $stmt_emp->close();
@@ -272,13 +272,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $_SESSION['message'] = "แก้ไขข้อมูลพนักงาน '$firstname_th $lastname_th' สำเร็จ";
             $_SESSION['message_type'] = "success";
-            header("Location: employee.php"); 
+            header("Location: employee.php");
             exit();
         } catch (Exception $e) {
             $conn->rollback();
             $_SESSION['errors'] = ["เกิดข้อผิดพลาดในการบันทึก: " . $e->getMessage()];
-            $_SESSION['form_data'] = $_POST; 
-            header("Location: edit_employee.php?id=$emp_id"); 
+            $_SESSION['form_data'] = $_POST;
+            header("Location: edit_employee.php?id=$emp_id");
             exit();
         }
     } else {
@@ -553,8 +553,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </div>
                                     <div class="col-md-6">
                                         <label for="emp_national_id" class="form-label"><i class="fas fa-id-card"></i>เลขบัตรประชาชน<span class="required">*</span></label>
-                                        <input type="text" class="form-control" id="emp_national_id" name="emp_national_id" required maxlength="13" pattern="\d{13}" value="<?= htmlspecialchars($form_data['emp_national_id'] ?? '') ?>">
-                                        <div class="error-feedback">กรุณากรอกเลขบัตร ปชช. 13 หลัก</div>
+                                        <input type="text" class="form-control" id="emp_national_id" name="emp_national_id" required maxlength="13" value="<?= htmlspecialchars($form_data['emp_national_id'] ?? '') ?>">
+                                        <div id="id_feedback" class="invalid-feedback"></div>
                                     </div>
 
                                     <div class="col-md-3 col-lg-2"> <label for="prefixs_prefix_id" class="form-label"><i class="fas fa-user-tag"></i>คำนำหน้า<span class="required">*</span></label>
@@ -620,12 +620,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         <div id="phone_error" class="error-feedback">รูปแบบไม่ถูกต้อง</div>
                                     </div>
                                     <div class="col-md-6">
-                                        <label for="emp_line_id" class="form-label"><i class="fab fa-line"></i>Line ID</label>
-                                        <input type="text" class="form-control" id="emp_line_id" name="emp_line_id" maxlength="30" value="<?= htmlspecialchars($form_data['emp_line_id'] ?? '') ?>">
-                                    </div>
-                                    <div class="col-12"> <label for="emp_email" class="form-label"><i class="fas fa-envelope"></i>อีเมล</label>
-                                        <input type="email" class="form-control" id="emp_email" name="emp_email" maxlength="75" value="<?= htmlspecialchars($form_data['emp_email'] ?? '') ?>">
-                                        <div id="email_error" class="error-feedback">รูปแบบอีเมลไม่ถูกต้อง</div>
+                                        <label for="emp_email" class="form-label"><i class="fas fa-envelope"></i>อีเมลพนักงาน <span class="required">*</span></label>
+                                        <div class="input-group">
+                                            <input type="email" class="form-control" id="emp_email" name="emp_email" required value="<?= htmlspecialchars($form_data['emp_email'] ?? '') ?>">
+                                            <button type="button" class="btn btn-outline-primary" id="btnSendOTP" style="display:none;">ส่งรหัส OTP</button>
+                                        </div>
+                                        <div id="email_feedback" class="invalid-feedback"></div>
+
+                                        <div id="otpSection" class="mt-2" style="display:none; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px dashed #cbd5e1;">
+                                            <label class="small fw-bold">กรอกรหัส OTP 6 หลักที่ได้รับในอีเมล</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="otp_code" maxlength="6" placeholder="******">
+                                                <button type="button" class="btn btn-success" id="btnVerifyOTP">ยืนยันรหัส</button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -773,7 +781,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
             </div>
         </div>
+        <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
         <script>
             // =============================================================================
             // DATA & ELEMENTS
@@ -845,6 +856,228 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     errorDiv.style.display = 'block';
                 }
             }
+
+            function validateThaiID(id) {
+                if (id.length !== 13 || !/^\d{13}$/.test(id)) return false;
+                let sum = 0;
+                for (let i = 0; i < 12; i++) {
+                    sum += parseInt(id.charAt(i)) * (13 - i);
+                }
+                let check = (11 - (sum % 11)) % 10;
+                return check === parseInt(id.charAt(12));
+            }
+            $('#emp_national_id').on('blur', function() {
+                const id = $(this).val();
+                const currentEmpId = $('input[name="emp_id"]').val(); // ดึง ID พนักงานปัจจุบัน
+                const input = $(this);
+
+                // ถ้าไม่ได้กรอกอะไรเลย ไม่ต้องแจ้งเตือน
+                if (id === "") return;
+
+                // 1. ตรวจสอบรูปแบบ Checksum ด้วย JavaScript
+                if (!validateThaiID(id)) {
+                    input.addClass('is-invalid').removeClass('is-valid');
+
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'รูปแบบเลขบัตรไม่ถูกต้อง',
+                        text: 'เลขบัตรประชาชนที่กรอกไม่ถูกต้อง',
+                        confirmButtonColor: '#15803d',
+                        confirmButtonText: 'รับทราบ'
+                    });
+                    return;
+                }
+
+                // 2. ถ้าสูตรผ่าน ยิง AJAX ไปเช็คข้อมูลซ้ำในฐานข้อมูล
+                $.ajax({
+                    url: 'check_duplicate.php',
+                    method: 'POST',
+                    data: {
+                        type: 'national_id',
+                        value: id,
+                        emp_id: currentEmpId
+                    },
+                    success: function(response) {
+                        if (response.exists) {
+                            input.addClass('is-invalid').removeClass('is-valid');
+
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'ข้อมูลซ้ำในระบบ',
+                                text: 'เลขบัตรประชาชนนี้ถูกใช้งานโดยพนักงานท่านอื่นแล้ว',
+                                confirmButtonColor: '#15803d',
+                                confirmButtonText: 'ตกลง'
+                            });
+                        } else {
+                            // ถ้าข้อมูลถูกต้องและไม่ซ้ำ
+                            input.addClass('is-valid').removeClass('is-invalid');
+
+                            // แจ้งเตือนแบบ Toast สั้นๆ มุมขวา (ไม่รบกวนการกรอก)
+                            const Toast = Swal.mixin({
+                                toast: true,
+                                position: 'top-end',
+                                showConfirmButton: false,
+                                timer: 2000,
+                                timerProgressBar: true
+                            });
+                            Toast.fire({
+                                icon: 'success',
+                                title: 'เลขบัตรประชาชนนี้ใช้งานได้'
+                            });
+                        }
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'ไม่สามารถเชื่อมต่อฐานข้อมูลเพื่อตรวจสอบข้อมูลซ้ำได้', 'error');
+                    }
+                });
+            });
+            $('#emp_phone_no').on('blur', function() {
+                const phone = $(this).val();
+                const currentEmpId = $('input[name="emp_id"]').val();
+                const input = $(this);
+
+                // 1. ถ้าว่างเปล่า ไม่ต้องตรวจสอบ
+                if (phone === "") return;
+
+                // 2. ตรวจสอบรูปแบบ Regex (06, 08, 09 ตามด้วยตัวเลข 8 หลัก)
+                const phonePattern = /^(06|08|09)\d{8}$/;
+                if (!phonePattern.test(phone)) {
+                    input.addClass('is-invalid').removeClass('is-valid');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'รูปแบบเบอร์โทรไม่ถูกต้อง',
+                        text: 'เบอร์โทรศัพท์ต้องขึ้นต้นด้วย 06, 08 หรือ 09 และมีครบ 10 หลัก',
+                        confirmButtonColor: '#15803d'
+                    });
+                    return;
+                }
+
+                // 3. ถ้าผ่าน Regex ให้ยิง AJAX ไปเช็คความซ้ำในฐานข้อมูล
+                $.ajax({
+                    url: 'check_duplicate.php',
+                    method: 'POST',
+                    data: {
+                        type: 'phone',
+                        value: phone,
+                        emp_id: currentEmpId
+                    },
+                    success: function(response) {
+                        if (response.exists) {
+                            input.addClass('is-invalid').removeClass('is-valid');
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'เบอร์โทรซ้ำ',
+                                text: 'เบอร์โทรศัพท์นี้มีพนักงานท่านอื่นใช้งานอยู่แล้ว',
+                                confirmButtonColor: '#15803d'
+                            });
+                        } else {
+                            // ข้อมูลถูกต้อง
+                            input.addClass('is-valid').removeClass('is-invalid');
+
+                            // แจ้งเตือนแบบ Toast มุมบนขวา
+                            Swal.mixin({
+                                toast: true,
+                                position: 'top-end',
+                                showConfirmButton: false,
+                                timer: 2000
+                            }).fire({
+                                icon: 'success',
+                                title: 'เบอร์โทรศัพท์นี้ใช้งานได้'
+                            });
+                        }
+                    }
+                });
+            });
+            // เก็บอีเมลเดิมไว้เปรียบเทียบ
+            const originalEmail = "<?= htmlspecialchars($form_data['emp_email'] ?? '') ?>";
+            let isEmailVerified = true; // เริ่มต้นเป็น true เพราะเป็นอีเมลเดิมที่เคยผ่านการตรวจสอบแล้ว
+
+            $('#emp_email').on('input', function() {
+                const currentEmail = $(this).val().trim();
+                const btnSend = $('#btnSendOTP');
+                const saveBtn = $('button[type="submit"]'); // ปุ่มบันทึกหลักของฟอร์ม
+
+                // 1. ตรวจสอบว่าอีเมลเปลี่ยนจากเดิมหรือไม่
+                if (currentEmail !== originalEmail && currentEmail !== "") {
+                    btnSend.fadeIn();
+                    isEmailVerified = false;
+                    saveBtn.prop('disabled', true); // ล็อกปุ่มบันทึกจนกว่าจะยืนยัน OTP ใหม่
+                    $(this).addClass('is-invalid').removeClass('is-valid');
+                    $('#email_feedback').text('กรุณายืนยันอีเมลใหม่ด้วยรหัส OTP').show();
+                } else {
+                    // กรณีกลับมาใช้อีเมลเดิม หรืออีเมลว่าง
+                    btnSend.fadeOut();
+                    $('#otpSection').fadeOut();
+                    isEmailVerified = true;
+                    saveBtn.prop('disabled', false);
+                    $(this).removeClass('is-invalid');
+                    $('#email_feedback').hide();
+                }
+            });
+
+            // ส่วนส่ง OTP (AJAX + SweetAlert2)
+            $('#btnSendOTP').on('click', function() {
+                const email = $('#emp_email').val();
+                const btn = $(this);
+
+                // ตรวจสอบรูปแบบอีเมลก่อนส่ง
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+                    return Swal.fire('ผิดพลาด', 'รูปแบบอีเมลไม่ถูกต้อง', 'error');
+                }
+
+                btn.prop('disabled', true).text('กำลังส่ง...');
+
+                fetch('send_otp.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            emp_email: email
+                        }) // ส่งชื่อ key ให้ตรงกับ send_otp.php
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            Swal.fire('สำเร็จ', 'ส่งรหัส OTP ไปที่อีเมล ' + email + ' แล้ว', 'success');
+                            $('#otpSection').fadeIn();
+                        } else {
+                            Swal.fire('ผิดพลาด', data.message, 'error');
+                        }
+                    })
+                    .catch(() => Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error'))
+                    .finally(() => btn.prop('disabled', false).text('ส่งรหัส OTP'));
+            });
+
+            // ส่วนยืนยัน OTP
+            $('#btnVerifyOTP').on('click', function() {
+                const otp = $('#otp_code').val();
+                if (otp.length !== 6) return Swal.fire('เตือน', 'กรุณากรอกรหัส 6 หลัก', 'warning');
+
+                fetch('verify_otp.php', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            otp: otp
+                        })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            Swal.fire('สำเร็จ', 'ยืนยันอีเมลเรียบร้อยแล้ว', 'success');
+                            isEmailVerified = true;
+                            $('button[type="submit"]').prop('disabled', false); // ปลดล็อกปุ่มบันทึก
+                            $('#emp_email').addClass('is-valid').removeClass('is-invalid');
+                            $('#otpSection').fadeOut();
+                            $('#btnSendOTP').fadeOut();
+                            $('#email_feedback').hide();
+                        } else {
+                            Swal.fire('ผิดพลาด', data.message, 'error');
+                        }
+                    });
+            });
 
             function hideError(input, errorDivId = null) {
                 if (!input) return;

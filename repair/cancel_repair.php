@@ -3,17 +3,24 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'repair_list');
 
-// ตรวจสอบ ID
-if (!isset($_GET['id'])) {
+// 1. รับค่า ID ให้รองรับทั้งจาก Modal (POST) และจากการเข้าผ่านลิงก์ (GET)
+$repair_id = 0;
+if (isset($_POST['repair_id']) && !empty($_POST['repair_id'])) {
+    $repair_id = (int)$_POST['repair_id'];
+} elseif (isset($_GET['id']) && !empty($_GET['id'])) {
+    $repair_id = (int)$_GET['id'];
+}
+
+if ($repair_id === 0) {
     $_SESSION['error'] = "ไม่พบรหัสงานซ่อม";
     header('Location: repair_list.php');
     exit;
 }
 
-$repair_id = (int)$_GET['id'];
-$emp_id = $_SESSION['emp_id'] ?? 1;
+// เช็คไอดีพนักงานที่กำลังล็อกอิน
+$emp_id = $_SESSION['emp_id'] ?? $_SESSION['user_id'] ?? 1;
 
-//  ดึงข้อมูล
+// 2. ดึงข้อมูลงานซ่อม
 $sql = "SELECT r.repair_id, r.repair_status, r.bill_headers_bill_id, r.prod_stocks_stock_id,
         c.firstname_th, c.lastname_th, p.prod_name
         FROM repairs r 
@@ -36,56 +43,64 @@ if ($repair['repair_status'] == 'ส่งมอบ') {
     exit;
 }
 
+// =========================================================
+// 3. กระบวนการอัปเดตและยกเลิกงานซ่อม (เมื่อมีการ POST ส่งเหตุผลมา)
+// =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cancel_reason = mysqli_real_escape_string($conn, trim($_POST['cancel_reason']));
 
     if (empty($cancel_reason)) {
-        $error_msg = "กรุณาระบุสาเหตุการยกเลิก";
-    } else {
-        mysqli_autocommit($conn, false);
-        try {
-            // อัปเดตสถานะงานซ่อม -> 'ยกเลิก'
-            $conn->query("UPDATE repairs SET repair_status = 'ยกเลิก', update_at = NOW() WHERE repair_id = $repair_id");
+        $_SESSION['error'] = "กรุณาระบุสาเหตุการยกเลิก";
+        header('Location: repair_list.php');
+        exit;
+    }
 
-            // บันทึก Log
-            $old_status = $repair['repair_status'];
-            $log_comment = "ยกเลิกงานซ่อม: " . $cancel_reason;
-            $sql_log = "INSERT INTO repair_status_log (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
-                        VALUES ($repair_id, '$old_status', 'ยกเลิก', $emp_id, '$log_comment', NOW())";
-            $conn->query($sql_log);
+    mysqli_autocommit($conn, false);
+    try {
+        // 3.1 อัปเดตสถานะงานซ่อม -> 'ยกเลิก'
+        $conn->query("UPDATE repairs SET repair_status = 'ยกเลิก', update_at = NOW() WHERE repair_id = $repair_id");
 
-            // จัดการบิล (ถ้ามี) -> เปลี่ยนเป็น Canceled และคืนอะไหล่
-            if (!empty($repair['bill_headers_bill_id'])) {
-                $bill_id = $repair['bill_headers_bill_id'];
+        // 3.2 บันทึก Log การเปลี่ยนสถานะ
+        $old_status = $repair['repair_status'];
+        $log_comment = "ยกเลิกงานซ่อม: " . $cancel_reason;
+        $sql_log = "INSERT INTO repair_status_log (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
+                    VALUES ($repair_id, '$old_status', 'ยกเลิก', $emp_id, '$log_comment', NOW())";
+        $conn->query($sql_log);
+
+        // 3.3 จัดการบิลและคืนสต็อกอะไหล่ (ถ้ามีการเปิดบิลแล้ว)
+        if (!empty($repair['bill_headers_bill_id'])) {
+            $bill_id = $repair['bill_headers_bill_id'];
+            
+            // อัปเดตสถานะบิลเป็น Canceled
+            $conn->query("UPDATE bill_headers SET bill_status = 'Canceled', comment = CONCAT(IFNULL(comment,''), ' [ยกเลิก: $cancel_reason]'), update_at = NOW() WHERE bill_id = $bill_id");
+
+            // คืนสต็อกอะไหล่ (เฉพาะอะไหล่ที่เบิกไปซ่อม)
+            $sql_details = "SELECT prod_stocks_stock_id FROM bill_details WHERE bill_headers_bill_id = $bill_id AND prod_stocks_stock_id IS NOT NULL";
+            $res_details = mysqli_query($conn, $sql_details);
+            
+            while ($row = mysqli_fetch_assoc($res_details)) {
+                $stock_id = $row['prod_stocks_stock_id'];
+                // คืนสถานะเป็น In Stock
+                $conn->query("UPDATE prod_stocks SET stock_status = 'In Stock' WHERE stock_id = $stock_id");
                 
-                $conn->query("UPDATE bill_headers SET bill_status = 'Canceled', comment = CONCAT(IFNULL(comment,''), ' [ยกเลิก: $cancel_reason]'), update_at = NOW() WHERE bill_id = $bill_id");
-
-                // คืนสต็อกอะไหล่ (เฉพาะอะไหล่ที่เบิกไปซ่อม)
-                $sql_details = "SELECT prod_stocks_stock_id FROM bill_details WHERE bill_headers_bill_id = $bill_id AND prod_stocks_stock_id IS NOT NULL";
-                $res_details = mysqli_query($conn, $sql_details);
-                
-                while ($row = mysqli_fetch_assoc($res_details)) {
-                    $stock_id = $row['prod_stocks_stock_id'];
-                    // คืนสถานะเป็น In Stock
-                    $conn->query("UPDATE prod_stocks SET stock_status = 'In Stock' WHERE stock_id = $stock_id");
-                    
-                    // บันทึก Movement ADJUST
-                    $sql_move = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
-                    $move_id = mysqli_fetch_assoc(mysqli_query($conn, $sql_move))['next_id'];
-                    $conn->query("INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) 
-                                  VALUES ($move_id, 'ADJUST', 'cancel_repair_bill', $bill_id, NOW(), $stock_id)");
-                }
+                // บันทึกความเคลื่อนไหว (Movement)
+                $sql_move = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_id FROM stock_movements";
+                $move_id = mysqli_fetch_assoc(mysqli_query($conn, $sql_move))['next_id'];
+                $conn->query("INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) 
+                              VALUES ($move_id, 'ADJUST', 'cancel_repair_bill', $bill_id, NOW(), $stock_id)");
             }
-
-            mysqli_commit($conn);
-            $_SESSION['success'] = "ยกเลิกงานซ่อม #$repair_id เรียบร้อยแล้ว (สินค้ารอการส่งมอบคืน)";
-            header('Location: repair_list.php');
-            exit;
-
-        } catch (Exception $e) {
-            mysqli_rollback($conn);
-            $error_msg = "เกิดข้อผิดพลาด: " . $e->getMessage();
         }
+
+        mysqli_commit($conn);
+        $_SESSION['success'] = "ยกเลิกงานซ่อม #$repair_id เรียบร้อยแล้ว";
+        header('Location: repair_list.php'); // ย้อนกลับไปหน้ารายการ
+        exit;
+
+    } catch (Exception $e) {
+        mysqli_rollback($conn);
+        $_SESSION['error'] = "เกิดข้อผิดพลาด: " . $e->getMessage();
+        header('Location: repair_list.php');
+        exit;
     }
 }
 ?>
@@ -120,8 +135,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="alert alert-light border mb-3">
                             <strong>Job ID:</strong> #<?= $repair['repair_id'] ?><br>
                             <strong>สถานะปัจจุบัน:</strong> <?= $repair['repair_status'] ?><br>
-                            <strong>ลูกค้า:</strong> <?= $repair['firstname_th'] . ' ' . $repair['lastname_th'] ?><br>
-                            <strong>อุปกรณ์:</strong> <?= $repair['prod_name'] ?>
+                            <strong>ลูกค้า:</strong> <?= htmlspecialchars($repair['firstname_th'] . ' ' . $repair['lastname_th']) ?><br>
+                            <strong>อุปกรณ์:</strong> <?= htmlspecialchars($repair['prod_name'] ?? 'ไม่ระบุ') ?>
                         </div>
 
                         <div class="alert alert-warning">
@@ -135,6 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="mb-3">
                                 <label for="cancel_reason" class="form-label fw-bold">ระบุสาเหตุการยกเลิก <span class="text-danger">*</span></label>
                                 <textarea name="cancel_reason" id="cancel_reason" class="form-control" rows="3" required placeholder="เช่น ลูกค้าไม่ซ่อมเนื่องจากราคาแพง, ซ่อมไม่ได้..."></textarea>
+                                <input type="hidden" name="repair_id" value="<?= $repair['repair_id'] ?>">
                             </div>
 
                             <div class="d-flex justify-content-between mt-4">

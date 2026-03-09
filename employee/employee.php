@@ -467,66 +467,221 @@ if ($is_super_admin) {
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        function fetchEmpData(page = 1) {
-            const params = new URLSearchParams({
-                ajax: 1, page,
-                search: document.getElementById('searchInput').value,
-                status: document.getElementById('statusFilter').value,
-                dept: document.getElementById('deptFilter').value,
-                shop_filter: document.getElementById('shopFilter')?.value || '',
-                branch_filter: document.getElementById('branchFilter')?.value || ''
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+<script>
+    /**
+     * ฟังก์ชันดึงข้อมูลพนักงาน (AJAX)
+     * ทำหน้าที่ส่งตัวกรองทั้งหมดไปยัง server และอัปเดตตารางโดยไม่รีเฟรชหน้า
+     */
+    function fetchEmpData(page = 1) {
+        // ดึงค่าจากตัวกรองต่างๆ
+        const searchInput = document.getElementById('searchInput').value;
+        const statusFilter = document.getElementById('statusFilter').value;
+        const deptFilter = document.getElementById('deptFilter').value;
+        const shopFilter = document.getElementById('shopFilter')?.value || '';
+        const branchFilter = document.getElementById('branchFilter')?.value || '';
+
+        // สร้าง Query Parameters
+        const params = new URLSearchParams({
+            ajax: 1,
+            page: page,
+            search: searchInput,
+            status: statusFilter,
+            dept: deptFilter,
+            shop_filter: shopFilter,
+            branch_filter: branchFilter
+        });
+
+        // แสดง Spinner ระหว่างโหลดข้อมูล
+        document.getElementById('tableContainer').innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-success" role="status">
+                    <span class="visually-hidden">กำลังโหลด...</span>
+                </div>
+                <p class="mt-2 text-muted">กำลังดึงข้อมูลพนักงาน...</p>
+            </div>
+        `;
+
+        // เรียกใช้ Fetch API ไปยัง employee.php
+        fetch(`employee.php?${params.toString()}`)
+            .then(res => {
+                if (!res.ok) throw new Error('Network response was not ok');
+                return res.text();
+            })
+            .then(data => {
+                document.getElementById('tableContainer').innerHTML = data;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                document.getElementById('tableContainer').innerHTML = `
+                    <div class="alert alert-danger m-3">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> 
+                        เกิดข้อผิดพลาดในการโหลดข้อมูล: ${error.message}
+                    </div>
+                `;
             });
+    }
 
-            fetch(`employee.php?${params.toString()}`)
-                .then(res => res.text()).then(data => document.getElementById('tableContainer').innerHTML = data);
+    /**
+     * ฟังก์ชันยืนยันการลบพนักงาน (ใช้ SweetAlert2 + AJAX)
+     * รวมการตรวจสอบสิทธิ์การลบไว้ที่ Backend (delete_employee.php)
+     */
+    function confirmDelete(id, name) {
+        Swal.fire({
+            title: 'ยืนยันการลบพนักงาน?',
+            text: `คุณกำลังจะลบข้อมูลของ คุณ${name} ข้อมูลที่เกี่ยวข้องทั้งหมดจะถูกลบและไม่สามารถกู้คืนได้`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#ef4444', // สีแดงสำหรับปุ่มยืนยัน
+            cancelButtonColor: '#6b7280',
+            confirmButtonText: '<i class="bi bi-trash"></i> ยืนยันการลบ',
+            cancelButtonText: 'ยกเลิก',
+            reverseButtons: true,
+            focusCancel: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // แสดงสถานะกำลังลบ
+                Swal.fire({
+                    title: 'กำลังดำเนินการ...',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                // ส่งคำขอลบไปยัง delete_employee.php
+                fetch(`delete_employee.php?id=${id}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            // กรณีลบสำเร็จ
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'ลบสำเร็จ!',
+                                text: data.message,
+                                timer: 2000,
+                                showConfirmButton: false
+                            }).then(() => {
+                                fetchEmpData(); // รีโหลดตารางใหม่
+                            });
+                        } else if (data.status === 'warning') {
+                            // กรณีติดเงื่อนไข (เช่น มีประวัติการขาย หรือลบตัวเอง)
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'ไม่สามารถลบได้',
+                                text: data.message,
+                                confirmButtonColor: '#15803d'
+                            });
+                        } else {
+                            // กรณีเกิดข้อผิดพลาดอื่นๆ
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'เกิดข้อผิดพลาด',
+                                text: data.message
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'การเชื่อมต่อขัดข้อง',
+                            text: 'ไม่สามารถติดต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่อีกครั้ง'
+                        });
+                    });
+            }
+        });
+    }
+
+    /**
+     * ฟังก์ชันจัดการตัวกรอง (Filter UI)
+     */
+    function toggleFilter() {
+        const card = document.getElementById('filterCard');
+        const btnText = document.getElementById('filterBtnText');
+        if (card.style.display === 'none') {
+            card.style.display = 'block';
+            btnText.innerText = 'ปิดตัวกรอง';
+        } else {
+            card.style.display = 'none';
+            btnText.innerText = 'กรองพนักงาน';
         }
+    }
 
-        function toggleFilter() {
-            const card = document.getElementById('filterCard');
-            const isHidden = card.style.display === 'none';
-            card.style.display = isHidden ? 'block' : 'none';
-            document.getElementById('filterBtnText').innerText = isHidden ? 'ปิดตัวกรอง' : 'กรองพนักงาน';
-        }
+    function clearFilters() {
+        // ล้างค่าใน Input และ Select ทั้งหมด
+        const searchInput = document.getElementById('searchInput');
+        const statusFilter = document.getElementById('statusFilter');
+        const deptFilter = document.getElementById('deptFilter');
+        const shopFilter = document.getElementById('shopFilter');
+        const branchFilter = document.getElementById('branchFilter');
 
-        function clearFilters() {
-            ['statusFilter', 'deptFilter', 'shopFilter', 'branchFilter', 'searchInput'].forEach(id => {
-                const el = document.getElementById(id); if(el) el.value = '';
-            });
-            fetchEmpData(1);
-        }
+        if (searchInput) searchInput.value = '';
+        if (statusFilter) statusFilter.value = '';
+        if (deptFilter) deptFilter.value = '';
+        if (shopFilter) shopFilter.value = '';
+        if (branchFilter) branchFilter.value = '';
 
-        document.getElementById('searchInput').addEventListener('input', () => fetchEmpData(1));
-        ['statusFilter', 'deptFilter', 'shopFilter', 'branchFilter'].forEach(id => document.getElementById(id)?.addEventListener('change', () => fetchEmpData(1)));
+        fetchEmpData(1); // โหลดข้อมูลใหม่ทั้งหมด
+    }
 
-        document.addEventListener('click', e => {
+    // --- Event Listeners เมื่อโหลดหน้าเสร็จ ---
+    document.addEventListener('DOMContentLoaded', function() {
+        // เริ่มต้นโหลดข้อมูล
+        fetchEmpData(1);
+
+        // ค้นหาแบบ Real-time (พิมพ์แล้วค้นหา)
+        let typingTimer;
+        document.getElementById('searchInput').addEventListener('input', () => {
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => fetchEmpData(1), 500); // หน่วงเวลา 0.5 วินาที
+        });
+
+        // กรองข้อมูลเมื่อเปลี่ยนค่าใน Select
+        ['statusFilter', 'deptFilter', 'shopFilter', 'branchFilter'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', () => fetchEmpData(1));
+        });
+
+        // จัดการคลิก Pagination (ใช้ Event Delegation)
+        document.addEventListener('click', function(e) {
             const link = e.target.closest('.ajax-page-link');
-            if (link) { e.preventDefault(); fetchEmpData(link.dataset.page); }
+            if (link) {
+                e.preventDefault();
+                const page = link.dataset.page;
+                fetchEmpData(page);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+
+            // ปุ่ม Jump Page
             if (e.target.id === 'btnJumpPage') {
-                const p = document.getElementById('jumpPageInput').value;
-                if (p > 0) fetchEmpData(p);
+                const input = document.getElementById('jumpPageInput');
+                const page = parseInt(input.value);
+                const max = parseInt(input.max);
+                if (page > 0 && page <= max) {
+                    fetchEmpData(page);
+                } else {
+                    Swal.fire('แจ้งเตือน', 'กรุณาระบุเลขหน้าให้ถูกต้อง', 'info');
+                }
             }
         });
 
-        function confirmDelete(id, name) {
-            document.getElementById('delName').innerText = name;
-            document.getElementById('confirmDelBtn').href = `delete_employee.php?id=${id}`;
-            new bootstrap.Modal(document.getElementById('deleteModal')).show();
-        }
-
-        // กรองสาขาตามร้าน (Admin Only)
+        // กรองสาขาตามร้านค้า (Admin Only)
         document.getElementById('shopFilter')?.addEventListener('change', function() {
             const shopId = this.value;
             const branchSelect = document.getElementById('branchFilter');
-            branchSelect.value = '';
-            Array.from(branchSelect.options).forEach(opt => {
-                if (opt.value === '') opt.style.display = 'block';
-                else opt.style.display = (shopId === '' || opt.dataset.shop === shopId) ? 'block' : 'none';
-            });
+            if (branchSelect) {
+                branchSelect.value = '';
+                Array.from(branchSelect.options).forEach(opt => {
+                    if (opt.value === '') {
+                        opt.style.display = 'block';
+                    } else {
+                        opt.style.display = (shopId === '' || opt.dataset.shop === shopId) ? 'block' : 'none';
+                    }
+                });
+            }
         });
-
-        window.onload = () => fetchEmpData();
-    </script>
+    });
+</script>
 </body>
 </html>

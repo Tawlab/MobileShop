@@ -10,7 +10,8 @@ use PHPMailer\PHPMailer\Exception;
 function hasPermission($conn, $user_id, $permission_name)
 {
     // 1. ถ้าไม่มี User ID ส่งมา (ยังไม่ล็อกอิน)
-    if (empty($user_id)) return false;
+    if (empty($user_id))
+        return false;
 
     // 2. ดึงข้อมูล Dept ID และ Role ID ของ User
     $sql_user = "SELECT e.departments_dept_id, ur.roles_role_id 
@@ -21,13 +22,13 @@ function hasPermission($conn, $user_id, $permission_name)
     $stmt->bind_param("i", $user_id);
     $stmt->execute();
     $res_user = $stmt->get_result();
-    
+
     // ถ้าไม่พบข้อมูลพนักงาน
-    if ($res_user->num_rows == 0) { 
-        $stmt->close(); 
-        return false; 
+    if ($res_user->num_rows == 0) {
+        $stmt->close();
+        return false;
     }
-    
+
     $user_data = $res_user->fetch_assoc();
     $dept_id = $user_data['departments_dept_id'];
     $role_id = $user_data['roles_role_id'];
@@ -55,7 +56,8 @@ function hasPermission($conn, $user_id, $permission_name)
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("is", $dept_id, $permission_name);
 
-    } else {
+    }
+    else {
         // [กรณี B] แผนก "ไม่มี" การกำหนดสิทธิ์ -> "ให้ไปใช้สิทธิ์ตาม Role (ตำแหน่ง)"
         // เช็คว่า User มีสิทธิ์ $permission_name หรือไม่ จากตาราง role_permissions
         $sql = "SELECT 1
@@ -108,7 +110,8 @@ function sendReceiptEmail($conn, $bill_id)
                    s.shop_name, s.shop_email, s.shop_app_password 
             FROM bill_headers bh
             JOIN customers c ON bh.customers_cs_id = c.cs_id
-            JOIN shop_info s ON 1=1 
+            JOIN branches b ON bh.branches_branch_id = b.branch_id
+            JOIN shop_info s ON b.shop_info_shop_id = s.shop_id 
             WHERE bh.bill_id = ? LIMIT 1";
 
     $stmt = $conn->prepare($sql);
@@ -153,10 +156,10 @@ function sendReceiptEmail($conn, $bill_id)
 
     // สร้าง Body HTML (ตัดทอนเพื่อความกระชับ - ใช้ Logic เดียวกับฟังก์ชันข้างล่าง)
     // ... (คงเดิมตามที่คุณมี) ...
-    
+
     // หมายเหตุ: เพื่อไม่ให้โค้ดยาวเกินไป ผมขออนุญาตใช้ Template เดียวกับด้านล่างในการ implement จริง
     // แต่ในโค้ดนี้ผมจะคง Logic เดิมของคุณไว้ตามที่ขอ แล้วไปเพิ่มฟังก์ชันใหม่ด้านล่างครับ
-    
+
     // (ขออนุญาต Copy HTML Template จากโค้ดเดิมของคุณมาใส่ตรงนี้เพื่อให้สมบูรณ์)
     $bodyContent = "
     <html>
@@ -211,22 +214,23 @@ function sendReceiptEmail($conn, $bill_id)
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $bill['shop_email'];
-        $mail->Password   = $bill['shop_app_password'];
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = $bill['shop_email'];
+        $mail->Password = $bill['shop_app_password'];
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-        $mail->CharSet    = 'UTF-8';
+        $mail->Port = 587;
+        $mail->CharSet = 'UTF-8';
         $mail->setFrom($bill['shop_email'], $bill['shop_name']);
         $mail->addAddress($bill['cs_email'], $customer_name);
         $mail->isHTML(true);
         $mail->Subject = "ใบเสร็จรับเงิน / Receipt INV-" . str_pad($bill_id, 6, '0', STR_PAD_LEFT);
-        $mail->Body    = $bodyContent;
+        $mail->Body = $bodyContent;
         $mail->AltBody = "ขอบคุณที่ใช้บริการ ยอดชำระ " . number_format($grand_total, 2) . " บาท";
         $mail->send();
         return true;
-    } catch (Exception $e) {
+    }
+    catch (Exception $e) {
         return false;
     }
 }
@@ -242,7 +246,8 @@ function sendRepairReceiptEmail($conn, $bill_id)
                    s.shop_name, s.shop_email, s.shop_app_password,
                    r.* FROM bill_headers bh
             JOIN customers c ON bh.customers_cs_id = c.cs_id
-            JOIN shop_info s ON 1=1 
+            JOIN branches b ON bh.branches_branch_id = b.branch_id
+            JOIN shop_info s ON b.shop_info_shop_id = s.shop_id 
             LEFT JOIN repairs r ON r.bill_headers_bill_id = bh.bill_id
             WHERE bh.bill_id = ? LIMIT 1";
 
@@ -252,7 +257,7 @@ function sendRepairReceiptEmail($conn, $bill_id)
     $bill = $stmt->get_result()->fetch_assoc();
 
     if (!$bill || empty($bill['cs_email']) || empty($bill['shop_email']) || empty($bill['shop_app_password'])) {
-        return false; 
+        return false;
     }
 
     // 2. ดึงรายการค่าใช้จ่าย (คงเดิม)
@@ -262,7 +267,7 @@ function sendRepairReceiptEmail($conn, $bill_id)
                   LEFT JOIN prod_stocks ps ON bd.prod_stocks_stock_id = ps.stock_id 
                   LEFT JOIN products p ON ps.products_prod_id = p.prod_id 
                   WHERE bd.bill_headers_bill_id = ?";
-    
+
     $stmt2 = $conn->prepare($sql_items);
     $stmt2->bind_param("i", $bill_id);
     $stmt2->execute();
@@ -276,7 +281,7 @@ function sendRepairReceiptEmail($conn, $bill_id)
         $sum = $row['price'] * $row['amount'];
         $total += $sum;
         $item_name = (!empty($row['prod_name'])) ? $row['prod_name'] . " " . $row['model_name'] : "ค่าบริการ / อะไหล่";
-        
+
         $rows_html .= "
             <tr>
                 <td style='padding:10px; border-bottom:1px solid #eee; color:#555;'>{$item_name}</td>
@@ -291,8 +296,8 @@ function sendRepairReceiptEmail($conn, $bill_id)
     // ** ส่วนที่ต้องตรวจสอบชื่อคอลัมน์ (ลองเดาชื่อที่พบบ่อย) **
     // หากข้อมูลอาการเสียไม่แสดง ให้มาแก้คำว่า 'symptom' ตรงนี้ให้ตรงกับ DB ของคุณ
     $symptom_text = $bill['symptom'] ?? $bill['repair_symptom'] ?? $bill['problem'] ?? '-';
-    $device_text  = $bill['device_name'] ?? $bill['device_model'] ?? '-';
-    $serial_text  = $bill['serial_number'] ?? $bill['imei'] ?? '-';
+    $device_text = $bill['device_name'] ?? $bill['device_model'] ?? '-';
+    $serial_text = $bill['serial_number'] ?? $bill['imei'] ?? '-';
 
     // 3. สร้าง HTML Template
     $bodyContent = "
@@ -385,29 +390,30 @@ function sendRepairReceiptEmail($conn, $bill_id)
     $mail = new PHPMailer(true);
     try {
         $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $bill['shop_email'];
-        $mail->Password   = $bill['shop_app_password'];
+        $mail->Host = 'smtp.gmail.com';
+        $mail->SMTPAuth = true;
+        $mail->Username = $bill['shop_email'];
+        $mail->Password = $bill['shop_app_password'];
         $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
-        $mail->CharSet    = 'UTF-8';
+        $mail->Port = 587;
+        $mail->CharSet = 'UTF-8';
 
         $mail->setFrom($bill['shop_email'], $bill['shop_name']);
         $mail->addAddress($bill['cs_email'], $customer_name);
 
         $mail->isHTML(true);
         $mail->Subject = "ใบเสร็จค่าซ่อม (Repair Invoice) #INV-" . str_pad($bill_id, 6, '0', STR_PAD_LEFT);
-        $mail->Body    = $bodyContent;
+        $mail->Body = $bodyContent;
         $mail->AltBody = "บิลค่าซ่อม INV-$bill_id ยอดรวม " . number_format($grand_total, 2) . " บาท";
 
         $mail->send();
         return true;
-    } catch (Exception $e) {
+    }
+    catch (Exception $e) {
         // ให้โชว์ Error ออกมาทางหน้าจอเลย
-        echo "Mailer Error: " . $mail->ErrorInfo; 
+        echo "Mailer Error: " . $mail->ErrorInfo;
         exit; // หยุดการทำงานเพื่อดู Error
-        // return false; 
+    // return false; 
     }
 }
 ?>

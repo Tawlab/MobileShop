@@ -51,10 +51,11 @@ if ($is_admin) {
     // User ทั่วไป: กรองด้วย branch_id ที่หามาได้
     // *สำคัญ: ตาราง departments ต้องมีคอลัมน์ branches_branch_id
     $dept_sql = "SELECT * FROM departments WHERE branches_branch_id = '$current_branch_id'";
-    
+
     // สาขาก็ต้องล็อคไว้ที่สาขาตัวเองเช่นกัน
     $branch_sql = "SELECT * FROM branches WHERE branch_id = '$current_branch_id'";
 }
+
 
 $depts_res = $conn->query($dept_sql);
 $depts_data = [];
@@ -65,7 +66,7 @@ $branches_data = [];
 while ($row = $branches_res->fetch_assoc()) $branches_data[] = $row;
 
 // C. Roles
-$roles_res = $conn->query("SELECT * FROM roles"); 
+$roles_res = $conn->query("SELECT * FROM roles");
 $roles_data = [];
 while ($row = $roles_res->fetch_assoc()) $roles_data[] = $row;
 
@@ -192,7 +193,22 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                     <div class="form-section-title">ข้อมูลการติดต่อ</div>
                                     <div class="row g-3">
                                         <div class="col-md-4"><label class="form-label fw-bold">เบอร์โทรศัพท์ <span class="required-star">*</span></label><input type="text" class="form-control" name="emp_phone_no"></div>
-                                        <div class="col-md-4"><label class="form-label">อีเมล</label><input type="email" class="form-control" name="emp_email"></div>
+                                        <div class="col-md-6">
+                                            <label class="form-label fw-bold">อีเมลพนักงาน <span class="required-star">*</span></label>
+                                            <div class="input-group">
+                                                <input type="email" class="form-control" name="emp_email" id="emp_email" required>
+                                                <button type="button" class="btn btn-outline-primary" id="btnSendOTP">ส่งรหัส OTP</button>
+                                            </div>
+                                        </div>
+
+                                        <div id="otpSection" style="display:none;" class="col-md-6 mt-2">
+                                            <label class="form-label">กรอกรหัส OTP 6 หลักที่ได้รับในอีเมล</label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="otp_code" maxlength="6">
+                                                <button type="button" class="btn btn-success" id="btnVerifyOTP">ยืนยันรหัส</button>
+                                            </div>
+                                            <small class="text-success" id="verifyStatus"></small>
+                                        </div>
                                         <div class="col-md-4"><label class="form-label">LINE ID</label><input type="text" class="form-control" name="emp_line_id"></div>
                                     </div>
 
@@ -205,22 +221,25 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                         <div class="col-md-2"><label class="form-label">ถนน</label><input type="text" class="form-control" name="road"></div>
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">จังหวัด <span class="required-star">*</span></label>
-                                            <select class="form-select select2" id="provinceSelect">
+                                            <select class="form-select select2" id="provinceSelect" required>
                                                 <option value="">-- ค้นหาจังหวัด --</option>
-                                                <?php while ($p = $provinces->fetch_assoc()): ?>
+                                                <?php mysqli_data_seek($provinces, 0);
+                                                while ($p = $provinces->fetch_assoc()): ?>
                                                     <option value="<?= $p['province_id'] ?>"><?= $p['province_name_th'] ?></option>
                                                 <?php endwhile; ?>
                                             </select>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label fw-bold">อำเภอ/ตำบล <span class="required-star">*</span></label>
-                                            <select class="form-select select2" name="subdistricts_subdistrict_id" id="subdistrictSelect" disabled required>
-                                                <option value="">-- เลือกจังหวัดก่อน --</option>
+                                            <label class="form-label fw-bold">อำเภอ <span class="required-star">*</span></label>
+                                            <select class="form-select select2" id="districtSelect" disabled required>
+                                                <option value="">-- เลือกอำเภอ --</option>
                                             </select>
                                         </div>
                                         <div class="col-md-4">
-                                            <label class="form-label">รหัสไปรษณีย์</label>
-                                            <input type="text" class="form-control bg-light" id="zipcodeField" readonly>
+                                            <label class="form-label fw-bold">ตำบล <span class="required-star">*</span></label>
+                                            <select class="form-select select2" name="subdistricts_subdistrict_id" id="subdistrictSelect" disabled required>
+                                                <option value="">-- เลือกตำบล --</option>
+                                            </select>
                                         </div>
                                     </div>
 
@@ -241,14 +260,14 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
                                         <div class="col-md-4">
                                             <label class="form-label fw-bold">สาขาประจำ <span class="required-star">*</span></label>
-                                            <select class="form-select select2" name="branches_branch_id" id="branchSelect" required>
-                                                <option value="">-- กรุณาเลือกสาขา --</option>
-                                                <?php if (!$is_admin): ?>
-                                                    <?php foreach ($branches_data as $b): ?>
-                                                        <option value="<?= $b['branch_id'] ?>"><?= $b['branch_name'] ?></option>
-                                                    <?php endforeach; ?>
-                                                <?php endif; ?>
-                                            </select>
+                                            <?php if ($is_admin): ?>
+                                                <select class="form-select select2" name="branches_branch_id" id="branchSelect" required>
+                                                    <option value="">-- กรุณาเลือกสาขา --</option>
+                                                </select>
+                                            <?php else: ?>
+                                                <input type="text" class="form-control bg-light" value="<?= htmlspecialchars($branches_data[0]['branch_name'] ?? 'สาขาปัจจุบัน') ?>" readonly>
+                                                <input type="hidden" name="branches_branch_id" value="<?= $current_branch_id ?>">
+                                            <?php endif; ?>
                                         </div>
 
                                         <div class="col-md-4">
@@ -314,128 +333,153 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
     <script>
-        // ข้อมูล JSON สำหรับ JS
         const allLocations = <?= json_encode($all_locations) ?>;
-        // ส่งข้อมูล Dept/Branch ทั้งหมดให้ Admin ใช้ Filter (ถ้าเป็น User จะเป็น array ว่าง หรือมีแค่ของตัวเองก็ไม่เป็นไรเพราะ PHP จัดการแล้ว)
-        const allDepts = <?= json_encode($depts_data) ?>;
-        const allBranches = <?= json_encode($branches_data) ?>;
         const isAdmin = <?= json_encode($is_admin) ?>;
+        let isEmailVerified = false;
 
+        // --- ส่วนส่ง OTP ---
+        $('#btnSendOTP').on('click', function() {
+            const email = $('#emp_email').val();
+            if (!email) return Swal.fire('คำเตือน', 'กรุณากรอกอีเมลก่อน', 'warning');
+
+            const btn = $(this);
+            btn.prop('disabled', true).text('กำลังส่ง...');
+
+            fetch('send_otp.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ emp_email: email })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire('สำเร็จ', data.message, 'success');
+                        $('#otpSection').fadeIn(); // แสดงช่องกรอกรหัส
+                    } else {
+                        Swal.fire('ผิดพลาด', data.message, 'error');
+                    }
+                })
+                .catch(err => Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error'))
+                .finally(() => btn.prop('disabled', false).text('ส่งรหัส OTP'));
+        });
+
+        // --- ส่วนยืนยัน OTP ---
+        $('#btnVerifyOTP').on('click', function() {
+            const otp = $('#otp_code').val();
+            if (!otp) return Swal.fire('คำเตือน', 'กรุณากรอกรหัส OTP', 'warning');
+
+            fetch('verify_otp.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        otp: otp
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire('สำเร็จ', data.message, 'success');
+                        $('#otp_code').addClass('is-valid').prop('readonly', true);
+                        $('#btnVerifyOTP').prop('disabled', true).text('ยืนยันแล้ว');
+                    } else {
+                        Swal.fire('ผิดพลาด', data.message, 'error');
+                    }
+                });
+        });
         $(document).ready(function() {
+            // ตั้งค่า Select2
             $('.select2').select2({
                 theme: 'bootstrap-5',
                 width: '100%'
             });
 
-            // [Admin Only] Logic เปลี่ยนร้านค้า -> กรองแผนก/สาขา
-            if (isAdmin) {
-                $('#shopSelect').on('change', function() {
-                    const shopId = $(this).val();
-                    const $dept = $('#deptSelect');
-                    const $branch = $('#branchSelect');
-
-                    // Clear
-                    $dept.empty().append('<option value="">-- กรุณาเลือกแผนก --</option>');
-                    $branch.empty().append('<option value="">-- กรุณาเลือกสาขา --</option>');
-
-                    if (shopId) {
-                        // Filter Departments
-                        const filteredDepts = allDepts.filter(d => d.shop_info_shop_id == shopId);
-                        filteredDepts.forEach(d => {
-                            $dept.append(new Option(d.dept_name, d.dept_id));
-                        });
-
-                        // Filter Branches
-                        const filteredBranches = allBranches.filter(b => b.shop_info_shop_id == shopId);
-                        filteredBranches.forEach(b => {
-                            $branch.append(new Option(b.branch_name, b.branch_id));
-                        });
-
-                        // Notify if empty
-                        if (filteredDepts.length === 0) $dept.append('<option disabled>-- ไม่มีข้อมูลแผนกในร้านนี้ --</option>');
-                        if (filteredBranches.length === 0) $branch.append('<option disabled>-- ไม่มีข้อมูลสาขาในร้านนี้ --</option>');
-                    }
-
-                    $dept.trigger('change');
-                    $branch.trigger('change');
-                });
+            // 1. ตรวจสอบเลขบัตรประชาชน (Modulus 11)
+            function validateThaiID(id) {
+                if (id.length !== 13 || !/^\d{13}$/.test(id)) return false;
+                let sum = 0;
+                for (let i = 0; i < 12; i++) sum += parseInt(id.charAt(i)) * (13 - i);
+                let check = (11 - (sum % 11)) % 10;
+                return check === parseInt(id.charAt(12));
             }
 
-            // (ส่วน Preview Image, Location Filter, Submit Form เหมือนเดิม)
-            window.previewFile = function() {
-                const preview = document.getElementById('previewImg');
-                const file = document.querySelector('input[type=file]').files[0];
-                const reader = new FileReader();
-                reader.onloadend = function() {
-                    preview.src = reader.result;
-                }
-                if (file) reader.readAsDataURL(file);
-            }
+            // 2. จำกัดภาษา (Real-time Regex)
+            window.filterInput = function(input, type) {
+                if (type === 'th') input.value = input.value.replace(/[^ก-๙\s]/g, '');
+                if (type === 'en') input.value = input.value.replace(/[^a-zA-Z\s]/g, '');
+                if (type === 'num') input.value = input.value.replace(/[^0-9]/g, '');
+            };
 
+            // 3. ระบบที่อยู่ 3 ชั้น (จังหวัด > อำเภอ > ตำบล)
             $('#provinceSelect').on('change', function() {
                 const pId = $(this).val();
-                const $subSelect = $('#subdistrictSelect');
-                $subSelect.empty().append('<option value="">-- เลือกอำเภอ/ตำบล --</option>').prop('disabled', true);
-                $('#zipcodeField').val('');
+                const $distSelect = $('#districtSelect'); // เพิ่ม id นี้ใน HTML ช่องอำเภอ
+                $distSelect.empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', !pId);
+                $('#subdistrictSelect').empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
+
                 if (pId) {
-                    const filtered = allLocations.filter(loc => loc.province_id == pId);
-                    filtered.forEach(loc => {
-                        const opt = new Option(`${loc.district_name_th} > ${loc.subdistrict_name_th}`, loc.subdistrict_id);
-                        $(opt).data('zip', loc.zip_code);
+                    const districts = [...new Set(allLocations.filter(l => l.province_id == pId).map(l => l.district_name_th))];
+                    districts.forEach(d => $distSelect.append(new Option(d, d)));
+                }
+                $distSelect.trigger('change');
+            });
+
+            $('#districtSelect').on('change', function() {
+                const dName = $(this).val();
+                const $subSelect = $('#subdistrictSelect');
+                $subSelect.empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', !dName);
+
+                if (dName) {
+                    const filtered = allLocations.filter(l => l.district_name_th === dName);
+                    filtered.forEach(l => {
+                        const opt = new Option(l.subdistrict_name_th, l.subdistrict_id);
+                        $(opt).data('zip', l.zip_code);
                         $subSelect.append(opt);
                     });
-                    $subSelect.prop('disabled', false).trigger('change');
                 }
+                $subSelect.trigger('change');
             });
 
             $('#subdistrictSelect').on('change', function() {
-                const zip = $(this).find(':selected').data('zip');
-                $('#zipcodeField').val(zip || '');
+                $('#zipcodeField').val($(this).find(':selected').data('zip') || '');
             });
 
+            // 4. บันทึกข้อมูล
             $('#addEmpForm').on('submit', function(e) {
                 e.preventDefault();
-                if (!this.checkValidity()) {
-                    e.stopPropagation();
-                    $(this).addClass('was-validated');
-                    Swal.fire('ข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
-                    return;
-                }
+                const nationalID = $('input[name="emp_national_id"]').val();
+                const phone = $('input[name="emp_phone_no"]').val();
 
-                // Extra Check for Admin
-                if (isAdmin && !$('#shopSelect').val()) {
-                    Swal.fire('แจ้งเตือน', 'กรุณาเลือกร้านค้า', 'warning');
-                    return;
-                }
+                if (!validateThaiID(nationalID)) return Swal.fire('ผิดพลาด', 'เลขบัตรประชาชนไม่ถูกต้อง', 'error');
+                if (!/^(06|08|09)\d{8}$/.test(phone)) return Swal.fire('ผิดพลาด', 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย 06, 08, 09)', 'error');
 
                 const formData = new FormData(this);
                 Swal.fire({
                     title: 'กำลังบันทึก...',
-                    allowOutsideClick: false,
                     didOpen: () => Swal.showLoading()
                 });
+
                 fetch('add_employee_process.php', {
                         method: 'POST',
                         body: formData
                     })
                     .then(res => res.json())
                     .then(data => {
-                        if (data.status === 'success') {
-                            Swal.fire({
-                                    icon: 'success',
-                                    title: 'สำเร็จ!',
-                                    text: data.message,
-                                    timer: 1500,
-                                    showConfirmButton: false
-                                })
-                                .then(() => window.location.href = 'employee.php');
-                        } else {
-                            Swal.fire('ผิดพลาด', data.message, 'error');
-                        }
-                    })
-                    .catch(err => Swal.fire('System Error', 'Error: ' + err, 'error'));
+                        if (data.status === 'success') Swal.fire('สำเร็จ', data.message, 'success').then(() => window.location.href = 'employee.php');
+                        else Swal.fire('ผิดพลาด', data.message, 'error');
+                    });
             });
         });
+
+        window.previewFile = function() {
+            const file = document.querySelector('input[type=file]').files[0];
+            const reader = new FileReader();
+            reader.onloadend = () => document.getElementById('previewImg').src = reader.result;
+            if (file) reader.readAsDataURL(file);
+        };
     </script>
 </body>
 

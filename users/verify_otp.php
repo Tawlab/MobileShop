@@ -31,8 +31,8 @@ if (time() > $_SESSION['otp_expires']) {
 
 // 3. ตรวจสอบความถูกต้องของรหัส
 if ($user_otp === (string)$_SESSION['otp_code']) {
-    // ถ้ารหัสถูกต้อง
-    $_SESSION['email_verified'] = true; // เซ็ตสถานะให้ระบบรู้ว่ายืนยันผ่านแล้ว จะได้ยอมให้กด Save ฟอร์มได้
+    // ถ้ารหัสถูกต้อง ให้เซ็ต Session ยืนยันตัวตน
+    $_SESSION['email_verified'] = true; 
     
     // ล้างรหัสทิ้งเพื่อความปลอดภัย ป้องกันการนำกลับมาใช้ซ้ำ
     unset($_SESSION['otp_code']);       

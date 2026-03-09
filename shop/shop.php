@@ -336,23 +336,23 @@ function formatAddress($shop)
                     </div>
 
                     <?php if ($is_super_admin): ?>
-                    <div class="search-section">
-                        <form method="GET" action="shop.php">
-                            <div class="input-group">
-                                <input type="text" name="search" class="form-control search-input"
-                                    placeholder="ค้นหาชื่อร้าน, เลขผู้เสียภาษี, เบอร์โทร..."
-                                    value="<?= htmlspecialchars($search) ?>">
-                                <button class="btn btn-search" type="submit">
-                                    <i class="fas fa-search me-1"></i> ค้นหา
-                                </button>
-                                <?php if ($search): ?>
-                                    <a href="shop.php" class="btn btn-outline-danger">
-                                        <i class="fas fa-times"></i> ล้าง
-                                    </a>
-                                <?php endif; ?>
-                            </div>
-                        </form>
-                    </div>
+                        <div class="search-section">
+                            <form method="GET" action="shop.php">
+                                <div class="input-group">
+                                    <input type="text" name="search" class="form-control search-input"
+                                        placeholder="ค้นหาชื่อร้าน, เลขผู้เสียภาษี, เบอร์โทร..."
+                                        value="<?= htmlspecialchars($search) ?>">
+                                    <button class="btn btn-search" type="submit">
+                                        <i class="fas fa-search me-1"></i> ค้นหา
+                                    </button>
+                                    <?php if ($search): ?>
+                                        <a href="shop.php" class="btn btn-outline-danger">
+                                            <i class="fas fa-times"></i> ล้าง
+                                        </a>
+                                    <?php endif; ?>
+                                </div>
+                            </form>
+                        </div>
                     <?php endif; ?>
 
                     <?php if (mysqli_num_rows($result) > 0): ?>
@@ -409,10 +409,13 @@ function formatAddress($shop)
                                             <a href="edit_shop.php?id=<?= $shop['shop_id'] ?>" class="btn-action btn-edit">
                                                 <i class="fas fa-edit me-1"></i>แก้ไข
                                             </a>
-                                            <a href="javascript:void(0);" class="btn-action btn-delete"
-                                                onclick="confirmDelete(<?= $shop['shop_id'] ?>, '<?= htmlspecialchars($shop['shop_name']) ?>')">
-                                                <i class="fas fa-trash me-1"></i>ลบ
-                                            </a>
+
+                                            <?php if ($is_super_admin): ?>
+                                                <a href="javascript:void(0);" class="btn-action btn-delete"
+                                                    onclick="confirmDelete(<?= $shop['shop_id'] ?>, '<?= htmlspecialchars($shop['shop_name']) ?>')">
+                                                    <i class="fas fa-trash me-1"></i>ลบ
+                                                </a>
+                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 </div>

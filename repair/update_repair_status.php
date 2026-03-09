@@ -76,7 +76,6 @@ function sendStatusUpdateEmail($to_email, $customer_name, $repair_id, $device_na
         $mail->send();
         return true;
     } catch (Exception $e) {
-        // สามารถเปิด error_log($mail->ErrorInfo); เพื่อดู log ใน server ได้
         return false;
     }
 }
@@ -95,7 +94,7 @@ $repair_id = (int)$_GET['id'];
 $current_emp_id = $_SESSION['emp_id'] ?? 1;
 $current_user_id = $_SESSION['user_id']; 
 
-// ดึงข้อมูลงานซ่อม + สถานะบิล + สาขา (branches_branch_id)
+// ดึงข้อมูลงานซ่อม + สถานะบิล + สาขา
 $sql = "SELECT r.*, 
         c.firstname_th AS cus_name, c.lastname_th AS cus_lastname, c.cs_email,
         p.prod_name, p.model_name, b.brand_name_th, s.serial_no,
@@ -116,7 +115,7 @@ if (!$repair) {
     exit;
 }
 
-// --- ตรวจสอบ Admin เพื่อกำหนดการดึงรายชื่อช่าง ---
+// --- ตรวจสอบ Admin ---
 $is_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
             JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -128,7 +127,6 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// กำหนดสาขาที่จะดึงพนักงาน
 if ($is_admin) {
     $target_branch_id = $repair['branches_branch_id'];
 } else {
@@ -141,7 +139,6 @@ $emp_sql = "SELECT emp_id, firstname_th, lastname_th, emp_code
             WHERE emp_status = 'Active' AND branches_branch_id = '$target_branch_id'";
 $emp_result = mysqli_query($conn, $emp_sql);
 
-// ตัวแปรสำหรับ SweetAlert
 $alert_status = null; 
 $alert_message = "";
 $redirect_url = "view_repair.php?id=$repair_id";
@@ -156,7 +153,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $comment = mysqli_real_escape_string($conn, trim($_POST['comment']));
     $old_status = $repair['repair_status'];
 
-    // ตรวจสอบก่อนส่งมอบ
     $error_occurred = false;
     if ($new_status === 'ส่งมอบ') {
         $is_cancelled = ($old_status === 'ยกเลิก');
@@ -165,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$is_cancelled && !$is_paid) {
             $alert_status = 'error';
             $alert_message = "❌ ไม่สามารถส่งมอบได้: ลูกค้ายังไม่ได้ชำระเงิน";
-            $redirect_url = ""; // ไม่ Redirect เพื่อให้แก้ข้อมูล
+            $redirect_url = ""; 
             $error_occurred = true;
         }
     }
@@ -173,7 +169,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$error_occurred) {
         mysqli_autocommit($conn, false);
         try {
-            // 1. อัปเดตสถานะงานซ่อม
             $sql_update = "UPDATE repairs SET 
                            repair_status = ?, 
                            assigned_employee_id = ?, 
@@ -185,7 +180,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$stmt->execute()) throw new Exception("อัปเดตสถานะไม่สำเร็จ");
             $stmt->close();
 
-            // 2. บันทึก Log
             if ($new_status !== $old_status || !empty($comment)) {
                 $log_sql = "INSERT INTO repair_status_log 
                             (repairs_repair_id, old_status, new_status, update_by_employee_id, comment, update_at) 
@@ -196,7 +190,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_log->close();
             }
 
-            // 3. ตัดสต็อก เมื่อส่งมอบสำเร็จ 
             if ($new_status === 'ส่งมอบ') {
                 $stock_id = $repair['prod_stocks_stock_id'];
 
@@ -216,18 +209,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             mysqli_commit($conn);
 
-            // 4. ส่งอีเมล (ทำงานหลังจาก Commit สำเร็จ)
             $mail_msg = "";
-            // ต้องเช็คด้วยว่ามีอีเมลลูกค้าไหม
             if ($new_status !== $old_status && !empty($repair['cs_email'])) {
                 
-                // [แก้ไข] ดึงข้อมูล Shop ตามสาขาที่งานซ่อมสังกัดอยู่ เพื่อให้ได้อีเมลผู้ส่งที่ถูกต้อง
-                // โดยการ Join กับตาราง branches ด้วย branches_branch_id จากตัวแปร $repair
                 $shop_query = "SELECT s.shop_name, s.shop_email, s.shop_app_password 
                                FROM shop_info s
                                JOIN branches b ON s.shop_id = b.shop_info_shop_id
                                WHERE b.branch_id = ?";
-                
                 $stmt_shop = $conn->prepare($shop_query);
                 $stmt_shop->bind_param("i", $repair['branches_branch_id']);
                 $stmt_shop->execute();
@@ -238,7 +226,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($shop_data && !empty($shop_data['shop_email'])) {
                     $cust_name = $repair['cus_name'] . ' ' . $repair['cus_lastname'];
                     
-                    // [แก้ไข] ลบเครื่องหมาย @ ออก และรับค่าผลลัพธ์มาเช็ค
                     $mail_sent = sendStatusUpdateEmail(
                         $repair['cs_email'],
                         $cust_name,
@@ -259,19 +246,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // ตั้งค่า SweetAlert Success
             $alert_status = 'success';
             $alert_message = "บันทึกสถานะเป็น '$new_status' สำเร็จ" . $mail_msg;
 
         } catch (Exception $e) {
             mysqli_rollback($conn);
-            // ตั้งค่า SweetAlert Error
             $alert_status = 'error';
             $alert_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
             $redirect_url = "";
         }
     }
 }
+
+// กำหนดสีของ Badge สถานะปัจจุบัน
+$badge_color = match ($repair['repair_status']) {
+    'รับเครื่อง' => 'bg-info text-dark',
+    'ประเมิน' => 'bg-primary',
+    'รออะไหล่' => 'bg-warning text-dark',
+    'กำลังซ่อม' => 'bg-info text-dark',
+    'ซ่อมเสร็จ' => 'bg-success',
+    'ส่งมอบ' => 'bg-secondary',
+    'ยกเลิก' => 'bg-danger',
+    default => 'bg-secondary'
+};
 ?>
 
 <!DOCTYPE html>
@@ -279,13 +276,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <head>
     <meta charset="UTF-8">
-    <title>Job Order #<?= $repair_id ?></title>
+    <title>อัปเดตสถานะงานซ่อม #<?= $repair_id ?></title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
-    
     <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 
     <?php require '../config/load_theme.php'; ?>
@@ -298,32 +294,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         body {
             background-color: var(--bg-color);
             color: #333;
+            font-family: '<?= $font_style ?>', sans-serif;
         }
         .card-custom {
             border: none;
-            border-radius: 12px;
+            border-radius: 15px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
             background: #fff;
+            overflow: hidden;
         }
         .card-header-custom {
-            background: linear-gradient(45deg, var(--theme-color), #146c43);
+            background: linear-gradient(135deg, var(--theme-color), #146c43);
             color: white;
-            border-radius: 12px 12px 0 0 !important;
+            padding: 20px 25px;
+        }
+        .info-box {
+            background-color: #f8f9fa;
+            border-radius: 10px;
             padding: 15px;
+            height: 100%;
+            border: 1px solid #e9ecef;
+        }
+        .info-box-title {
+            font-size: 0.85rem;
+            color: #6c757d;
             font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        .info-box-data {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #212529;
         }
         /* Select2 Style Override */
         .select2-container .select2-selection--single {
-            height: 48px;
-            border: 1px solid #dee2e6;
-            border-radius: 0.375rem;
+            height: 45px;
+            border: 1px solid #ced4da;
+            border-radius: 0.5rem;
         }
         .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered {
-            line-height: 46px;
-            padding-left: 12px;
+            line-height: 43px;
+            padding-left: 15px;
         }
         .select2-container--bootstrap-5 .select2-selection--single .select2-selection__arrow {
-            height: 46px;
+            height: 43px;
         }
     </style>
 </head>
@@ -333,103 +349,129 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php include '../global/sidebar.php'; ?>
         <div class="main-content w-100">
             <div class="container-fluid py-4">
-                <div class="container py-5">
-                    <div class="row justify-content-center">
-                        <div class="col-lg-8">
+                <div class="container py-4" style="max-width: 900px;">
 
-                            <?php if (isset($_SESSION['error'])): ?>
-                                <div class="alert alert-danger alert-dismissible fade show">
-                                    <i class="fas fa-exclamation-circle me-2"></i> <?= $_SESSION['error']; unset($_SESSION['error']); ?>
-                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                                </div>
-                            <?php endif; ?>
+                    <?php if (isset($_SESSION['error'])): ?>
+                        <div class="alert alert-danger alert-dismissible fade show rounded-3 shadow-sm">
+                            <i class="fas fa-exclamation-circle me-2"></i> <?= $_SESSION['error']; unset($_SESSION['error']); ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    <?php endif; ?>
 
-                            <div class="card card-custom">
-                                <div class="card-header bg-white border-0 pt-4 px-4">
-                                    <h4 class="mb-0 fw-bold text-primary"><i class="fas fa-tasks me-2"></i>อัปเดตสถานะงานซ่อม #<?= $repair_id ?></h4>
-                                    <hr>
-                                </div>
-                                <div class="card-body px-4 pb-4">
-
-                                    <div class="alert alert-<?= $repair['bill_status'] == 'Completed' ? 'success' : 'warning' ?> d-flex justify-content-between align-items-center">
-                                        <div>
-                                            <i class="fas fa-file-invoice-dollar me-2"></i>
-                                            <strong>สถานะการชำระเงิน:</strong> <?= $repair['bill_status'] ?>
+                    <div class="card card-custom mb-4">
+                        <div class="card-header-custom d-flex justify-content-between align-items-center">
+                            <h4 class="mb-0 fw-bold"><i class="fas fa-clipboard-check me-2"></i>อัปเดตสถานะงานซ่อม #<?= $repair_id ?></h4>
+                            <span class="badge bg-white text-dark rounded-pill px-3 py-2">
+                                Job ID: <?= str_pad($repair_id, 6, '0', STR_PAD_LEFT) ?>
+                            </span>
+                        </div>
+                        
+                        <div class="card-body p-4 pb-5">
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-6">
+                                    <div class="info-box">
+                                        <div class="info-box-title"><i class="fas fa-user me-2"></i>ข้อมูลลูกค้า & อุปกรณ์</div>
+                                        <div class="info-box-data text-truncate">
+                                            <?= htmlspecialchars($repair['cus_name'] . ' ' . $repair['cus_lastname']) ?>
                                         </div>
-                                        <?php if ($repair['bill_status'] != 'Completed'): ?>
-                                            <?php if ($repair['repair_status'] != 'ยกเลิก'): ?>
-                                                <a href="bill_repair.php?id=<?= $repair_id ?>" class="btn btn-sm btn-warning">
-                                                    <i class="fas fa-hand-holding-usd"></i> ไปจัดการบิล
-                                                </a>
-                                            <?php else: ?>
-                                                <span class="badge bg-secondary">ยกเลิกงาน (ไม่ต้องชำระเงิน)</span>
-                                            <?php endif; ?>
-                                        <?php else: ?>
-                                            <span class="badge bg-success"><i class="fas fa-check-circle"></i> ชำระครบแล้ว</span>
-                                        <?php endif; ?>
+                                        <div class="text-muted small mt-1 text-truncate">
+                                            <i class="fas fa-mobile-alt me-1"></i> <?= htmlspecialchars($repair['prod_name'] ?? 'ไม่ระบุอุปกรณ์') ?> 
+                                            <?= !empty($repair['model_name']) ? "(".htmlspecialchars($repair['model_name']).")" : "" ?>
+                                        </div>
                                     </div>
-
-                                    <form method="POST" id="updateStatusForm">
-                                        <div class="row g-3">
-                                            <div class="col-md-6">
-                                                <label class="form-label fw-bold">สถานะใหม่ <span class="text-danger">*</span></label>
-                                                <select name="status" id="statusSelect" class="form-select form-select-lg" required>
-                                                    <?php
-                                                    if ($repair['repair_status'] == 'ยกเลิก') {
-                                                        echo "<option value='ยกเลิก' selected>ยกเลิก (ปัจจุบัน)</option>";
-                                                        echo "<option value='ส่งมอบ'>ส่งมอบ (คืนเครื่องลูกค้า)</option>";
-                                                    } else {
-                                                        $statuses = ['รับเครื่อง', 'ประเมิน', 'รออะไหล่', 'กำลังซ่อม', 'ซ่อมเสร็จ', 'ส่งมอบ', 'ยกเลิก'];
-                                                        foreach ($statuses as $st) {
-                                                            $selected = ($st == $repair['repair_status']) ? 'selected' : '';
-                                                            echo "<option value='$st' $selected>$st</option>";
-                                                        }
-                                                    }
-                                                    ?>
-                                                </select>
-                                            </div>
-
-                                            <div class="col-md-6">
-                                                <label class="form-label fw-bold">ช่างผู้รับผิดชอบ</label>
-                                                <select name="assigned_emp" class="form-select form-select-lg select2">
-                                                    <option value="">-- ระบุช่าง --</option>
-                                                    <?php while ($emp = mysqli_fetch_assoc($emp_result)): ?>
-                                                        <option value="<?= $emp['emp_id'] ?>" <?= ($emp['emp_id'] == $repair['assigned_employee_id']) ? 'selected' : '' ?>>
-                                                            <?= $emp['firstname_th'] ?> <?= $emp['lastname_th'] ?> (<?= $emp['emp_code'] ?>)
-                                                        </option>
-                                                    <?php endwhile; ?>
-                                                </select>
-                                            </div>
-
-                                            <div class="col-md-12">
-                                                <label class="form-label fw-bold">ค่าซ่อมประเมิน (บาท)</label>
-                                                <div class="input-group">
-                                                    <span class="input-group-text">฿</span>
-                                                    <input type="number" name="estimated_cost" class="form-control" value="<?= $repair['estimated_cost'] ?>" step="0.01" min="0">
-                                                </div>
-                                            </div>
-
-                                            <div class="col-md-12">
-                                                <label class="form-label fw-bold">หมายเหตุ / รายละเอียด</label>
-                                                <textarea name="comment" class="form-control" rows="3" placeholder="ระบุรายละเอียดการซ่อม หรือหมายเหตุเพิ่มเติม..."></textarea>
-                                            </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="info-box <?= $repair['bill_status'] == 'Completed' ? 'border-success bg-success bg-opacity-10' : ($repair['repair_status'] == 'ยกเลิก' ? 'border-secondary bg-light' : 'border-warning bg-warning bg-opacity-10') ?>">
+                                        <div class="info-box-title"><i class="fas fa-file-invoice-dollar me-2"></i>สถานะการชำระเงิน</div>
+                                        
+                                        <div class="d-flex justify-content-between align-items-center mt-2">
+                                            <?php if ($repair['bill_status'] == 'Completed'): ?>
+                                                <div class="info-box-data text-success"><i class="fas fa-check-circle me-1"></i>ชำระเงินเรียบร้อย</div>
+                                            <?php elseif ($repair['repair_status'] == 'ยกเลิก'): ?>
+                                                <div class="info-box-data text-secondary"><i class="fas fa-ban me-1"></i>ยกเลิกงาน (ไม่มีค่าใช้จ่าย)</div>
+                                            <?php else: ?>
+                                                <div class="info-box-data text-warning text-dark"><i class="fas fa-clock me-1"></i>รอการชำระเงิน</div>
+                                                <a href="bill_repair.php?id=<?= $repair_id ?>" class="btn btn-sm btn-warning fw-bold shadow-sm rounded-pill px-3">
+                                                    จัดการบิล
+                                                </a>
+                                            <?php endif; ?>
                                         </div>
-
-                                        <hr class="my-4">
-
-                                        <div class="d-flex justify-content-between">
-                                            <a href="<?= (isset($_GET['return_to']) && $_GET['return_to'] == 'list') ? 'repair_list.php' : 'view_repair.php?id=' . $repair_id ?>" class="btn btn-secondary">
-                                                <i class="fas fa-times me-2"></i> ยกเลิก
-                                            </a>
-                                            <button type="submit" class="btn btn-success px-5">
-                                                <i class="fas fa-save me-2"></i> บันทึก
-                                            </button>
-                                        </div>
-                                    </form>
+                                    </div>
                                 </div>
                             </div>
+
+                            <hr class="text-muted opacity-25 mb-4">
+
+                            <form method="POST" id="updateStatusForm">
+                                <div class="row g-4">
+                                    
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted fw-bold small text-uppercase">สถานะปัจจุบัน</label>
+                                        <div class="form-control form-control-lg bg-light border-0 d-flex align-items-center">
+                                            <span class="badge <?= $badge_color ?> px-3 py-2 rounded-pill fs-6"><?= $repair['repair_status'] ?></span>
+                                        </div>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label text-primary fw-bold small text-uppercase"><i class="fas fa-sync-alt me-1"></i> ปรับปรุงสถานะใหม่ <span class="text-danger">*</span></label>
+                                        <select name="status" id="statusSelect" class="form-select form-select-lg border-primary shadow-sm" required>
+                                            <?php
+                                            if ($repair['repair_status'] == 'ยกเลิก') {
+                                                echo "<option value='ยกเลิก' selected>ยกเลิก (ปัจจุบัน)</option>";
+                                                echo "<option value='ส่งมอบ'>ส่งมอบ (คืนเครื่องลูกค้า)</option>";
+                                            } else {
+                                                $statuses = ['รับเครื่อง', 'ประเมิน', 'รออะไหล่', 'กำลังซ่อม', 'ซ่อมเสร็จ', 'ส่งมอบ', 'ยกเลิก'];
+                                                foreach ($statuses as $st) {
+                                                    $selected = ($st == $repair['repair_status']) ? 'selected' : '';
+                                                    echo "<option value='$st' $selected>$st</option>";
+                                                }
+                                            }
+                                            ?>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted fw-bold small text-uppercase"><i class="fas fa-user-cog me-1"></i> ช่างผู้รับผิดชอบ</label>
+                                        <select name="assigned_emp" class="form-select select2">
+                                            <option value="">-- ไม่ระบุช่าง --</option>
+                                            <?php while ($emp = mysqli_fetch_assoc($emp_result)): ?>
+                                                <option value="<?= $emp['emp_id'] ?>" <?= ($emp['emp_id'] == $repair['assigned_employee_id']) ? 'selected' : '' ?>>
+                                                    <?= htmlspecialchars($emp['firstname_th'] . ' ' . $emp['lastname_th']) ?> (<?= $emp['emp_code'] ?>)
+                                                </option>
+                                            <?php endwhile; ?>
+                                        </select>
+                                    </div>
+
+                                    <div class="col-md-6">
+                                        <label class="form-label text-muted fw-bold small text-uppercase"><i class="fas fa-money-bill-wave me-1"></i> ค่าซ่อมประเมิน</label>
+                                        <div class="input-group input-group-lg shadow-sm">
+                                            <span class="input-group-text bg-white border-end-0 text-success">฿</span>
+                                            <input type="number" name="estimated_cost" class="form-control border-start-0 ps-0 fw-bold text-success" 
+                                                   value="<?= $repair['estimated_cost'] ?>" step="0.01" min="0">
+                                        </div>
+                                    </div>
+
+                                    <div class="col-12">
+                                        <label class="form-label text-muted fw-bold small text-uppercase"><i class="fas fa-comment-dots me-1"></i> หมายเหตุ / รายละเอียด <span class="text-primary text-lowercase fw-normal">(อาจส่งถึงลูกค้าผ่านอีเมล)</span></label>
+                                        <textarea name="comment" class="form-control rounded-3 shadow-sm" rows="3" placeholder="ระบุรายละเอียดการซ่อม หรือข้อความแจ้งลูกค้า..."></textarea>
+                                    </div>
+
+                                </div>
+
+                                <div class="d-flex justify-content-between align-items-center mt-5">
+                                    <a href="<?= (isset($_GET['return_to']) && $_GET['return_to'] == 'list') ? 'repair_list.php' : 'view_repair.php?id=' . $repair_id ?>" 
+                                       class="btn btn-light rounded-pill px-4 fw-bold">
+                                        <i class="fas fa-arrow-left me-2"></i> ย้อนกลับ
+                                    </a>
+                                    <button type="submit" class="btn btn-success rounded-pill px-5 py-2 fw-bold shadow">
+                                        <i class="fas fa-save me-2"></i> บันทึกสถานะ
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
+
                 </div>
             </div>
         </div>
@@ -457,7 +499,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             Swal.fire({
                 icon: '<?= $alert_status ?>',
                 title: '<?= $alert_status == 'success' ? 'สำเร็จ' : 'แจ้งเตือน' ?>',
-                html: '<?= $alert_message ?>', // ใช้ html เพื่อรองรับ tag <br>
+                html: '<?= $alert_message ?>', 
                 confirmButtonText: 'ตกลง',
                 confirmButtonColor: '#198754'
             }).then((result) => {
@@ -476,12 +518,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const isCancelled = <?= $repair['repair_status'] == 'ยกเลิก' ? 'true' : 'false' ?>;
 
         document.getElementById('updateStatusForm').addEventListener('submit', function(e) {
-            e.preventDefault(); // หยุดการส่งฟอร์มไว้ก่อน
+            e.preventDefault();
 
             const status = document.getElementById('statusSelect').value;
 
             if (status === 'ส่งมอบ') {
-                // Validation: งานซ่อมปกติ แต่ยังไม่จ่ายเงิน -> ห้ามส่งมอบ
                 if (!isCancelled && !isPaid) {
                     Swal.fire({
                         icon: 'error',
@@ -499,7 +540,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     confirmText += "<br>- ระบบจะปิดงานซ่อมอย่างสมบูรณ์";
                 }
 
-                // ใช้ SweetAlert Confirm แทน window.confirm
                 Swal.fire({
                     title: 'ยืนยันการ "ส่งมอบ" คืนลูกค้า?',
                     html: confirmText,
@@ -511,15 +551,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     cancelButtonText: 'ยกเลิก'
                 }).then((result) => {
                     if (result.isConfirmed) {
-                        this.submit(); // ส่งฟอร์มจริง
+                        this.submit();
                     }
                 });
             } else {
-                // กรณีสถานะอื่นๆ บันทึกได้เลย
                 this.submit();
             }
         });
     </script>
 </body>
-
 </html>

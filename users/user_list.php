@@ -439,23 +439,61 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
             });
         }
         
-        // 3. ฟังก์ชันลบผู้ใช้งาน (ปรับปรุงให้ Redirect ไป delete_user.php)
+        // 3. ฟังก์ชันลบผู้ใช้งาน (ตรวจสอบประวัติ และ กันลบตัวเอง)
         function deleteUser(userId, username) {
+            // ดึงไอดีของคนที่กำลังล็อกอินอยู่
+            const currentUserId = <?= $_SESSION['user_id'] ?>;
+
+            // 1. ป้องกันการลบบัญชีตัวเอง
+            if (userId === currentUserId) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ปฏิเสธการลบ!',
+                    text: 'คุณไม่สามารถลบบัญชีของตัวเองที่กำลังเข้าใช้งานอยู่ได้'
+                });
+                return;
+            }
+
+            // 2. ตรวจสอบประวัติการทำงาน (ขาย/ซ่อม) ผ่าน AJAX
             Swal.fire({
-                title: `ยืนยันการลบ?`,
-                text: `คุณต้องการลบผู้ใช้งาน "${username}" ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#dc3545',
-                cancelButtonColor: '#6c757d',
-                confirmButtonText: 'ยืนยัน, ลบเลย!',
-                cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // ส่งค่าไปลบที่หน้า delete_user.php โดยตรง
-                    window.location.href = `delete_user.php?id=${userId}`;
-                }
+                title: 'กำลังตรวจสอบข้อมูล...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
             });
+
+            fetch(`check_user_deletable.php?id=${userId}`)
+                .then(res => res.json())
+                .then(data => {
+                    Swal.close(); // ปิดหน้าโหลด
+
+                    if (data.can_delete === false) {
+                        // ถ้ามีประวัติ ไม่อนุญาตให้ลบ
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'ไม่อนุญาตให้ลบ!',
+                            text: `ไม่สามารถลบ "${username}" ได้ เนื่องจากมีประวัติ${data.reason}ในระบบแล้ว (แนะนำให้เปลี่ยนสถานะเป็น Inactive แทน)`
+                        });
+                    } else {
+                        // ถ้าไม่มีประวัติ ค่อยขึ้นแจ้งเตือนให้กดยืนยันการลบ
+                        Swal.fire({
+                            title: `ยืนยันการลบ?`,
+                            text: `คุณต้องการลบผู้ใช้งาน "${username}" ใช่หรือไม่? การกระทำนี้ไม่สามารถย้อนกลับได้`,
+                            icon: 'warning',
+                            showCancelButton: true,
+                            confirmButtonColor: '#dc3545',
+                            cancelButtonColor: '#6c757d',
+                            confirmButtonText: 'ยืนยัน, ลบเลย!',
+                            cancelButtonText: 'ยกเลิก'
+                        }).then((result) => {
+                            if (result.isConfirmed) {
+                                window.location.href = `delete_user.php?id=${userId}`;
+                            }
+                        });
+                    }
+                })
+                .catch(err => {
+                    Swal.fire('ข้อผิดพลาด', 'ไม่สามารถตรวจสอบฐานข้อมูลได้', 'error');
+                });
         }
 
         // เริ่มต้นโหลดข้อมูล

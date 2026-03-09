@@ -29,7 +29,7 @@ if (!$is_admin) {
 }
 
 // -----------------------------------------------------------------------------
-// AJAX HANDLER
+// AJAX HANDLER (สำหรับ Dropdown ข้อมูลร้านค้าและที่อยู่)
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     ob_end_clean();
@@ -64,7 +64,7 @@ if (isset($_POST['action'])) {
 $return_url = isset($_GET['return_to']) ? urldecode($_GET['return_to']) : 'customer_list.php';
 
 // -----------------------------------------------------------------------------
-// HANDLE FORM SUBMIT
+// HANDLE FORM SUBMIT (บันทึกข้อมูล)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
@@ -90,25 +90,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $moo       = trim($_POST['moo']);
     $soi       = trim($_POST['soi']);
     $road      = trim($_POST['road']);
-    $village   = trim($_POST['village']); // เพิ่มรับค่าหมู่บ้าน
+    $village   = trim($_POST['village']); 
     $subdist_id = (int)$_POST['subdistrict_id'];
 
+    // 1. ตรวจสอบข้อมูลเบื้องต้นฝั่ง Server
     if (empty($fname_th) || empty($lname_th) || empty($phone)) {
         $_SESSION['error'] = "กรุณากรอกข้อมูลสำคัญ (ชื่อ, นามสกุล, เบอร์โทร)";
     } elseif (empty($subdist_id)) {
         $_SESSION['error'] = "กรุณาเลือกที่อยู่ให้ครบถ้วน";
     } elseif (empty($target_shop_id) || empty($target_branch_id)) {
         $_SESSION['error'] = "ข้อมูลร้านค้าหรือสาขาไม่ถูกต้อง";
+    } 
+    // 2. ตรวจสอบว่ายืนยัน OTP หรือยัง (ถ้ามีการกรอกอีเมล)
+    elseif (!empty($email) && (!isset($_SESSION['email_verified']) || $_SESSION['email_verified'] !== true)) {
+        $_SESSION['error'] = "กรุณายืนยันอีเมลด้วยรหัส OTP ให้สำเร็จก่อนบันทึกข้อมูล";
     } else {
         mysqli_autocommit($conn, false);
         try {
+            // หา ID ใหม่ให้ลูกค้าและที่อยู่
             $res_cs = mysqli_query($conn, "SELECT IFNULL(MAX(cs_id), 100000) + 1 as next_id FROM customers");
             $cs_id = mysqli_fetch_assoc($res_cs)['next_id'];
 
             $res_addr = mysqli_query($conn, "SELECT IFNULL(MAX(address_id), 0) + 1 as next_id FROM addresses");
             $addr_id = mysqli_fetch_assoc($res_addr)['next_id'];
 
-            // บันทึกที่อยู่ (เพิ่ม village)
+            // บันทึกที่อยู่
             $sql_addr = "INSERT INTO addresses (address_id, home_no, moo, soi, road, village, subdistricts_subdistrict_id) 
                          VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql_addr);
@@ -116,6 +122,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$stmt->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ");
             $stmt->close();
 
+            // บันทึกข้อมูลลูกค้า
             $sql_cus = "INSERT INTO customers (
                             cs_id, cs_national_id, firstname_th, lastname_th, 
                             firstname_en, lastname_en, cs_phone_no, cs_email, cs_line_id, 
@@ -135,6 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt2->close();
 
             mysqli_commit($conn);
+            unset($_SESSION['email_verified']); // ล้างสถานะ OTP เมื่อบันทึกสำเร็จ
             $_SESSION['success'] = "เพิ่มลูกค้าเรียบร้อยแล้ว (รหัส: $cs_id)";
             header("Location: $return_url");
             exit;
@@ -146,11 +154,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// เตรียมข้อมูล Dropdown Prefix (พยายามดึง prefix_en ด้วยถ้ามี)
-// เช็คก่อนว่ามีคอลัมน์ prefix_en หรือไม่ เพื่อป้องกัน Error
+// เตรียมข้อมูล Dropdown Prefix และ Shop
 $check_col = mysqli_query($conn, "SHOW COLUMNS FROM prefixs LIKE 'prefix_en'");
 $has_prefix_en = mysqli_num_rows($check_col) > 0;
-
 $sql_prefix = $has_prefix_en ? "SELECT prefix_id, prefix_th, prefix_en FROM prefixs WHERE is_active = 1" : "SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1";
 $prefixes = mysqli_query($conn, $sql_prefix);
 
@@ -170,12 +176,12 @@ if ($is_admin) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body { background-color: #f0f2f5; color: #333; }
+        body { background-color: #f0f2f5; color: #333; font-family: 'Prompt', sans-serif;}
         .main-card { border-radius: 12px; border: none; box-shadow: 0 5px 20px rgba(0,0,0,0.05); background: #fff; overflow: hidden; }
         
-        /* 1. แก้ไขส่วนหัวการ์ดเป็นสีเขียวตามธีม */
         .card-header-custom { 
             background: linear-gradient(135deg, #198754 0%, #14532d 100%); 
             color: white; 
@@ -208,6 +214,22 @@ if ($is_admin) {
         .form-label { font-weight: 500; font-size: 0.95rem; color: #555; }
         .required-star { color: #dc3545; margin-left: 3px; }
         .admin-select-box { background-color: #e7f1ff; border: 1px solid #b6d4fe; border-radius: 10px; padding: 15px; margin-bottom: 20px; }
+        
+        /* สไตล์สำหรับปุ่มพับที่อยู่ */
+        .collapse-btn { 
+            background-color: #f8f9fa; 
+            border: 1px dashed #adb5bd; 
+            color: #495057; 
+            width: 100%; 
+            text-align: left; 
+            padding: 12px 15px; 
+            border-radius: 8px; 
+            transition: all 0.3s; 
+            font-weight: 500;
+        }
+        .collapse-btn:hover { background-color: #e9ecef; border-color: #198754; color: #198754; }
+        .is-invalid { border-color: #dc3545 !important; }
+        .is-valid { border-color: #198754 !important; }
     </style>
 </head>
 <body>
@@ -224,10 +246,10 @@ if ($is_admin) {
                             </div>
                             <div class="card-body p-4">
                                 <?php if (isset($_SESSION['error'])): ?>
-                                    <div class="alert alert-danger"><?= $_SESSION['error']; unset($_SESSION['error']); ?></div>
+                                    <div class="alert alert-danger"><i class="fas fa-exclamation-circle me-2"></i><?= $_SESSION['error']; unset($_SESSION['error']); ?></div>
                                 <?php endif; ?>
 
-                                <form method="POST" class="needs-validation" novalidate>
+                                <form method="POST" id="addCustomerForm" class="needs-validation" novalidate>
                                     
                                     <?php if ($is_admin): ?>
                                     <div class="admin-select-box">
@@ -257,7 +279,8 @@ if ($is_admin) {
                                     <div class="row g-3 mb-3">
                                         <div class="col-md-12">
                                             <label class="form-label">เลขบัตรประจำตัวประชาชน</label>
-                                            <input type="text" name="cs_national_id" class="form-control" maxlength="13" placeholder="ระบุเลข 13 หลัก">
+                                            <input type="text" name="cs_national_id" id="cs_national_id" class="form-control" maxlength="13" placeholder="ระบุเลข 13 หลัก">
+                                            <div class="invalid-feedback">เลขบัตรประชาชนไม่ถูกต้อง หรือมีในระบบแล้ว</div>
                                         </div>
                                     </div>
 
@@ -267,8 +290,7 @@ if ($is_admin) {
                                             <select id="prefix_th_select" name="prefix_id" class="form-select" required onchange="updateEngPrefix()">
                                                 <option value="">เลือก</option>
                                                 <?php foreach ($prefixes as $p): ?>
-                                                    <option value="<?= $p['prefix_id'] ?>" 
-                                                            data-en="<?= $has_prefix_en ? htmlspecialchars($p['prefix_en']) : '' ?>">
+                                                    <option value="<?= $p['prefix_id'] ?>" data-en="<?= $has_prefix_en ? htmlspecialchars($p['prefix_en']) : '' ?>">
                                                         <?= $p['prefix_th'] ?>
                                                     </option>
                                                 <?php endforeach; ?>
@@ -304,7 +326,8 @@ if ($is_admin) {
                                     <div class="row g-3 mb-3">
                                         <div class="col-md-6">
                                             <label class="form-label">เบอร์โทรศัพท์ <span class="required-star">*</span></label>
-                                            <input type="tel" name="cs_phone_no" class="form-control" required maxlength="10">
+                                            <input type="tel" name="cs_phone_no" id="cs_phone_no" class="form-control" required maxlength="10">
+                                            <div class="invalid-feedback">รูปแบบเบอร์โทรไม่ถูกต้อง หรือซ้ำในระบบ</div>
                                         </div>
                                         <div class="col-md-6">
                                             <label class="form-label">Line ID</label>
@@ -314,28 +337,44 @@ if ($is_admin) {
                                     
                                     <div class="row g-3 mb-3">
                                         <div class="col-md-12">
-                                            <label class="form-label">Email</label>
-                                            <input type="email" name="cs_email" class="form-control">
+                                            <label class="form-label">Email <small class="text-muted">(หากกรอกจะต้องยืนยัน OTP)</small></label>
+                                            <div class="input-group">
+                                                <input type="email" name="cs_email" id="cs_email" class="form-control" placeholder="example@mail.com">
+                                                <button type="button" id="btnSendOTP" class="btn btn-outline-success" style="display:none;"><i class="fas fa-paper-plane me-1"></i> ส่ง OTP</button>
+                                            </div>
+                                        </div>
+                                        <div id="otpBox" class="col-md-6 offset-md-6 mt-2" style="display:none;">
+                                            <div class="p-3 bg-white border rounded shadow-sm">
+                                                <label class="small fw-bold text-success mb-2">กรอกรหัส OTP 6 หลักที่ได้รับในอีเมล</label>
+                                                <div class="input-group">
+                                                    <input type="text" id="otp_code" class="form-control" maxlength="6" placeholder="******">
+                                                    <button type="button" id="btnVerifyOTP" class="btn btn-success">ยืนยันรหัส</button>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
                                     <div class="form-section-title"><i class="fas fa-map-marker-alt"></i> ข้อมูลที่อยู่</div>
                                     
-                                    <div class="row g-3 mb-3">
-                                        <div class="col-md-6"><label class="form-label">บ้านเลขที่</label><input type="text" name="home_no" class="form-control"></div>
-                                        <div class="col-md-6"><label class="form-label">หมู่ที่</label><input type="text" name="moo" class="form-control"></div>
+                                    <button type="button" class="collapse-btn mb-3" onclick="toggleAddress()">
+                                        <i class="fas fa-chevron-down me-2" id="addressIcon"></i> กรอกข้อมูลบ้านเลขที่, หมู่, ซอย, ถนน, หมู่บ้าน (คลิกเพื่อขยาย)
+                                    </button>
+                                    
+                                    <div id="extraAddress" style="display:none;" class="p-3 mb-3 bg-white border rounded shadow-sm">
+                                        <div class="row g-3">
+                                            <div class="col-md-6"><label class="form-label">บ้านเลขที่</label><input type="text" name="home_no" class="form-control"></div>
+                                            <div class="col-md-6"><label class="form-label">หมู่ที่</label><input type="text" name="moo" class="form-control"></div>
+                                        </div>
+                                        <div class="row g-3 mt-1">
+                                            <div class="col-md-6"><label class="form-label">ซอย</label><input type="text" name="soi" class="form-control"></div>
+                                            <div class="col-md-6"><label class="form-label">ถนน</label><input type="text" name="road" class="form-control"></div>
+                                        </div>
+                                        <div class="row g-3 mt-1">
+                                            <div class="col-md-12"><label class="form-label">หมู่บ้าน/อาคาร</label><input type="text" name="village" class="form-control"></div>
+                                        </div>
                                     </div>
 
-                                    <div class="row g-3 mb-3">
-                                        <div class="col-md-6"><label class="form-label">ซอย</label><input type="text" name="soi" class="form-control"></div>
-                                        <div class="col-md-6"><label class="form-label">ถนน</label><input type="text" name="road" class="form-control"></div>
-                                    </div>
-
-                                    <div class="row g-3 mb-3">
-                                        <div class="col-md-12"><label class="form-label">หมู่บ้าน/อาคาร</label><input type="text" name="village" class="form-control"></div>
-                                    </div>
-
-                                    <div class="row g-3 mb-3">
+                                    <div class="row g-3 mb-3 mt-2">
                                         <div class="col-md-6">
                                             <label class="form-label">จังหวัด <span class="required-star">*</span></label>
                                             <select id="province" class="form-select" required onchange="loadDistricts(this.value)"><option value="">-- เลือกจังหวัด --</option></select>
@@ -346,7 +385,7 @@ if ($is_admin) {
                                         </div>
                                     </div>
 
-                                    <div class="row g-3 mb-3">
+                                    <div class="row g-3 mb-4">
                                         <div class="col-md-6">
                                             <label class="form-label">ตำบล/แขวง <span class="required-star">*</span></label>
                                             <select id="subdistrict" name="subdistrict_id" class="form-select" required onchange="updateZipcode(this)" disabled><option value="">-- เลือกตำบล --</option></select>
@@ -358,7 +397,7 @@ if ($is_admin) {
                                     </div>
 
                                     <div class="text-center mt-5">
-                                        <button type="submit" class="btn btn-success btn-lg px-5 shadow-sm rounded-pill"><i class="fas fa-save me-2"></i> บันทึกข้อมูลลูกค้า</button>
+                                        <button type="submit" class="btn btn-success btn-lg px-5 shadow rounded-pill"><i class="fas fa-save me-2"></i> บันทึกข้อมูลลูกค้า</button>
                                     </div>
                                 </form>
                             </div>
@@ -369,44 +408,153 @@ if ($is_admin) {
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <script>
-        (function() {
-            'use strict'
-            var forms = document.querySelectorAll('.needs-validation')
-            Array.prototype.slice.call(forms).forEach(function(form) {
-                form.addEventListener('submit', function(event) {
-                    if (!form.checkValidity()) { event.preventDefault(); event.stopPropagation(); }
-                    form.classList.add('was-validated')
-                }, false)
-            })
-        })()
+        // ---------------------------------------------------------------------
+        // 1. Validation Logic & Restrictions
+        // ---------------------------------------------------------------------
+        let isEmailVerified = true; // เริ่มต้นให้ true เผื่อกรณีลูกค้าไม่ได้กรอกอีเมล
 
-        // 2. ตรวจเช็คภาษา (Validation)
+        // จำกัดภาษาการพิมพ์
         document.querySelectorAll('.input-thai').forEach(el => {
-            el.addEventListener('input', function() {
-                // อนุญาต: ก-๙, สระ, วรรณยุกต์ และ ช่องว่าง
-                this.value = this.value.replace(/[^ก-๙\s]/g, '');
-            });
+            el.addEventListener('input', function() { this.value = this.value.replace(/[^ก-๙\s]/g, ''); });
         });
-
         document.querySelectorAll('.input-eng').forEach(el => {
-            el.addEventListener('input', function() {
-                // อนุญาต: A-Z, a-z, และ ช่องว่าง
-                this.value = this.value.replace(/[^a-zA-Z\s]/g, '');
+            el.addEventListener('input', function() { this.value = this.value.replace(/[^a-zA-Z\s]/g, ''); });
+        });
+        $('#cs_phone_no, #cs_national_id').on('input', function() { 
+            this.value = this.value.replace(/[^0-9]/g, ''); 
+        });
+
+        // ฟังก์ชันคำนวณ Checksum บัตรประชาชนไทย
+        function validateThaiID(id) {
+            if (id.length !== 13) return false;
+            let sum = 0;
+            for (let i = 0; i < 12; i++) sum += parseInt(id.charAt(i)) * (13 - i);
+            let check = (11 - (sum % 11)) % 10;
+            return check === parseInt(id.charAt(12));
+        }
+
+        // ---------------------------------------------------------------------
+        // 2. AJAX Duplicate Checks (Real-time)
+        // ---------------------------------------------------------------------
+        
+        // ตรวจสอบเลขบัตร ปชช.
+        $('#cs_national_id').on('blur', function() {
+            const id = $(this).val();
+            if(!id) return;
+            if(!validateThaiID(id)) {
+                $(this).addClass('is-invalid').removeClass('is-valid');
+                Swal.fire('รูปแบบผิดพลาด', 'เลขบัตรประชาชนไม่ถูกต้องตามสูตรคำนวณ', 'error');
+                return;
+            }
+            $.post('check_duplicate.php', { type: 'customer_national_id', value: id }, function(res) {
+                if(res.exists) {
+                    $('#cs_national_id').addClass('is-invalid').removeClass('is-valid');
+                    Swal.fire('ข้อมูลซ้ำ', 'เลขบัตรประชาชนนี้มีลูกค้าใช้งานแล้ว', 'warning');
+                } else {
+                    $('#cs_national_id').removeClass('is-invalid').addClass('is-valid');
+                }
             });
         });
 
-        // 4. อัปเดตคำนำหน้าภาษาอังกฤษ
+        // ตรวจสอบเบอร์โทร
+        $('#cs_phone_no').on('blur', function() {
+            const phone = $(this).val();
+            if(!phone) return;
+            if(!/^(06|08|09)\d{8}$/.test(phone)) {
+                $(this).addClass('is-invalid').removeClass('is-valid');
+                Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ต้องเป็น 10 หลัก (06, 08, 09)', 'error');
+                return;
+            }
+            $.post('check_duplicate.php', { type: 'customer_phone', value: phone }, function(res) {
+                if(res.exists) {
+                    $('#cs_phone_no').addClass('is-invalid').removeClass('is-valid');
+                    Swal.fire('ข้อมูลซ้ำ', 'เบอร์โทรศัพท์นี้มีลูกค้าใช้งานแล้ว', 'warning');
+                } else {
+                    $('#cs_phone_no').removeClass('is-invalid').addClass('is-valid');
+                }
+            });
+        });
+
+        // ---------------------------------------------------------------------
+        // 3. Email OTP Logic
+        // ---------------------------------------------------------------------
+        $('#cs_email').on('input', function() {
+            const email = $(this).val();
+            if(email.length > 0) {
+                $('#btnSendOTP').fadeIn();
+                isEmailVerified = false; // ถ้ากรอกเมล ต้องบังคับ Verify
+            } else {
+                $('#btnSendOTP').fadeOut();
+                $('#otpBox').fadeOut();
+                isEmailVerified = true; // ลบเมลออก ไม่ต้อง Verify แล้ว
+            }
+            $(this).removeClass('is-valid is-invalid');
+        });
+
+        $('#btnSendOTP').click(function() {
+            const email = $('#cs_email').val();
+            if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return Swal.fire('ผิดพลาด', 'รูปแบบอีเมลไม่ถูกต้อง', 'error');
+            
+            $(this).prop('disabled', true).text('กำลังส่ง...');
+            fetch('send_otp.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ emp_email: email }) // ใช้ key ตามไฟล์ send_otp.php เดิม
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    Swal.fire('สำเร็จ', 'ส่งรหัส OTP ไปที่อีเมลแล้ว', 'success');
+                    $('#otpBox').fadeIn();
+                } else Swal.fire('ผิดพลาด', data.message, 'error');
+            }).finally(() => $('#btnSendOTP').prop('disabled', false).html('<i class="fas fa-paper-plane me-1"></i> ส่ง OTP'));
+        });
+
+        $('#btnVerifyOTP').click(function() {
+            const otp = $('#otp_code').val();
+            if(otp.length !== 6) return Swal.fire('แจ้งเตือน', 'กรุณากรอก OTP 6 หลัก', 'warning');
+
+            fetch('verify_otp.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ otp: otp })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if(data.status === 'success') {
+                    Swal.fire('สำเร็จ', 'ยืนยันอีเมลสำเร็จ', 'success');
+                    isEmailVerified = true;
+                    $('#otpBox').fadeOut();
+                    $('#btnSendOTP').fadeOut();
+                    $('#cs_email').addClass('is-valid').prop('readonly', true);
+                } else Swal.fire('ผิดพลาด', data.message, 'error');
+            });
+        });
+
+        // ---------------------------------------------------------------------
+        // 4. UI Toggle & Address Loaders
+        // ---------------------------------------------------------------------
+        
+        // พับ/ขยาย ที่อยู่ย่อย
+        function toggleAddress() {
+            $('#extraAddress').slideToggle();
+            $('#addressIcon').toggleClass('fa-chevron-down fa-chevron-up');
+        }
+
+        // อัปเดต Prefix ภาษาอังกฤษ
         function updateEngPrefix() {
             const thSelect = document.getElementById('prefix_th_select');
             const enInput = document.getElementById('prefix_en_display');
-            const selectedOption = thSelect.options[thSelect.selectedIndex];
-            // ดึงค่าจาก data-en ที่ฝังไว้
-            enInput.value = selectedOption.getAttribute('data-en') || '';
+            const selectedOpt = thSelect.options[thSelect.selectedIndex];
+            enInput.value = selectedOpt.getAttribute('data-en') || '';
         }
 
-        // AJAX Functions
+        // ดึงข้อมูลที่อยู่ AJAX
         window.onload = function() { fetchData('get_provinces', 0, 'province'); }
 
         function fetchData(action, id, targetId) {
@@ -451,6 +599,25 @@ if ($is_admin) {
         function loadDistricts(id) { if(id) fetchData('get_districts', id, 'district'); }
         function loadSubdistricts(id) { if(id) fetchData('get_subdistricts', id, 'subdistrict'); }
         function updateZipcode(el) { document.getElementById('zipcode').value = el.options[el.selectedIndex].dataset.zip || ''; }
+
+        // ---------------------------------------------------------------------
+        // 5. Form Submission Intercept
+        // ---------------------------------------------------------------------
+        $('#addCustomerForm').on('submit', function(e) {
+            // เช็คว่าถ้ามี error แดงๆ อยู่ ห้ามกดผ่าน
+            if($('.is-invalid').length > 0) {
+                e.preventDefault();
+                Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาแก้ไขข้อมูลที่มีขอบสีแดงให้ถูกต้อง', 'error');
+                return;
+            }
+
+            // เช็ค OTP ถ้ากรอกอีเมลแต่ยังไม่ Verify
+            if(!isEmailVerified) {
+                e.preventDefault();
+                Swal.fire('รอสักครู่', 'กรุณายืนยันรหัส OTP สำหรับอีเมลก่อนทำการบันทึก', 'warning');
+                return;
+            }
+        });
     </script>
 </body>
 </html>
