@@ -9,7 +9,7 @@ checkPageAccess($conn, 'report_repairs');
 $current_user_id = $_SESSION['user_id'];
 $current_branch_id = $_SESSION['branch_id'];
 
-// --- 1. ตรวจสอบสถานะ Admin ---
+// --- ตรวจสอบสถานะ Admin ---
 $is_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
             JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -21,7 +21,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// --- 2. รับค่าตัวกรอง ---
+// --- รับค่าตัวกรอง ---
 $report_type = $_GET['report_type'] ?? 'employee';
 $start_date_raw = $_GET['start_date'] ?? date('Y-m-01');
 $end_date_raw = $_GET['end_date'] ?? date('Y-m-d');
@@ -56,7 +56,7 @@ if ($is_admin) {
     $shop_name_display = $br_info['shop_name'];
 }
 
-// --- 3. ดึงข้อมูลรายงาน (Repair) ---
+// --- ดึงข้อมูลรายงาน (Repair) ---
 $data = [];
 $summary = ['total_sales' => 0, 'total_items' => 0, 'count_bill' => 0];
 $filter_condition_text = "ทั้งหมด";

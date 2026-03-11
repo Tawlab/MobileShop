@@ -1,16 +1,15 @@
 <?php
-// --- delete_employee.php ---
 session_start();
 require '../config/config.php';
 header('Content-Type: application/json');
 
-// 1. ตรวจสอบการเข้าสู่ระบบ
+// ตรวจสอบการเข้าสู่ระบบ
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['status' => 'error', 'message' => 'กรุณาเข้าสู่ระบบก่อนทำรายการ']);
     exit;
 }
 
-// 2. รับค่า ID (รองรับทั้งแบบ POST และ GET เพื่อป้องกันข้อผิดพลาดที่เคยเจอ)
+// รับค่า ID (รองรับทั้งแบบ POST และ GET )
 $emp_id = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
 
 if ($emp_id <= 0) {
@@ -21,7 +20,7 @@ if ($emp_id <= 0) {
 $current_user_id = $_SESSION['user_id'];
 
 try {
-    // 3. ดึงข้อมูลพนักงานเพื่อตรวจสอบก่อนลบ
+    // ดึงข้อมูลพนักงานเพื่อตรวจสอบก่อนลบ
     $sql_get = "SELECT users_user_id, Addresses_address_id, emp_image, firstname_th FROM employees WHERE emp_id = ?";
     $stmt_get = $conn->prepare($sql_get);
     $stmt_get->bind_param("i", $emp_id);
@@ -39,13 +38,13 @@ try {
     $emp_name = $row['firstname_th'];
     $stmt_get->close();
 
-    // 4. ตรวจสอบ: ห้ามลบข้อมูลของตัวเอง [เงื่อนไขเพิ่มเติม]
+    // ห้ามลบข้อมูลของตัวเอง
     if ($target_user_id == $current_user_id) {
         echo json_encode(['status' => 'warning', 'message' => 'คุณไม่สามารถลบบัญชีของตัวเองที่กำลังใช้งานอยู่ได้']);
         exit;
     }
 
-    // 5. ตรวจสอบ: มีประวัติการทำรายการหรือไม่ (รวมจาก check_employee_deletable)
+    // มีประวัติการทำรายการหรือไม่
     $sql_check = "SELECT (SELECT COUNT(*) FROM bill_headers WHERE employees_emp_id = ?) as bill_count,
                         (SELECT COUNT(*) FROM repairs WHERE employees_emp_id = ? OR assigned_employee_id = ?) as repair_count";
     $stmt_check = $conn->prepare($sql_check);
@@ -62,7 +61,7 @@ try {
         exit;
     }
 
-    // 6. เริ่มกระบวนการลบ (Transaction)
+    // เริ่มกระบวนการลบ (Transaction)
     $conn->begin_transaction();
 
     // ลบสิทธิ์การใช้งาน (User Roles)
@@ -93,7 +92,7 @@ try {
 
     $conn->commit();
 
-    // 7. ลบไฟล์รูปภาพ
+    // ลบไฟล์รูปภาพ
     if (!empty($image_path)) {
         $full_path = "../uploads/employees/" . $image_path;
         if (file_exists($full_path)) { @unlink($full_path); }

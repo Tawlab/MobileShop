@@ -27,7 +27,7 @@ $vat_amount = $subtotal * ($bill['vat'] / 100);
 $grand_total = $subtotal + $vat_amount - $bill['discount'];
 if ($grand_total < 0) $grand_total = 0;
 
-// 4. ดึงเบอร์ PromptPay จากร้านค้า
+// ดึงเบอร์ PromptPay จากร้านค้า
 $shop_sql = "SELECT promptpay_number, shop_name FROM shop_info LIMIT 1";
 $shop_res = mysqli_query($conn, $shop_sql);
 $shop_info = mysqli_fetch_assoc($shop_res);

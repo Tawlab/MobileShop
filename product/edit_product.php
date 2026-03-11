@@ -26,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $prod_desc = trim($_POST['prod_desc']);
     $prod_price = (float)$_POST['prod_price'];
 
-    // (5) ตรวจสอบข้อมูล
+    // ตรวจสอบข้อมูล
     $errors = [];
     if (empty($new_prod_id)) $errors[] = "กรุณากรอกรหัสสินค้า";
     if (empty($prod_name)) $errors[] = "กรุณากรอกชื่อสินค้า";

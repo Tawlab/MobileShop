@@ -3,32 +3,30 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_employee');
 
-// --- ฟังก์ชัน Hash รหัสผ่าน ---
+// ฟังก์ชัน Hash รหัสผ่าน
 function hashPassword($password)
 {
     return password_hash($password, PASSWORD_DEFAULT);
 }
 
-// --- ส่วนดึงข้อมูล (GET) และตั้งค่า ---
+// ส่วนดึงข้อมูล (GET) และตั้งค่า
 $emp_id = (int)($_GET['id'] ?? 0);
 if ($emp_id === 0) {
     die("ไม่พบ ID พนักงานที่ต้องการแก้ไข");
 }
 
-// --- ตัวแปรสำหรับเก็บข้อมูล ---
+// ตัวแปรสำหรับเก็บข้อมูล
 $emp_data = null;
-$form_data = []; // --- สำหรับเก็บค่าถ้ามี Error ---
+$form_data = []; // สำหรับเก็บค่าถ้ามี Error 
 $errors_to_display = [];
 
-// ==================================================================================
-// 1. ส่วนดึงข้อมูล Dropdowns (แก้ไขใหม่: กรองตามสิทธิ์ Admin/User)
-// ==================================================================================
+// ส่วนดึงข้อมูล Dropdowns (กรองตามสิทธิ์ Admin/User)
 
 $current_user_id = $_SESSION['user_id'];
 $is_admin = false;
 $current_branch_id = 0;
 
-// 1.1 ตรวจสอบสิทธิ์ Admin
+// ตรวจสอบสิทธิ์ Admin
 $chk_admin_sql = "SELECT r.role_name FROM roles r 
                   JOIN user_roles ur ON r.role_id = ur.roles_role_id 
                   WHERE ur.users_user_id = ? AND r.role_name = 'Admin'";
@@ -39,7 +37,7 @@ if ($stmt_a = $conn->prepare($chk_admin_sql)) {
     $stmt_a->close();
 }
 
-// 1.2 หา Branch ID ของ User ที่ Login (ถ้าไม่ใช่ Admin)
+// หา Branch ID ของ User ที่ Login (ถ้าไม่ใช่ Admin)
 if (!$is_admin) {
     $stmt_b = $conn->prepare("SELECT branches_branch_id FROM employees WHERE users_user_id = ?");
     $stmt_b->bind_param("i", $current_user_id);
@@ -51,22 +49,22 @@ if (!$is_admin) {
     $stmt_b->close();
 }
 
-// 1.3 สร้าง SQL Query สำหรับ Department และ Branch ตามสิทธิ์
+// สร้าง Query สำหรับ Department และ Branch ตามสิทธิ์
 if ($is_admin) {
     // Admin: เห็นทั้งหมด
     $dept_sql = "SELECT dept_id, dept_name FROM departments ORDER BY dept_name";
     $branch_sql = "SELECT branch_id, branch_name FROM branches ORDER BY branch_name";
 } else {
-    // User ทั่วไป: เห็นเฉพาะของสาขาตัวเอง (ต้องมีคอลัมน์ branches_branch_id ในตาราง departments)
+    // User ทั่วไป: เห็นเฉพาะของสาขาตัวเอง
     $dept_sql = "SELECT dept_id, dept_name FROM departments WHERE branches_branch_id = '$current_branch_id' ORDER BY dept_name";
     $branch_sql = "SELECT branch_id, branch_name FROM branches WHERE branch_id = '$current_branch_id' ORDER BY branch_name";
 }
 
-// 1.4 รัน Query Dropdowns ที่ต้องใช้ Logic
+// รัน Query Dropdowns ที่ต้องใช้ 
 $department_result = mysqli_query($conn, $dept_sql);
 $branch_result = mysqli_query($conn, $branch_sql);
 
-// 1.5 รัน Query Dropdowns อื่นๆ (Static Data)
+// รัน Query Dropdowns อื่นๆ
 $prefix_result = mysqli_query($conn, "SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1 ORDER BY prefix_th");
 $religion_result = mysqli_query($conn, "SELECT religion_id, religion_name_th FROM religions WHERE is_active = 1 ORDER BY religion_id");
 $role_result = mysqli_query($conn, "SELECT role_id, role_name FROM roles ORDER BY role_name");
@@ -75,12 +73,10 @@ $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th, p
 $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_name_th, zip_code, districts_district_id FROM subdistricts ORDER BY subdistrict_name_th");
 
 
-// ==================================================================================
-// 2. ส่วนอัปเดตข้อมูล (POST)
-// ==================================================================================
+// ส่วนอัปเดตข้อมูล (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // --- ตรวจสอบว่า ID ที่ส่งมาตรงกัน ---
+    // ตรวจสอบว่า ID ที่ส่งมาตรงกัน
     $post_emp_id = (int)$_POST['emp_id'];
     if ($post_emp_id !== $emp_id) {
         die("ID ไม่ตรงกัน!");
@@ -122,7 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $address_id = (int)$_POST['address_id'];
     $existing_image = trim($_POST['existing_image']);
 
-    // --- ตรวจสอบข้อมูล (Validation) ---
+    // --- ตรวจสอบข้อมูล  ---
     $errors = [];
     if (empty($emp_code)) $errors[] = "กรุณากรอกรหัสพนักงาน";
     if (empty($emp_national_id)) $errors[] = "กรุณากรอกเลขบัตรประชาชน";
@@ -289,9 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         exit();
     }
 } else {
-    // ==================================================================================
-    // 3. ส่วนดึงข้อมูล (GET) เพื่อแสดงในฟอร์ม (Form Fetching)
-    // ==================================================================================
+    // ส่วนดึงข้อมูล เพื่อแสดงในฟอร์ม 
 
     if (isset($_SESSION['form_data'])) {
         // กรณี Redirect กลับมาเพราะ Error
@@ -314,7 +308,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $sql_get_ids->close();
         }
     } else {
-        // กรณีเปิดหน้าครั้งแรก (Load from DB)
+        // กรณีเปิดหน้าครั้งแรก
         $sql_get = "
             SELECT
                 e.*, 
@@ -874,7 +868,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // ถ้าไม่ได้กรอกอะไรเลย ไม่ต้องแจ้งเตือน
                 if (id === "") return;
 
-                // 1. ตรวจสอบรูปแบบ Checksum ด้วย JavaScript
+                // ตรวจสอบรูปแบบ Checksum ด้วย JavaScript
                 if (!validateThaiID(id)) {
                     input.addClass('is-invalid').removeClass('is-valid');
 
@@ -888,7 +882,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return;
                 }
 
-                // 2. ถ้าสูตรผ่าน ยิง AJAX ไปเช็คข้อมูลซ้ำในฐานข้อมูล
+                // ถ้าสูตรผ่าน ยิง AJAX ไปเช็คข้อมูลซ้ำในฐานข้อมูล
                 $.ajax({
                     url: 'check_duplicate.php',
                     method: 'POST',
@@ -936,10 +930,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const currentEmpId = $('input[name="emp_id"]').val();
                 const input = $(this);
 
-                // 1. ถ้าว่างเปล่า ไม่ต้องตรวจสอบ
+                // ถ้าว่างเปล่า ไม่ต้องตรวจสอบ
                 if (phone === "") return;
 
-                // 2. ตรวจสอบรูปแบบ Regex (06, 08, 09 ตามด้วยตัวเลข 8 หลัก)
+                // ตรวจสอบรูปแบบ Regex (06, 08, 09 ตามด้วยตัวเลข 8 หลัก)
                 const phonePattern = /^(06|08|09)\d{8}$/;
                 if (!phonePattern.test(phone)) {
                     input.addClass('is-invalid').removeClass('is-valid');
@@ -952,7 +946,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     return;
                 }
 
-                // 3. ถ้าผ่าน Regex ให้ยิง AJAX ไปเช็คความซ้ำในฐานข้อมูล
+                // ถ้าผ่าน Regex ให้ยิง AJAX ไปเช็คความซ้ำในฐานข้อมูล
                 $.ajax({
                     url: 'check_duplicate.php',
                     method: 'POST',
@@ -997,7 +991,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const btnSend = $('#btnSendOTP');
                 const saveBtn = $('button[type="submit"]'); // ปุ่มบันทึกหลักของฟอร์ม
 
-                // 1. ตรวจสอบว่าอีเมลเปลี่ยนจากเดิมหรือไม่
+                // ตรวจสอบว่าอีเมลเปลี่ยนจากเดิมหรือไม่
                 if (currentEmail !== originalEmail && currentEmail !== "") {
                     btnSend.fadeIn();
                     isEmailVerified = false;
@@ -1015,7 +1009,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
-            // ส่วนส่ง OTP (AJAX + SweetAlert2)
+            // ส่วนส่ง OTP
             $('#btnSendOTP').on('click', function() {
                 const email = $('#emp_email').val();
                 const btn = $(this);

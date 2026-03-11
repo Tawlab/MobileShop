@@ -57,7 +57,7 @@ function handleBatchImageUpload($file_key_name) {
     return NULL;
 }
 
-// --- AJAX Handler: Check Serial ---
+// --- AJAX Check Serial ---
 if (isset($_POST['action']) && $_POST['action'] == 'check_serial') {
     header('Content-Type: application/json');
     $serial = mysqli_real_escape_string($conn, $_POST['serial_no']);
@@ -65,7 +65,7 @@ if (isset($_POST['action']) && $_POST['action'] == 'check_serial') {
     exit;
 }
 
-// --- POST Handler: Save Receive ---
+// --- POST  Save Receive ---
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['po_id']) && !isset($_POST['action'])) {
     header('Content-Type: application/json'); // บังคับส่ง JSON กลับ
 

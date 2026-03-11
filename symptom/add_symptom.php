@@ -103,7 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
-        // SweetAlert แจ้งเตือน Error จาก PHP (เช่น ชื่อซ้ำ)
+        // SweetAlert แจ้งเตือน Error จาก PHP
         <?php if (isset($_SESSION['form_error'])): ?>
             Swal.fire({
                 icon: 'error',

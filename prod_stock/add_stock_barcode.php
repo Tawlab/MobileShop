@@ -31,7 +31,7 @@ $sql_prod = "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th
 $products = mysqli_query($conn, $sql_prod);
 
 // -----------------------------------------------------------------------------
-// HANDLE SAVE (บันทึกข้อมูล)
+// บันทึกข้อมูล
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
     $prod_id = (int)$_POST['product_id'];
@@ -347,7 +347,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_stock'])) {
             }
         }
 
-        // เพิ่มรายการลง Array และอัปเดตตาราง
+        // รายการลง Array และอัปเดตตาราง
         function addItem(serial) {
             const defaultPrice = document.getElementById('default_price').value || 0;
             scannedItems.push({

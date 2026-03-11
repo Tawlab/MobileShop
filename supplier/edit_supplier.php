@@ -7,7 +7,7 @@ checkPageAccess($conn, 'edit_supplier');
 
 $supplier_id = $_GET['id'] ?? '';
 
-// --- 1. AJAX HANDLER (จัดการรีเควสจาก JS เพื่อโหลดตำแหน่งที่ตั้ง) ---
+// --- AJAX HANDLER (จัดการรีเควสจาก JS เพื่อโหลดตำแหน่งที่ตั้ง) ---
 if (isset($_POST['action'])) {
     ob_end_clean(); 
     header('Content-Type: application/json; charset=utf-8');
@@ -38,7 +38,7 @@ if (empty($supplier_id)) {
     exit();
 }
 
-// --- 2. QUERY ข้อมูลเดิม ---
+// --- QUERY ข้อมูลเดิม ---
 $sql_data = "SELECT s.*, 
                 a.address_id, a.home_no, a.moo, a.soi, a.road, a.village,
                 a.subdistricts_subdistrict_id,
@@ -63,7 +63,7 @@ if (!$data) {
     exit();
 }
 
-// --- 3. เตรียมข้อมูล Dropdown (Province, District, Subdistrict) ---
+// --- เตรียมข้อมูล Dropdown (Province, District, Subdistrict) ---
 $provinces_result = $conn->query("SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 
 $districts_options = [];
@@ -80,7 +80,7 @@ if (!empty($data['districts_district_id'])) {
 
 $prefix_result = $conn->query("SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1 ORDER BY prefix_th");
 
-// --- 4. HANDLE FORM SUBMIT (บันทึกแก้ไข) ---
+// --- HANDLE FORM SUBMIT (บันทึกแก้ไข) ---
 $error_message = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
     
@@ -335,7 +335,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         $(document).ready(function() {
             $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
 
-            // 1. Validation กรองข้อมูลการพิมพ์
+            // Validation กรองข้อมูลการพิมพ์
             document.querySelectorAll('.input-thai-eng').forEach(el => {
                 el.addEventListener('input', function() { this.value = this.value.replace(/[^ก-๙a-zA-Z\s]/g, ''); });
             });
@@ -351,7 +351,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 return check === parseInt(id.charAt(12));
             }
 
-            // 2. AJAX Check Duplicate: เลขผู้เสียภาษี
+            // AJAX Check Duplicate: เลขผู้เสียภาษี
             $('#tax_id').on('blur', function() {
                 const id = $(this).val();
                 const origId = $(this).data('orig');
@@ -401,7 +401,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 });
             });
 
-            // 3. Email OTP
+            // Email OTP
             $('#supplier_email').on('input', function() {
                 const email = $(this).val();
                 const origEmail = $(this).data('orig');
@@ -461,7 +461,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 });
             });
 
-            // 4. Cascading Location (โหลดอำเภอ ตำบล แบบเชื่อมโยง)
+            // Cascading Location (โหลดอำเภอ ตำบล แบบเชื่อมโยง)
             $('#provinceSelect').on('change', function() {
                 const id = $(this).val();
                 const $dist = $('#districtSelect');
@@ -498,7 +498,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 $('#zipcodeField').val(zip || '');
             });
 
-            // 5. Submit Intercept (ป้องกันการเซฟถ้าข้อมูลพัง หรือลืม OTP)
+            // Submit Intercept (ป้องกันการเซฟถ้าข้อมูลพัง หรือลืม OTP)
             $('#editSupplierForm').on('submit', function(e) {
                 if($('.is-invalid').length > 0) {
                     e.preventDefault();

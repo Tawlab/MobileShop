@@ -65,7 +65,7 @@ $stmt_role = $conn->prepare($sql_role);
 $stmt_role->bind_param("i", $user_id);
 $stmt_role->execute();
 $role_result = $stmt_role->get_result()->fetch_assoc();
-$user_role_name = strtolower($role_result['role_name'] ?? 'user'); // แปลงเป็นตัวพิมพ์เล็กเพื่อความชัวร์
+$user_role_name = strtolower($role_result['role_name'] ?? 'user'); // แปลงเป็นตัวพิมพ์เล็ก
 $stmt_role->close();
 
 if (!$user_data) {
@@ -147,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             $stmt_emp->close();
 
             // ---------------------------------------------------------
-            // จัดการอัปโหลดรูปโปรไฟล์ (อนุญาตเฉพาะคนที่ไม่ใช่บทบาท 'user')
+            // จัดการอัปโหลดรูปโปรไฟล์
             // ---------------------------------------------------------
             if ($user_role_name !== 'user') {
                 // เช็คว่ามีการแนบไฟล์มา และไม่มี Error
@@ -185,7 +185,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                     }
                 }
             }
-            // ---------------------------------------------------------
 
             mysqli_commit($conn);
             unset($_SESSION['email_verified']); // ล้างสถานะการยืนยัน
@@ -588,7 +587,7 @@ if ($user_data['district_id']) {
 
         $(document).ready(function() {
 
-            // 1. ควบคุมภาษาที่พิมพ์
+            // ควบคุมภาษาที่พิมพ์
             document.querySelectorAll('.input-thai').forEach(el => {
                 el.addEventListener('input', function() {
                     this.value = this.value.replace(/[^ก-๙\s]/g, '');
@@ -612,7 +611,7 @@ if ($user_data['district_id']) {
                 return check === parseInt(id.charAt(12));
             }
 
-            // 2. AJAX Check Duplicate บัตร ปชช.
+            // AJAX Check Duplicate บัตร ปชช.
             $('#emp_national_id').on('blur', function() {
                 const id = $(this).val();
                 const origId = $(this).data('orig');
@@ -640,7 +639,7 @@ if ($user_data['district_id']) {
                 });
             });
 
-            // 3. AJAX Check Duplicate เบอร์โทร
+            // AJAX Check Duplicate เบอร์โทร
             $('#emp_phone_no').on('blur', function() {
                 const phone = $(this).val();
                 const origPhone = $(this).data('orig');
@@ -667,7 +666,7 @@ if ($user_data['district_id']) {
                 });
             });
 
-            // 4. ระบบ OTP อีเมล
+            // ระบบ OTP อีเมล
             $('#emp_email').on('input', function() {
                 const email = $(this).val();
                 const origEmail = $(this).data('orig');
@@ -735,7 +734,7 @@ if ($user_data['district_id']) {
                     });
             });
 
-            // 5. ป้องกันการ Submit หากข้อมูลพังหรือไม่ได้ยืนยัน OTP
+            // ป้องกันการ Submit หากข้อมูลพังหรือไม่ได้ยืนยัน OTP
             $('#profileForm').on('submit', function(e) {
                 if ($('.is-invalid').length > 0) {
                     e.preventDefault();

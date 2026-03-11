@@ -1,5 +1,4 @@
 <?php
-// send_otp.php
 session_start();
 require '../config/config.php'; // ดึงไฟล์เชื่อมต่อฐานข้อมูล
 
@@ -17,7 +16,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-// --- 1. ดึงข้อมูลอีเมลจากร้านค้าส่วนกลาง (Admin: shop_id = 0) ---
+// --- ดึงข้อมูลอีเมลจากร้านค้าส่วนกลาง (Admin: shop_id = 0) ---
 $shop_id = 0; // บังคับใช้บัญชีส่วนกลางเสมอ
 $stmt_shop = $conn->prepare("SELECT shop_name, shop_email, shop_app_password FROM shop_info WHERE shop_id = ?");
 $stmt_shop->bind_param("i", $shop_id);
@@ -31,13 +30,13 @@ if (!$shop_info || empty($shop_info['shop_email']) || empty($shop_info['shop_app
     exit;
 }
 
-// --- 2. สร้างรหัส OTP และเก็บลง Session ---
+// --- สร้างรหัส OTP และเก็บลง Session ---
 $otp = sprintf("%06d", mt_rand(1, 999999)); // สุ่มเลข 6 หลัก
 $_SESSION['otp_code'] = $otp;
 $_SESSION['otp_expires'] = time() + (5 * 60); // ตั้งเวลาหมดอายุ 5 นาที (300 วินาที)
 
-// --- 3. ตั้งค่าการส่งอีเมลด้วย PHPMailer ---
-// โหลดไลบรารี PHPMailer (ตรวจสอบ path ให้ตรงกับโฟลเดอร์ vendor ของคุณ)
+// --- ตั้งค่าการส่งอีเมลด้วย PHPMailer ---
+// โหลดไลบรารี PHPMailer
 require '../vendor/autoload.php'; 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
@@ -45,7 +44,7 @@ use PHPMailer\PHPMailer\Exception;
 $mail = new PHPMailer(true);
 
 try {
-    // การตั้งค่าเซิร์ฟเวอร์ SMTP (ตัวอย่างนี้ใช้ของ Gmail)
+    // การตั้งค่าเซิร์ฟเวอร์ SMTP 
     $mail->isSMTP();
     $mail->Host = 'smtp.gmail.com'; 
     $mail->SMTPAuth = true;
@@ -83,7 +82,6 @@ try {
     $mail->send();
     
     // สำเร็จ: ส่ง status กลับไปหาฝั่ง JavaScript
-    // (ใส่คีย์ 'debug_otp' กลับมาด้วยเพื่อให้ดูผ่าน F12 > Network ได้ง่ายๆ เวลาทดสอบระบบ)
     echo json_encode(['status' => 'success', 'message' => 'ส่ง OTP สำเร็จ', 'debug_otp' => $otp]);
     
 } catch (Exception $e) {

@@ -1,5 +1,4 @@
 <?php
-// verify_otp.php
 session_start();
 
 // กำหนด Header ให้ระบบตอบกลับเป็น JSON
@@ -15,13 +14,13 @@ if (empty($user_otp)) {
     exit;
 }
 
-// 1. เช็คว่าเคยมีการกดส่ง OTP (จนเกิด Session) ไปหรือยัง
+// เช็คว่าเคยมีการกดส่ง OTP (จนเกิด Session) ไปหรือยัง
 if (!isset($_SESSION['otp_code'])) {
     echo json_encode(['status' => 'error', 'message' => 'ไม่พบข้อมูล OTP หรือรหัสถูกรีเซ็ตไปแล้ว กรุณากดส่งรหัสใหม่']);
     exit;
 }
 
-// 2. เช็คเวลาหมดอายุ (ที่เราตั้งไว้ 5 นาทีในหน้า send_otp.php)
+// เช็คเวลาหมดอายุ (ที่เราตั้งไว้ 5 นาทีในหน้า send_otp.php)
 if (time() > $_SESSION['otp_expires']) {
     unset($_SESSION['otp_code']);    // ลบทิ้งเมื่อหมดเวลา
     unset($_SESSION['otp_expires']); 
@@ -29,7 +28,7 @@ if (time() > $_SESSION['otp_expires']) {
     exit;
 }
 
-// 3. ตรวจสอบความถูกต้องของรหัส
+// ตรวจสอบความถูกต้องของรหัส
 if ($user_otp === (string)$_SESSION['otp_code']) {
     // ถ้ารหัสถูกต้อง
     $_SESSION['email_verified'] = true; // เซ็ตสถานะให้ระบบรู้ว่ายืนยันผ่านแล้ว จะได้ยอมให้กด Save ฟอร์มได้

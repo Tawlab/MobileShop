@@ -7,7 +7,7 @@ $current_user_id = $_SESSION['user_id'];
 $current_shop_id = $_SESSION['shop_id'];
 
 // -----------------------------------------------------------------------------
-// 1. จัดการ AJAX Request (สำหรับการบันทึกข้อมูล)
+// จัดการ AJAX Request (สำหรับการบันทึกข้อมูล)
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['action'] === 'update_po') {
     
@@ -38,7 +38,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 
         mysqli_autocommit($conn, false);
 
-        // 1. อัปเดต Header
+        // อัปเดต Header
         $sql_header = "UPDATE purchase_orders SET 
                         purchase_date = ?, 
                         suppliers_supplier_id = ?, 
@@ -53,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
         }
         $stmt_header->close();
 
-        // 2. จัดการรายการสินค้า (Items)
+        // จัดการรายการสินค้า (Items)
         
         // ดึง ID รายการเดิมที่มีใน DB เพื่อเปรียบเทียบการลบ
         $old_ids = [];
@@ -106,7 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
             }
         }
 
-        // 3. ลบรายการที่หายไป
+        // ลบรายการที่หายไป
         $ids_to_delete = array_diff($old_ids, $submitted_ids);
         foreach ($ids_to_delete as $del_id) {
             // เช็คก่อนลบว่าเคยรับของไหม
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action']) && $_POST['
 }
 
 // -----------------------------------------------------------------------------
-// 2. ส่วน View (HTML)
+// ส่วน HTML
 // -----------------------------------------------------------------------------
 
 // ตรวจสอบ ID
@@ -177,15 +177,15 @@ while ($row = mysqli_fetch_assoc($res_items)) {
 
 // --- โหลดข้อมูล Dropdown (ตามเงื่อนไขที่ขอ) ---
 
-// 1. Supplier: เฉพาะสาขาตัวเอง (สาขาของ PO)
+// Supplier: เฉพาะสาขาตัวเอง (สาขาของ PO)
 $sql_sup = "SELECT supplier_id, co_name FROM suppliers WHERE branches_branch_id = '$po_branch_id' ORDER BY co_name";
 $res_sup = mysqli_query($conn, $sql_sup);
 
-// 2. Employee: เฉพาะสาขาตัวเอง (สาขาของ PO)
+// เฉพาะสาขาตัวเอง (สาขาของ PO)
 $sql_emp = "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE branches_branch_id = '$po_branch_id' AND emp_status = 'Active' ORDER BY firstname_th";
 $res_emp = mysqli_query($conn, $sql_emp);
 
-// 3. Products: เฉพาะสินค้าของร้าน (และสินค้าส่วนกลาง) + [แก้ไข] ไม่เอาสินค้าประเภทบริการ (type_id != 4)
+// เฉพาะสินค้าของร้าน    
 $sql_prod = "SELECT p.prod_id, p.prod_name, p.model_name, p.prod_price, pb.brand_name_th 
              FROM products p
              LEFT JOIN prod_brands pb ON p.prod_brands_brand_id = pb.brand_id
@@ -404,13 +404,13 @@ while ($p = mysqli_fetch_assoc($res_prod)) {
 
     <script>
         $(document).ready(function() {
-            // 1. เริ่มต้น Select2
+            // เริ่มต้น Select2
             $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
             initProductSelect2($('.select2-product'));
 
             calculateGrandTotal();
 
-            // 2. ฟังก์ชันเพิ่มแถว
+            // ฟังก์ชันเพิ่มแถว
             $('#btn-add-row').click(function() {
                 const timestamp = Date.now();
                 const template = document.getElementById('row-template').innerHTML;
@@ -423,7 +423,7 @@ while ($p = mysqli_fetch_assoc($res_prod)) {
                 initProductSelect2(newSelect);
             });
 
-            // 3. จัดการ Event ในตาราง (Change/Input/Click)
+            // จัดการ Event ในตาราง (Change/Input/Click)
             $('#items-body').on('change', '.product-select', function() {
                 const price = $(this).find(':selected').data('price') || 0;
                 const row = $(this).closest('tr');
@@ -440,7 +440,7 @@ while ($p = mysqli_fetch_assoc($res_prod)) {
                 calculateGrandTotal();
             });
 
-            // 4. ฟังก์ชันคำนวณ
+            // ฟังก์ชันคำนวณ
             function calculateRow(row) {
                 const qty = parseFloat(row.find('.amount-input').val()) || 0;
                 const price = parseFloat(row.find('.price-input').val()) || 0;
@@ -457,7 +457,7 @@ while ($p = mysqli_fetch_assoc($res_prod)) {
                 $('#grand-total').text(grandTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
             }
 
-            // 5. ตั้งค่า Select2 ให้ค้นหาได้ในตาราง
+            // ตั้งค่า Select2 ให้ค้นหาได้ในตาราง
             function initProductSelect2(element) {
                 element.select2({
                     theme: 'bootstrap-5',
@@ -466,7 +466,7 @@ while ($p = mysqli_fetch_assoc($res_prod)) {
                 });
             }
 
-            // 6. บันทึกข้อมูลด้วย AJAX
+            // บันทึกข้อมูลด้วย AJAX
             $('#editPoForm').on('submit', function(e) {
                 e.preventDefault();
 

@@ -3,13 +3,13 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'role_permissions');
 
-// 1. รับ ID ที่จะแก้ไข
+// รับ ID ที่จะแก้ไข
 $role_id_to_edit = (int)($_GET['id'] ?? 0);
 if ($role_id_to_edit === 0) {
     die("ไม่พบ ID บทบาทที่ต้องการแก้ไข");
 }
 
-// 2. ดึงสิทธิ์เดิมที่มีอยู่ (Checked Permissions)
+// ดึงสิทธิ์เดิมที่มีอยู่ (Checked Permissions)
 // ย้ายขึ้นมาด้านบนเพื่อให้ AJAX และ POST เรียกใช้ได้
 $checked_permissions = [];
 $stmt_get_checked = $conn->prepare("SELECT permissions_permission_id FROM role_permissions WHERE roles_role_id = ?");
@@ -33,7 +33,7 @@ if (isset($_GET['ajax'])) {
     $bind_types = "";
     $bind_values = [];
 
-    // 1. กรองตามคำค้นหา
+    // กรองตามคำค้นหา
     if (!empty($search_perm)) {
         $where_clauses[] = "(permission_name LIKE ? OR permission_desc LIKE ?)";
         $search_like = "%" . $search_perm . "%";
@@ -41,7 +41,7 @@ if (isset($_GET['ajax'])) {
         array_push($bind_values, $search_like, $search_like);
     }
 
-    // 2. กรองตามประเภท (ตามโจทย์)
+    // กรองตามประเภท 
     if ($filter_type != 'all') {
         if ($filter_type == 'list') {
             // หน้าหลัก: ไม่ขึ้นต้นด้วย add, edit, del, delete, view
@@ -55,7 +55,6 @@ if (isset($_GET['ajax'])) {
         } elseif ($filter_type == 'edit') {
             $where_clauses[] = "permission_name LIKE 'edit_%'";
         } elseif ($filter_type == 'del') {
-            // ดักจับทั้ง del_ (มาตรฐานเก่า) และ delete_ (ตามโจทย์)
             $where_clauses[] = "(permission_name LIKE 'del_%' OR permission_name LIKE 'delete_%')";
         } elseif ($filter_type == 'view') {
             $where_clauses[] = "permission_name LIKE 'view_%'";
@@ -80,10 +79,10 @@ if (isset($_GET['ajax'])) {
     if ($result_perms->num_rows > 0) {
         echo '<div class="row row-cols-1 row-cols-md-5 g-3">';
         while ($perm = $result_perms->fetch_assoc()) {
-            // เช็คว่ามีสิทธิ์ใน DB หรือไม่ (JS จะมาจัดการเรื่องสิทธิ์ที่เพิ่งติ๊กให้อีกที)
+            // เช็คว่ามีสิทธิ์ใน DB หรือไม่ 
             $is_checked_db = in_array($perm['permission_id'], $checked_permissions) ? 'checked' : '';
             
-            // [แก้ไข] Logic การแสดงผลชื่อ: ใช้ permission_desc ถ้ามี ถ้าไม่มีใช้ permission_name
+            // การแสดงผลชื่อ: ใช้ permission_desc ถ้ามี ถ้าไม่มีใช้ permission_name
             $display_name = !empty($perm['permission_desc']) ? $perm['permission_desc'] : $perm['permission_name'];
             ?>
             <div class="col">
@@ -109,7 +108,7 @@ if (isset($_GET['ajax'])) {
 }
 
 // ==========================================
-// ส่วนจัดการ POST (บันทึกข้อมูล)
+// บันทึกข้อมูล
 // ==========================================
 $errors_to_display = [];
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -207,7 +206,6 @@ $filter_labels = [
         .form-check:hover { border-color: #15803d; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .form-check-input { margin-top: 0; margin-right: 0.5rem; cursor: pointer; }
         .form-check-label { cursor: pointer; font-size: 0.9rem; user-select: none; width: 100%; }
-        /* Scrollbar สวยๆ */
         .permission-grid::-webkit-scrollbar { width: 8px; }
         .permission-grid::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
         .permission-grid::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 10px; }
@@ -317,9 +315,6 @@ $filter_labels = [
             const permissionContainer = document.getElementById('permissionContainer');
             const searchInput = document.getElementById('search_perm');
             const filterRadios = document.querySelectorAll('.filter-btn');
-            
-            // ใช้ Set เก็บ ID ที่ถูกเลือก เพื่อไม่ให้หายเวลาเปลี่ยน Filter/Search
-            // เริ่มต้นด้วยข้อมูลจาก Database (PHP ส่งมาเป็น JSON)
             const selectedPermissions = new Set(<?= json_encode(array_map('strval', $checked_permissions)) ?>);
 
             // ฟังก์ชันโหลดข้อมูล AJAX
@@ -350,7 +345,7 @@ $filter_labels = [
                     if (selectedPermissions.has(cb.value)) {
                         cb.checked = true;
                     }
-                    // เพิ่ม Event Listener ให้ Checkbox ทุกตัวที่โหลดมาใหม่
+                    // Event Listener ให้ Checkbox ทุกตัวที่โหลดมาใหม่
                     cb.addEventListener('change', function() {
                         if (this.checked) {
                             selectedPermissions.add(this.value);
@@ -400,8 +395,7 @@ $filter_labels = [
                     return;
                 }
                 
-                // สร้าง Hidden Input สำหรับค่าที่อยู่ใน Set แต่อาจจะไม่ได้แสดงผลอยู่ในหน้าปัจจุบัน (เพราะถูกกรองออก)
-                // เพื่อให้ส่งค่าไปครบถ้วน
+                // สร้าง Hidden Input สำหรับค่าที่อยู่ใน Set แต่อาจจะไม่ได้แสดงผลอยู่ในหน้าปัจจุบัน
                 const currentVisibleCheckboxes = Array.from(permissionContainer.querySelectorAll('.permission-checkbox')).map(cb => cb.value);
                 
                 selectedPermissions.forEach(val => {

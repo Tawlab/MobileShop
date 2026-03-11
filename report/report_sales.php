@@ -10,7 +10,7 @@ $current_user_id = $_SESSION['user_id'];
 $current_branch_id = $_SESSION['branch_id'];
 
 // -----------------------------------------------------------------------------
-//  1. CHECK ADMIN & PREPARE DATA
+//  CHECK ADMIN & PREPARE DATA
 // -----------------------------------------------------------------------------
 $is_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
@@ -23,7 +23,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// [Admin] ดึงรายชื่อร้านค้า
+// Admin ดึงรายชื่อร้านค้า
 $shops_list = [];
 $branches_list = []; // เก็บทั้งหมดไว้กรองใน JS หรือใช้ AJAX โหลดก็ได้ (ในที่นี้จะใช้ JS Filter แบบง่าย)
 if ($is_admin) {
@@ -45,7 +45,7 @@ $type_res = $conn->query("SELECT type_id, type_name_th FROM prod_types ORDER BY 
 
 
 // -----------------------------------------------------------------------------
-//  2. AJAX HANDLER (ประมวลผลรายงาน)
+//  AJAX HANDLER ประมวลผลรายงาน
 // -----------------------------------------------------------------------------
 if (isset($_POST['action']) && $_POST['action'] === 'get_report') {
     ob_clean();
@@ -149,8 +149,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'get_report') {
     exit;
 }
 
-// [AJAX Load Branches & Employees for Admin]
-// เพิ่ม case สำหรับโหลดพนักงานใหม่เมื่อเปลี่ยนสาขา (สำหรับ Admin)
+// AJAX Load Branches & Employees for Admin
 if (isset($_POST['action']) && $_POST['action'] === 'get_branch_employees') {
     ob_clean();
     header('Content-Type: application/json');
@@ -364,7 +363,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'get_branch_employees') {
         $(document).ready(function() {
             $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
 
-            // Admin Logic: Shop & Branch Filter
+            // Admin Shop & Branch Filter
             if (isAdmin) {
                 $('#admin_shop_id').on('change', function() {
                     const shopId = $(this).val();
@@ -494,8 +493,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'get_branch_employees') {
         function printReport() {
             const formData = new FormData(document.getElementById('reportForm'));
             const params = new URLSearchParams(formData).toString();
-            // ต้องดึง filter_id มาใส่ manual เพราะใน formData ปกติมันอาจจะไม่ได้แยกค่าชัดเจนถ้า element id ชนกัน (แต่ในที่นี้ ID ไม่ชน)
-            // เพื่อความชัวร์ ดึงค่าแบบ manual append เพิ่ม
             const type = $('#report_type').val();
             let fid = 0;
             if(type === 'employee') fid = $('#emp_id').val();

@@ -59,14 +59,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Redirect ตามประเภท
         if ($method === 'Cash') {
-            // 1. อัปเดตสถานะบิลเป็น Completed ทันที
+            // อัปเดตสถานะบิลเป็น Completed ทันที
             $conn->query("UPDATE bill_headers SET bill_status = 'Completed', receipt_date = NOW() WHERE bill_id = $bill_id");
 
             // -------------------------------------------------------------------------
-            // 2. ส่วนการส่งอีเมลใบเสร็จ
+            // ส่วนการส่งอีเมลใบเสร็จ
             // -------------------------------------------------------------------------
             try {
-                // [แก้ไข 1] เพิ่มการดึง shop_email และ shop_app_password ใน SQL
                 $sql_info = "SELECT h.bill_date, h.vat, h.discount,
                                     c.cs_email, c.firstname_th, c.lastname_th,
                                     br.branch_name, 
@@ -82,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt_info->execute();
                 $info = $stmt_info->get_result()->fetch_assoc();
 
-                // [แก้ไข 2] ตรวจสอบความครบถ้วนของข้อมูล (ต้องมี เมลลูกค้า + เมลร้าน + รหัสผ่านร้าน)
+                // ตรวจสอบความครบถ้วนของข้อมูล (ต้องมี เมลลูกค้า + เมลร้าน + รหัสผ่านร้าน)
                 if ($info && !empty($info['cs_email']) && !empty($info['shop_email']) && !empty($info['shop_app_password'])) {
                     
                     // ดึงรายการสินค้า
@@ -180,13 +179,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $mail->isSMTP();                                            
                     $mail->Host       = 'smtp.gmail.com';                       
                     $mail->SMTPAuth   = true;                                   
-                    $mail->Username   = $info['shop_email'];              // <--- [แก้ไข] ใช้เมลจาก DB ร้านค้า
-                    $mail->Password   = $info['shop_app_password'];       // <--- [แก้ไข] ใช้รหัสจาก DB ร้านค้า
+                    $mail->Username   = $info['shop_email'];        
+                    $mail->Password   = $info['shop_app_password'];      
                     $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;         
                     $mail->Port       = 587;                                    
                     $mail->CharSet    = 'UTF-8';                                
 
-                    $mail->setFrom($info['shop_email'], $info['shop_name']); // <--- [แก้ไข] ใช้เมลจาก DB ร้านค้า
+                    $mail->setFrom($info['shop_email'], $info['shop_name']);
                     $mail->addAddress($info['cs_email'], $info['firstname_th']); 
                     $mail->isHTML(true);
                     $mail->Subject = "ใบเสร็จรับเงินอิเล็กทรอนิกส์ (E-Receipt) #{$bill_id} - {$info['shop_name']}";

@@ -3,11 +3,11 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'prodtype');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
+// ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -20,7 +20,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ส่วนประมวลผล AJAX 
 // ==========================================
 if (isset($_GET['ajax'])) {
   $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -28,7 +28,7 @@ if (isset($_GET['ajax'])) {
   $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
   $offset = ($page - 1) * $limit;
 
-  // 3. กรองตามสิทธิ์ (ร้านค้าเห็นของตนเอง+ส่วนกลาง / แอดมินเห็นทั้งหมด)
+  // กรองตามสิทธิ์ (ร้านค้าเห็นของตนเอง+ส่วนกลาง / แอดมินเห็นทั้งหมด)
   $conditions = [];
   if (!$is_super_admin) {
     $conditions[] = "(pt.shop_info_shop_id = 0 OR pt.shop_info_shop_id = '$shop_id')";

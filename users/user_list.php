@@ -2,14 +2,14 @@
 session_start();
 require '../config/config.php';
 
-// ตรวจสอบสิทธิ์การเข้าถึง (ใช้ Permission 'menu_manage_users' หรือ 'user_list')
+// ตรวจสอบสิทธิ์การเข้าถึง 
 checkPageAccess($conn, 'menu_manage_users');
 
-// [1] รับค่าพื้นฐาน
+// รับค่าพื้นฐาน
 $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// ตรวจสอบว่าเป็น Super Admin หรือไม่ (เพื่อเปิดฟังก์ชันกรองร้านค้า)
+// ตรวจสอบว่าเป็น Super Admin หรือไม่
 $is_super_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
             JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -22,7 +22,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
 }
 
 // ==========================================
-// [2] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ส่วนประมวลผล AJAX 
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -37,7 +37,7 @@ if (isset($_GET['ajax'])) {
     // สร้างเงื่อนไข Query
     $conditions = [];
 
-    // 2.1 กรองตามสิทธิ์การมองเห็น
+    // กรองตามสิทธิ์การมองเห็น
     if (!$is_super_admin) {
         // ถ้าไม่ใช่ Admin เห็นแค่คนในร้านตัวเอง (ผ่าน Employee -> Branch -> Shop)
         $conditions[] = "s.shop_id = '$current_shop_id'";
@@ -46,7 +46,7 @@ if (isset($_GET['ajax'])) {
         $conditions[] = "s.shop_id = '$shop_f'";
     }
 
-    // 2.2 กรองตามการค้นหา
+    // กรองตามการค้นหา
     if (!empty($search)) {
         $conditions[] = "(u.username LIKE '%$search%' OR e.firstname_th LIKE '%$search%' OR e.lastname_th LIKE '%$search%' OR e.emp_phone_no LIKE '%$search%')";
     }
@@ -55,7 +55,7 @@ if (isset($_GET['ajax'])) {
 
     $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-    // 2.3 นับจำนวนรายการทั้งหมด
+    // นับจำนวนรายการทั้งหมด
     $count_sql = "SELECT COUNT(DISTINCT u.user_id) as total 
                   FROM users u
                   LEFT JOIN employees e ON u.user_id = e.users_user_id
@@ -67,7 +67,7 @@ if (isset($_GET['ajax'])) {
     $total_items = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_items / $limit);
 
-    // 2.4 ดึงข้อมูล Users
+    // ดึงข้อมูล Users
     $sql = "SELECT u.*, e.firstname_th, e.lastname_th, e.emp_image, s.shop_name, r.role_name, r.role_id
             FROM users u
             LEFT JOIN employees e ON u.user_id = e.users_user_id
@@ -357,7 +357,7 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
         // SweetAlert Functions
         // ----------------------------------------------------
 
-        // 1. เปลี่ยนสถานะ (Toggle Status)
+        // เปลี่ยนสถานะ (Toggle Status)
         function toggleStatus(userId, currentStatus, username) {
             const newStatus = (currentStatus === 'Active') ? 'Inactive' : 'Active';
             const actionText = (newStatus === 'Active') ? 'เปิดใช้งาน' : 'ระงับการใช้งาน';
@@ -395,7 +395,7 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
             });
         }
 
-        // 2. รีเซ็ตรหัสผ่าน (Reset Password)
+        // รีเซ็ตรหัสผ่าน (Reset Password)
         function resetPassword(userId, username) {
             Swal.fire({
                 title: `รีเซ็ตรหัสผ่าน ${username}`,
@@ -439,12 +439,12 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
             });
         }
         
-        // 3. ฟังก์ชันลบผู้ใช้งาน (ตรวจสอบประวัติ และ กันลบตัวเอง)
+        // ฟังก์ชันลบผู้ใช้งาน (ตรวจสอบประวัติ และ กันลบตัวเอง)
         function deleteUser(userId, username) {
             // ดึงไอดีของคนที่กำลังล็อกอินอยู่
             const currentUserId = <?= $_SESSION['user_id'] ?>;
 
-            // 1. ป้องกันการลบบัญชีตัวเอง
+            // ป้องกันการลบบัญชีตัวเอง
             if (userId === currentUserId) {
                 Swal.fire({
                     icon: 'error',
@@ -454,7 +454,7 @@ $shops_res = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM sh
                 return;
             }
 
-            // 2. ตรวจสอบประวัติการทำงาน (ขาย/ซ่อม) ผ่าน AJAX
+            // ตรวจสอบประวัติการทำงาน (ขาย/ซ่อม) ผ่าน AJAX
             Swal.fire({
                 title: 'กำลังตรวจสอบข้อมูล...',
                 allowOutsideClick: false,

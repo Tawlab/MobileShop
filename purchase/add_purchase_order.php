@@ -80,7 +80,7 @@ function getMaxOrderId($conn) {
 }
 
 // ==========================================================================================
-// [AJAX HANDLER] สำหรับโหลดข้อมูลและบันทึก
+// AJAX สำหรับโหลดข้อมูลและบันทึก
 // ==========================================================================================
 if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
     ob_clean();
@@ -100,7 +100,7 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
 
         $response = [];
 
-        // 1. Branches
+        // Branches
         $branches = [];
         if ($is_admin) {
             $sql = "SELECT branch_id, branch_name FROM branches WHERE shop_info_shop_id = $target_shop_id ORDER BY branch_name";
@@ -178,11 +178,11 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
 
         mysqli_autocommit($conn, false);
         try {
-            // 1. หา ID และสร้าง PO Code โดยส่ง branch_id เข้าไปด้วย [แก้ไขตรงนี้]
+            // หา ID และสร้าง PO Code โดยส่ง branch_id เข้าไปด้วย
             $new_po_id = getNextPurchaseId($conn);
             $new_po_code = generatePOCode($conn, $branches_branch_id);
 
-            // 2. Insert Header
+            // Insert Header
             $sql_head = "INSERT INTO purchase_orders (purchase_id, po_code, purchase_date, create_at, update_at, suppliers_supplier_id, branches_branch_id, employees_emp_id, po_status) 
                          VALUES (?, ?, ?, NOW(), NOW(), ?, ?, ?, 'Pending')";
             $stmt = $conn->prepare($sql_head);
@@ -191,7 +191,7 @@ if (isset($_GET['ajax_action']) || isset($_POST['ajax_action'])) {
             if (!$stmt->execute()) throw new Exception("บันทึกส่วนหัวไม่สำเร็จ: " . $stmt->error);
             $stmt->close();
 
-            // 3. Insert Details
+            // Insert Details
             $running_order_id = getMaxOrderId($conn);
 
             $sql_det = "INSERT INTO order_details (order_id, amount, price, create_at, update_at, purchase_orders_purchase_id, products_prod_id) 
@@ -479,7 +479,7 @@ if ($is_admin) {
             });
         });
 
-        // [แก้ไข] ฟังก์ชันรับ branchId เพิ่มเข้ามา
+        // ฟังก์ชันรับ branchId เพิ่มเข้ามา
         function loadShopData(shopId, branchId = 0) {
             if (!shopId) return;
 
@@ -490,10 +490,10 @@ if ($is_admin) {
                 calculateTotals();
             }
 
-            // [FIX] 1. อ้างอิงปุ่มโดยตรง
+            // อ้างอิงปุ่มโดยตรง
             const btn = document.getElementById('btnSubmit');
             
-            // [FIX] 2. กำหนดข้อความตอนโหลดเลย ไม่ต้องจำค่าเก่า (ป้องกันการจำคำว่า Loading มาใช้)
+            // กำหนดข้อความตอนโหลดเลย ไม่ต้องจำค่าเก่า (ป้องกันการจำคำว่า Loading มาใช้)
             btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Loading...';
             btn.disabled = true;
 
@@ -503,7 +503,7 @@ if ($is_admin) {
                 data: { ajax_action: 'get_shop_data', shop_id: shopId, branch_id: branchId },
                 dataType: 'json',
                 success: function(res) {
-                    // [FIX] 3. คืนค่าปุ่มเสมอ ไม่ว่าจะสำเร็จหรือมี Error ใน Logic
+                    // คืนค่าปุ่มเสมอ ไม่ว่าจะสำเร็จหรือมี Error ใน Logic
                     btn.innerHTML = '<i class="fas fa-save me-2"></i>บันทึกข้อมูล';
                     btn.disabled = false;
 
@@ -512,7 +512,7 @@ if ($is_admin) {
                         return; // จบการทำงานแต่ปุ่มกดได้แล้ว
                     }
 
-                    // 1. จัดการสาขา (Branches) - เฉพาะ Admin
+                    // จัดการสาขา (Branches) - เฉพาะ Admin
                     if (isAdmin && branchId == 0) {
                         let branchOpts = '<option value="">-- เลือกสาขา --</option>';
                         res.branches.forEach(b => {
@@ -526,7 +526,7 @@ if ($is_admin) {
                         $('#employeeSelect').html('<option value="">-- กรุณาเลือกสาขาก่อน --</option>');
                     }
 
-                    // 2. จัดการ Supplier และ พนักงาน (เมื่อมี Branch ID)
+                    // จัดการ Supplier และ พนักงาน (เมื่อมี Branch ID)
                     if (branchId > 0) {
                         let supOpts = '<option value="">-- เลือก Supplier --</option>';
                         res.suppliers.forEach(s => { supOpts += `<option value="${s.supplier_id}">${s.co_name}</option>`; });
@@ -537,7 +537,7 @@ if ($is_admin) {
                         $('#employeeSelect').html(empOpts);
                     }
 
-                    // 3. เก็บข้อมูลสินค้าไว้ใช้งาน
+                    // เก็บข้อมูลสินค้าไว้ใช้งาน
                     currentProducts = res.products;
 
                     // ถ้าตารางสินค้าว่าง ให้เพิ่มแถวแรกให้อัตโนมัติ
@@ -548,7 +548,7 @@ if ($is_admin) {
                 error: function() {
                     Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้', 'error');
                     
-                    // [FIX] 4. คืนค่าปุ่มเมื่อ Ajax Error (สำคัญมาก ห้ามลืม)
+                    // คืนค่าปุ่มเมื่อ Ajax Error (สำคัญมาก ห้ามลืม)
                     btn.innerHTML = '<i class="fas fa-save me-2"></i>บันทึกข้อมูล';
                     btn.disabled = false;
                 }

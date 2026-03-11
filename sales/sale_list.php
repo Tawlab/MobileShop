@@ -3,12 +3,12 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'sale_list');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $branch_id = $_SESSION['branch_id'];
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
+// ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -21,7 +21,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -33,10 +33,10 @@ if (isset($_GET['ajax'])) {
     $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
 
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
+    $limit = 20; // แสดงรายการ 20 รายการต่อหน้า
     $offset = ($page - 1) * $limit;
 
-    // 3. กรองตามสิทธิ์ (เห็นแค่สาขาตัวเอง / แอดมินเห็นทั้งหมดหรือตามกรอง)
+    // กรองตามสิทธิ์ (เห็นแค่สาขาตัวเอง / แอดมินเห็นทั้งหมดหรือตามกรอง)
     $conditions = [];
     if (!$is_super_admin) {
         $conditions[] = "bh.branches_branch_id = '$branch_id'";
@@ -84,7 +84,7 @@ if (isset($_GET['ajax'])) {
                     <th width="15%">วันที่ขาย</th>
                     <th width="20%">ลูกค้า</th>
                     <th width="12%">การชำระเงิน</th>
-                    <?php if ($is_super_admin): // 3. เพิ่มคอลัมน์ระบุสาขา/ร้าน 
+                    <?php if ($is_super_admin): // คอลัมน์ระบุสาขา/ร้าน 
                     ?>
                         <th width="15%" class="text-center">สาขา/ร้าน</th>
                     <?php endif; ?>
@@ -230,11 +230,11 @@ if ($is_super_admin) {
         }
 
         /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
+        /* --- Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
         /* -------------------------------------------------------------------- */
         @media (max-width: 991.98px) {
 
-            /* 1. จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex ใน card-body/header) */
+            /* จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex ใน card-body/header) */
             .card-body .d-flex,
             .card-header .d-flex {
                 flex-direction: column;
@@ -248,7 +248,7 @@ if ($is_super_admin) {
                 /* ทำให้ส่วนประกอบกินเต็มความกว้าง */
             }
 
-            /* 2. ปรับ Table Cell/Font */
+            /* ปรับ Table Cell/Font */
             .table th,
             .table td {
                 padding: 0.6rem 0.5rem;
@@ -259,7 +259,7 @@ if ($is_super_admin) {
                 /* ป้องกันไม่ให้ข้อความยาวๆ ขึ้นบรรทัดใหม่ในตาราง Responsive */
             }
 
-            /* 3. จัดการคอลัมน์ Action ในตาราง */
+            /* จัดการคอลัมน์ Action ในตาราง */
             .table td:last-child {
                 display: flex;
                 flex-direction: column;
@@ -267,7 +267,7 @@ if ($is_super_admin) {
                 gap: 5px;
             }
 
-            /* 4. ปรับขนาด Badge */
+            /* ปรับขนาด Badge */
             .status-badge {
                 font-size: 0.75rem;
                 padding: 4px 8px;
@@ -402,13 +402,13 @@ if ($is_super_admin) {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function openCancelModal(billId) {
-            // 1. อัปเดตข้อความเลขที่บิลใน Modal
+            // อัปเดตข้อความเลขที่บิลใน Modal
             document.getElementById('modalBillId').innerText = '#' + billId;
 
-            // 2. อัปเดตลิงก์ปุ่มยืนยันให้ชี้ไปที่ cancel_sale.php ตาม ID นั้น
+            // อัปเดตลิงก์ปุ่มยืนยันให้ชี้ไปที่ cancel_sale.php ตาม ID นั้น
             document.getElementById('btnConfirmCancel').href = 'cancel_sale.php?id=' + billId;
 
-            // 3. เรียกใช้งาน Bootstrap Modal
+            // เรียกใช้งาน Bootstrap Modal
             var myModal = new bootstrap.Modal(document.getElementById('cancelModal'));
             myModal.show();
         }

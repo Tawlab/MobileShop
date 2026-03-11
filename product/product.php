@@ -3,11 +3,11 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'product');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ Admin
+// ตรวจสอบสิทธิ์ Admin
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -20,7 +20,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
@@ -33,7 +33,7 @@ if (isset($_GET['ajax'])) {
     $limit = 20; // แสดงรายการ 20 รายการต่อหน้า
     $offset = ($page - 1) * $limit;
 
-    // 2. เงื่อนไขการกรอง
+    // เงื่อนไขการกรอง
     $conditions = [];
 
     // กรองตามสิทธิ์ (ร้านใครร้านมัน หรือ Admin เลือกดู)
@@ -43,7 +43,7 @@ if (isset($_GET['ajax'])) {
         $conditions[] = "p.shop_info_shop_id = '$shop_f'";
     }
 
-    // [แก้ไข] ค้นหาจาก รหัสสินค้า, ชื่อสินค้า, รุ่นสินค้า
+    // ค้นหาจาก รหัสสินค้า, ชื่อสินค้า, รุ่นสินค้า
     if (!empty($search)) {
         $conditions[] = "(p.prod_code LIKE '%$search%' OR p.prod_name LIKE '%$search%' OR p.model_name LIKE '%$search%')";
     }
@@ -179,8 +179,7 @@ if (isset($_GET['ajax'])) {
 <?php exit();
 }
 
-// [4] โหลดข้อมูลตัวเลือกสำหรับ Dropdown (แก้ไขให้แสดงข้อมูลทั้งหมด ไม่กรองร้านค้า เพื่อให้ Dropdown มีค่า)
-// เราสมมติว่า Brand และ Type เป็นข้อมูล Master Data ที่ใช้ร่วมกัน
+// โหลดข้อมูลตัวเลือกสำหรับ Dropdown 
 $brands_res = $conn->query("SELECT brand_id, brand_name_th FROM prod_brands ORDER BY brand_name_th ASC");
 $types_res = $conn->query("SELECT type_id, type_name_th FROM prod_types ORDER BY type_name_th ASC");
 $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name ASC") : null;
@@ -364,8 +363,6 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
             });
 
             // แสดง Loading ระหว่างรอ
-            // document.getElementById('tableContainer').innerHTML = '<div class="text-center py-5"><div class="spinner-border text-success"></div></div>';
-
             fetch(`product.php?${params.toString()}`)
                 .then(res => res.text())
                 .then(data => document.getElementById('tableContainer').innerHTML = data)
@@ -384,7 +381,7 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
             fetchProductData(1); // โหลดข้อมูลใหม่
         }
 
-        // จัดการ Event สำหรับตัวกรอง (พิมพ์แล้วค้นหาเลย หรือเปลี่ยนค่าแล้วค้นหาเลย)
+        // จัดการ Event สำหรับตัวกรอง
         ['searchInput', 'pMinInput', 'pMaxInput'].forEach(id => {
             document.getElementById(id).addEventListener('input', () => {
                 // ใช้ Timeout เล็กน้อยเพื่อไม่ให้ยิง request ถี่เกินไปตอนพิมพ์

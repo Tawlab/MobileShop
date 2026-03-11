@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
   $district_name_en = trim($_POST['district_name_en']);
   $provinces_province_id = trim($_POST['provinces_province_id']);
 
-  // --- การตรวจสอบข้อมูล (Server-side) ---
+  // การตรวจสอบข้อมูล 
   if (empty($district_id) || empty($district_name_th) || empty($district_name_en) || empty($provinces_province_id)) {
     $error = 'กรุณากรอกข้อมูลให้ครบถ้วนทุกช่อง';
   } elseif (!preg_match('/^\d{1,4}$/', $district_id)) {

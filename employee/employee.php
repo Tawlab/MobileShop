@@ -3,12 +3,12 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'employee');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $branch_id = $_SESSION['branch_id'];
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
+// ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -21,7 +21,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -34,7 +34,7 @@ if (isset($_GET['ajax'])) {
     $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
     $offset = ($page - 1) * $limit;
 
-    // 3. กรองตามสิทธิ์ (เห็นแค่สาขาตัวเอง / แอดมินเห็นทั้งหมดหรือตามกรอง)
+    // กรองตามสิทธิ์ (เห็นแค่สาขาตัวเอง / แอดมินเห็นทั้งหมดหรือตามกรอง)
     $conditions = [];
     if (!$is_super_admin) {
         $conditions[] = "e.branches_branch_id = '$branch_id'";
@@ -146,7 +146,7 @@ if (isset($_GET['ajax'])) {
     </div>
     <?php endif; exit(); }
 
-// [4] โหลดข้อมูลสำหรับตัวกรอง (Dropdown)
+// โหลดข้อมูลสำหรับตัวกรอง (Dropdown)
 $depts_res = $conn->query("SELECT dept_id, dept_name FROM departments WHERE shop_info_shop_id = '$shop_id' ORDER BY dept_name ASC");
 if ($is_super_admin) {
     $all_shops = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name ASC");
@@ -472,10 +472,9 @@ if ($is_super_admin) {
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    /**
-     * ฟังก์ชันดึงข้อมูลพนักงาน (AJAX)
-     * ทำหน้าที่ส่งตัวกรองทั้งหมดไปยัง server และอัปเดตตารางโดยไม่รีเฟรชหน้า
-     */
+    
+    //  ฟังก์ชันดึงข้อมูลพนักงาน (AJAX)
+    
     function fetchEmpData(page = 1) {
         // ดึงค่าจากตัวกรองต่างๆ
         const searchInput = document.getElementById('searchInput').value;
@@ -525,10 +524,10 @@ if ($is_super_admin) {
             });
     }
 
-    /**
-     * ฟังก์ชันยืนยันการลบพนักงาน (ใช้ SweetAlert2 + AJAX)
-     * รวมการตรวจสอบสิทธิ์การลบไว้ที่ Backend (delete_employee.php)
-     */
+    
+    //  ฟังก์ชันยืนยันการลบพนักงาน
+    //  ตรวจสอบสิทธิ์การลบ
+     
     function confirmDelete(id, name) {
         Swal.fire({
             title: 'ยืนยันการลบพนักงาน?',
@@ -593,9 +592,9 @@ if ($is_super_admin) {
         });
     }
 
-    /**
-     * ฟังก์ชันจัดการตัวกรอง (Filter UI)
-     */
+    
+    //  ฟังก์ชันจัดการตัวกรอง
+     
     function toggleFilter() {
         const card = document.getElementById('filterCard');
         const btnText = document.getElementById('filterBtnText');

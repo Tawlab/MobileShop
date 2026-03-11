@@ -3,12 +3,12 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'repair_list');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $branch_id = $_SESSION['branch_id'];
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
+// ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -21,7 +21,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX (เรียกผ่าน Fetch API)
+// ส่วนประมวลผล AJAX 
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -30,10 +30,10 @@ if (isset($_GET['ajax'])) {
     $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
 
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
+    $limit = 20; // แสดงรายการ 20 รายการต่อหน้า
     $offset = ($page - 1) * $limit;
 
-    // 3. กรองตามสิทธิ์ (เห็นแค่สาขาตัวเอง / แอดมินเห็นทั้งหมดหรือตามกรอง)
+    // กรองตามสิทธิ์ (เห็นแค่สาขาตัวเอง / แอดมินเห็นทั้งหมดหรือตามกรอง)
     $conditions = [];
     if (!$is_super_admin) {
         $conditions[] = "r.branches_branch_id = '$branch_id'";
@@ -77,7 +77,7 @@ if (isset($_GET['ajax'])) {
                     <th width="12%" class="text-center">สถานะ</th>
                     <th width="12%">วันที่รับ</th>
                     <th width="10%" class="text-end">ค่าซ่อมประเมิน</th>
-                    <?php if ($is_super_admin): // 3. เพิ่มคอลัมน์ระบุสาขา/ร้าน 
+                    <?php if ($is_super_admin): // เพิ่มคอลัมน์ระบุสาขา/ร้าน 
                     ?>
                         <th width="15%" class="text-center">สาขา/ร้าน</th>
                     <?php endif; ?>
@@ -161,7 +161,7 @@ if (isset($_GET['ajax'])) {
     exit();
 }
 
-// [4] โหลดข้อมูลสำหรับตัวกรอง
+// โหลดข้อมูลสำหรับตัวกรอง
 if ($is_super_admin) {
     $all_shops = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name ASC");
     $all_branches = $conn->query("SELECT branch_id, branch_name, shop_info_shop_id FROM branches ORDER BY branch_name ASC");
@@ -467,6 +467,8 @@ if ($is_super_admin) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+
+        // ฟังก์ชันสำหรับดึงข้อมูลแจ้งซ่อมแบบ AJAX และจัดการตัวกรอง
         function fetchRepairData(page = 1) {
             const params = new URLSearchParams({
                 ajax: 1,
@@ -481,6 +483,7 @@ if ($is_super_admin) {
                 .then(res => res.text()).then(data => document.getElementById('tableContainer').innerHTML = data);
         }
 
+        // ฟังก์ชันสำหรับแสดง/ซ่อนตัวกรอง
         function toggleFilter() {
             const card = document.getElementById('filterCard');
             const isHidden = card.style.display === 'none';
@@ -488,6 +491,7 @@ if ($is_super_admin) {
             document.getElementById('filterBtnText').innerText = isHidden ? 'ปิดตัวกรอง' : 'ตัวกรอง';
         }
 
+        // ฟังก์ชันสำหรับล้างค่าตัวกรองทั้งหมดและรีเฟรชข้อมูล
         function clearFilters() {
             ['statusFilter', 'shopFilter', 'branchFilter', 'searchInput'].forEach(id => {
                 const el = document.getElementById(id);
@@ -511,6 +515,7 @@ if ($is_super_admin) {
             }
         });
 
+        // ฟังก์ชันสำหรับเคลียร์ค่าตัวกรองทั้งหมดและรีเฟรชข้อมูล
         function confirmCancel(id) {
             document.getElementById('cancelRepairIdText').innerText = '#' + id;
             document.getElementById('cancelRepairIdInput').value = id;

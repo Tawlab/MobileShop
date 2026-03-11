@@ -1,7 +1,6 @@
 <?php
-// --- send_otp.php ---
 session_start();
-require '../config/config.php'; // ดึงไฟล์เชื่อมต่อฐานข้อมูล
+require '../config/config.php'; 
 header('Content-Type: application/json');
 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -18,7 +17,7 @@ if (empty($email_to) || !filter_var($email_to, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-// 1. ดึงข้อมูล SMTP จาก shop_info
+// ดึงข้อมูล SMTP จาก shop_info
 $sql_shop = "SELECT shop_email, shop_app_password, shop_name FROM shop_info WHERE shop_id = ?";
 $stmt_shop = $conn->prepare($sql_shop);
 $stmt_shop->bind_param("i", $shop_id);
@@ -30,12 +29,12 @@ if (!$shop_info || empty($shop_info['shop_email']) || empty($shop_info['shop_app
     exit;
 }
 
-// 2. สุ่มรหัส OTP และเก็บใน Session
+// สุ่มรหัส OTP และเก็บใน Session
 $otp = rand(100000, 999999);
 $_SESSION['otp_code'] = $otp;
 $_SESSION['otp_expire'] = time() + (5 * 60);
 
-// 3. ตั้งค่าการส่งอีเมล
+// ตั้งค่าการส่งอีเมล
 $mail = new PHPMailer(true);
 try {
     $mail->isSMTP();

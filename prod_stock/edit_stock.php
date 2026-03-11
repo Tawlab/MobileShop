@@ -66,7 +66,7 @@ function getNextMovementId($conn)
 }
 
 // -----------------------------------------------------------------------------
-// AJAX HANDLER (เช็ค Serial ซ้ำ)
+// เช็ค Serial ซ้ำ
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -84,18 +84,18 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// POST HANDLER (บันทึกการแก้ไข)
+// บันทึกการแก้ไข
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // (ป้องกันการแก้ไขของที่ขายแล้ว)
+    // ป้องกันการแก้ไขของที่ขายแล้ว
     if ($is_sold) {
         $_SESSION['error'] = 'ไม่สามารถแก้ไขสินค้าที่ขายไปแล้ว (สถานะ Sold)';
         header('Location: edit_stock.php?id=' . $stock_id);
         exit;
     }
 
-    // (รับค่า)
+    // รับค่า
     $serial_no = mysqli_real_escape_string($conn, trim($_POST['serial_no']));
     $price = floatval($_POST['price']);
     $stock_status = mysqli_real_escape_string($conn, $_POST['stock_status']);
@@ -104,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $delete_image = isset($_POST['delete_image']) ? (int)$_POST['delete_image'] : 0;
     $new_image_name = $current_image;
 
-    // (Validate)
+    // Validate
     if (empty($serial_no) || $price <= 0 || empty($stock_status)) {
         $_SESSION['error'] = 'กรุณากรอกข้อมูล (Serial, ราคา, สถานะ) ให้ครบถ้วน';
         header('Location: edit_stock.php?id=' . $stock_id);

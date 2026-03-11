@@ -3,11 +3,11 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'province');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ Admin และ Permission 'centralinf' (สิทธิ์จัดการข้อมูลส่วนกลาง)
+// ตรวจสอบสิทธิ์ Admin และ Permission 'centralinf'
 $is_super_admin = false;
 $has_central_perm = false;
 
@@ -35,7 +35,7 @@ if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch)
+// ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch)
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
@@ -221,9 +221,8 @@ if (isset($_GET['ajax'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        /**
-         * ฟังก์ชันโหลดข้อมูลผ่าน AJAX
-         */
+        
+        //  ฟังก์ชันโหลดข้อมูลผ่าน AJAX
         function fetchProvinceData(page = 1, search = '') {
             const container = document.getElementById('tableContainer');
             fetch(`province.php?ajax=1&page=${page}&search=${encodeURIComponent(search)}`)
@@ -252,9 +251,7 @@ if (isset($_GET['ajax'])) {
             }
         });
 
-        /**
-         * ฟังก์ชันแสดง Modal ยืนยันการลบ
-         */
+        // ฟังก์ชันแสดง Modal ยืนยันการลบ
         function confirmDelete(id, name) {
             document.getElementById('delName').innerText = name;
             document.getElementById('confirmDelBtn').href = `delete_province.php?id=${id}`;

@@ -3,12 +3,12 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'permission');
 
-// --- [1] รับค่าแจ้งเตือน ---
+// --- รับค่าแจ้งเตือน ---
 $message = $_SESSION['message'] ?? null;
 $message_type = $_SESSION['message_type'] ?? null;
 unset($_SESSION['message'], $_SESSION['message_type']);
 
-// --- [2] กำหนดค่าสำหรับการแบ่งหน้า (Pagination) ---
+// --- กำหนดค่าสำหรับการแบ่งหน้า (Pagination) ---
 $search_term = isset($_GET['search']) ? trim($_GET['search']) : '';
 $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : 'all';
 $items_per_page = 20; // แสดง 20 รายการต่อหน้าตามสั่ง
@@ -16,7 +16,7 @@ $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
 if ($page < 1) $page = 1;
 $offset = ($page - 1) * $items_per_page;
 
-// --- [3] สร้างเงื่อนไขการกรอง (WHERE Clause) ---
+// --- สร้างเงื่อนไขการกรอง (WHERE Clause) ---
 $where_clauses = [];
 $bind_types = "";
 $bind_values = [];
@@ -41,7 +41,7 @@ if ($filter_type != 'all') {
 
 $where_sql = !empty($where_clauses) ? " WHERE " . implode(" AND ", $where_clauses) : "";
 
-// --- [4] นับจำนวนรายการทั้งหมดเพื่อคำนวณหน้า ---
+// --- นับจำนวนรายการทั้งหมดเพื่อคำนวณหน้า ---
 $count_sql = "SELECT COUNT(*) as total FROM permissions" . $where_sql;
 $stmt_count = $conn->prepare($count_sql);
 if (!empty($bind_types)) {
@@ -52,7 +52,7 @@ $total_records = $stmt_count->get_result()->fetch_assoc()['total'];
 $total_pages = ceil($total_records / $items_per_page);
 $stmt_count->close();
 
-// --- [5] ดึงข้อมูลตามลำดับและจำกัดจำนวน (LIMIT) ---
+// --- ดึงข้อมูลตามลำดับและจำกัดจำนวน (LIMIT) ---
 $sql = "SELECT permission_id, permission_name, permission_desc, create_at, update_at 
         FROM permissions " . $where_sql . " 
         ORDER BY permission_id ASC LIMIT ? OFFSET ?";

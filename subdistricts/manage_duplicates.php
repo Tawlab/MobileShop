@@ -2,11 +2,9 @@
 session_start();
 require '../config/config.php';
 
-// [1] ส่วนประมวลผล ACTIONS
-// ลบแบบเลือกหลายรายการ (Bulk Delete)
+// ส่วนประมวลผล ACTIONS
 if (isset($_POST['bulk_delete']) && !empty($_POST['selected_ids'])) {
     $ids = $_POST['selected_ids'];
-    // ใช้ subdistrict_id ในการลบ (ระวัง: หาก id ซ้ำกันมากกกว่า 1 จะถูกลบออกทั้งหมดที่มี ID นั้น)
     $placeholders = implode(',', array_fill(0, count($ids), '?'));
     $sql = "DELETE FROM subdistricts WHERE subdistrict_id IN ($placeholders)";
     $stmt = mysqli_prepare($conn, $sql);
@@ -18,16 +16,15 @@ if (isset($_POST['bulk_delete']) && !empty($_POST['selected_ids'])) {
 }
 
 // ลบ ID ที่ซ้ำกันอัตโนมัติ (Auto-Clean) 
-// วิธีที่ปลอดภัยที่สุดสำหรับตารางที่ไม่มี Primary Key แบบ Unique:
 if (isset($_POST['auto_clean_id'])) {
-    // 1. สร้างตารางชั่วคราวเพื่อเก็บแถวที่ไม่ซ้ำไว้ (GroupBy ID)
+    // สร้างตารางชั่วคราวเพื่อเก็บแถวที่ไม่ซ้ำไว้ (GroupBy ID)
     $conn->query("CREATE TEMPORARY TABLE temp_subdistricts AS 
                   SELECT * FROM subdistricts GROUP BY subdistrict_id");
     
-    // 2. ล้างข้อมูลในตารางหลัก
+    // ล้างข้อมูลในตารางหลัก
     $conn->query("DELETE FROM subdistricts");
     
-    // 3. ย้ายข้อมูลที่คลีนแล้วกลับลงไป
+    // ย้ายข้อมูลที่คลีนแล้วกลับลงไป
     $res = $conn->query("INSERT INTO subdistricts SELECT * FROM temp_subdistricts");
     
     if ($res) {
@@ -37,7 +34,7 @@ if (isset($_POST['auto_clean_id'])) {
     exit();
 }
 
-// [2] Query ดึงเฉพาะรายการที่ซ้ำ (อ้างอิงชื่อคอลัมน์ตามรูปภาพ)
+// Query ดึงเฉพาะรายการที่ซ้ำ
 $sql = "SELECT s.*, d.district_name_th 
         FROM subdistricts s
         LEFT JOIN districts d ON s.districts_district_id = d.district_id

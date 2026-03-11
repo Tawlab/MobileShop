@@ -1,5 +1,4 @@
 <?php
-// Include Logic File
 require 'receive_po_process.php';
 
 // -----------------------------------------------------------------------------
@@ -17,7 +16,7 @@ $chk_sql = "SELECT r.role_name FROM roles r JOIN user_roles ur ON r.role_id = ur
 if($stmt=$conn->prepare($chk_sql)){ $stmt->bind_param("i",$current_user_id); $stmt->execute(); if($stmt->get_result()->num_rows>0)$is_admin=true; $stmt->close();}
 
 if ($po_id > 0) {
-    // 1. ดึงข้อมูล Header
+    // ดึงข้อมูล Header
     $sql = "SELECT po.*, s.co_name, b.branch_name, sh.shop_name 
             FROM purchase_orders po
             LEFT JOIN suppliers s ON po.suppliers_supplier_id = s.supplier_id
@@ -38,7 +37,7 @@ if ($po_id > 0) {
             header("Location: purchase_order.php"); exit;
         }
 
-        // 2. ดึงรายการสินค้าค้างรับ
+        // ดึงรายการสินค้าค้างรับ
         $items_sql = "SELECT od.order_id, od.products_prod_id, od.amount, 
                              p.prod_name, p.model_name, p.prod_price, pb.brand_name_th,
                              (SELECT COUNT(*) FROM stock_movements sm WHERE sm.ref_table='order_details' AND sm.ref_id=od.order_id) as received
@@ -168,9 +167,9 @@ if ($po_id > 0) {
         const pendingData = <?= json_encode($js_pending_data) ?>;
         let batchCounters = {};
 
-        // [แก้ไข Logic ตรงนี้] รวมยอดทุก Batch เพื่อเช็ค
+        //  รวมยอดทุก Batch เพื่อเช็ค
         function checkAndCapQty(input, orderId, batchKey) {
-            // 1. ดึง input ทั้งหมดที่เป็นของ Order ID นี้มาเพื่อรวมยอด
+            // ดึง input ทั้งหมดที่เป็นของ Order ID นี้มาเพื่อรวมยอด
             const allInputs = document.querySelectorAll(`input[data-order-id="${orderId}"]`);
             let totalAllocated = 0;
             
@@ -178,7 +177,7 @@ if ($po_id > 0) {
                 totalAllocated += parseInt(el.value) || 0;
             });
 
-            // 2. เช็คกับยอด Max
+            // เช็คกับยอด Max
             const max = pendingData[orderId];
             
             if (totalAllocated > max) {
@@ -253,11 +252,9 @@ if ($po_id > 0) {
             container.insertAdjacentHTML('beforeend', html);
         }
 
-        // เพิ่มฟังก์ชันลบ Batch (เผื่อผู้ใช้ต้องการลบ แล้วคำนวณยอดใหม่)
+        // ฟังก์ชันลบ Batch 
         function removeBatch(btn, orderId, batchKey) {
             btn.parentElement.remove();
-            // อาจจะ trigger checkAndCapQty ของ input อื่นๆ เพื่อ update state 
-            // แต่ใน case นี้แค่ลบออก ยอดรวมลดลง ก็ไม่มีปัญหาเรื่องเกิน Max
         }
 
         function renderSerials(batchKey, orderId, qty) {

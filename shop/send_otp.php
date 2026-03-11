@@ -1,7 +1,6 @@
 <?php
-// send_otp.php
 session_start();
-require '../config/config.php'; // ดึงไฟล์เชื่อมต่อฐานข้อมูล
+require '../config/config.php';
 
 // กำหนดให้ระบบตอบกลับเป็น JSON
 header('Content-Type: application/json; charset=utf-8');
@@ -17,7 +16,7 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-// --- 1. ดึงข้อมูลอีเมลจากร้านค้าส่วนกลาง (Admin: shop_id = 0) ---
+// --- ดึงข้อมูลอีเมลจากร้านค้าส่วนกลาง (Admin: shop_id = 0) ---
 $shop_id = 0; // บังคับใช้บัญชีส่วนกลางในการส่งอีเมลเสมอ
 $stmt_shop = $conn->prepare("SELECT shop_name, shop_email, shop_app_password FROM shop_info WHERE shop_id = ?");
 $stmt_shop->bind_param("i", $shop_id);
@@ -31,12 +30,12 @@ if (!$shop_info || empty($shop_info['shop_email']) || empty($shop_info['shop_app
     exit;
 }
 
-// --- 2. สร้างรหัส OTP และเก็บลง Session ---
+// --- สร้างรหัส OTP และเก็บลง Session ---
 $otp = sprintf("%06d", mt_rand(1, 999999)); // สุ่มเลข 6 หลัก (เช่น 004512)
 $_SESSION['otp_code'] = $otp;
 $_SESSION['otp_expires'] = time() + (5 * 60); // ตั้งเวลาหมดอายุ 5 นาที (300 วินาที)
 
-// --- 3. ตั้งค่าการส่งอีเมลด้วย PHPMailer ---
+// --- ตั้งค่าการส่งอีเมลด้วย PHPMailer ---
 // ต้องติดตั้งไลบรารี PHPMailer ไว้ในโปรเจกต์ (โฟลเดอร์ vendor)
 require '../vendor/autoload.php'; 
 use PHPMailer\PHPMailer\PHPMailer;
@@ -83,11 +82,10 @@ try {
     $mail->send();
     
     // ส่ง status กลับไปให้ Frontend
-    // หมายเหตุ: ใส่ 'debug_otp' มาเพื่อให้ทดสอบง่ายขึ้น (ดูผ่าน F12 > Network ได้) หากใช้งานจริงสามารถลบออกได้
     echo json_encode(['status' => 'success', 'message' => 'ส่ง OTP สำเร็จ', 'debug_otp' => $otp]);
     
 } catch (Exception $e) {
-    // กรณีพัง (เช่น เน็ตหลุด, รหัสผ่านแอปผิด, Google บล็อก)
+    // กรณีพัง
     echo json_encode(['status' => 'error', 'message' => 'ระบบส่งอีเมลขัดข้อง: ' . $mail->ErrorInfo]);
 }
 ?>

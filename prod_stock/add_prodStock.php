@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_prodStock');
 
-// 1. รับค่า Session
+// รับค่า Session
 $branch_id = $_SESSION['branch_id'];
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
@@ -22,9 +22,6 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// -----------------------------------------------------------------------------
-// INITIALIZE VARIABLES
-// -----------------------------------------------------------------------------
 $page_title = "เพิ่มสต็อก (กรณีพิเศษ/ของแถม)";
 $page_icon = "fa-gift";
 
@@ -61,6 +58,7 @@ $products_result = mysqli_query($conn, $sql_products);
 // SHARED FUNCTIONS
 // -----------------------------------------------------------------------------
 
+// ฟังก์ชันสำหรับดึง ID ถัดไปของสต็อก
 function getNextStockId($conn)
 {
     $sql = "SELECT IFNULL(MAX(stock_id), 100000) + 1 as next_id FROM prod_stocks";
@@ -69,13 +67,14 @@ function getNextStockId($conn)
     return $row['next_id'];
 }
 
+// ฟังก์ชันสำหรับตรวจสอบ Serial ซ้ำ
 function checkSerialExists($conn, $serial)
 {
     $sql = "SELECT stock_id FROM prod_stocks WHERE serial_no = '" . mysqli_real_escape_string($conn, $serial) . "'";
     $result = mysqli_query($conn, $sql);
     return mysqli_num_rows($result) > 0;
 }
-
+// ฟังก์ชันสำหรับดึง ID ถัดไปของ Movement
 function getNextMovementId($conn)
 {
     $move_sql = "SELECT IFNULL(MAX(movement_id), 0) + 1 as next_move_id FROM stock_movements";
@@ -84,7 +83,7 @@ function getNextMovementId($conn)
 }
 
 // -----------------------------------------------------------------------------
-// AJAX: เช็ค Serial ซ้ำ (Backend)
+// AJAX: เช็ค Serial ซ้ำ 
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json');
@@ -101,7 +100,7 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// HANDLE POST: บันทึกข้อมูล
+// บันทึกข้อมูล
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
 
@@ -171,10 +170,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             // Movement
             $move_id = getNextMovementId($conn);
             $move_stmt = $conn->prepare(
-    "INSERT INTO stock_movements 
+                "INSERT INTO stock_movements 
         (movement_id, movement_type, ref_table, ref_id, prod_stocks_stock_id, create_at) 
      VALUES (?, 'IN', ?, NULL, ?, NOW())"
-);
+            );
             $move_stmt->bind_param("isi", $move_id, $ref_table, $stock_id);
             if (!$move_stmt->execute()) throw new Exception('ไม่สามารถบันทึก Movement ได้: ' . $move_stmt->error);
             $move_stmt->close();
@@ -527,7 +526,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
         let selectedImages = [];
 
         $(document).ready(function() {
-            // 1. Init Select2
+            // Init Select2
             $('.select2').select2({
                 theme: 'bootstrap-5',
                 width: '100%',
@@ -535,10 +534,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 allowClear: true
             });
 
-            // 2. ตั้งค่าวันปัจจุบัน
+            // ตั้งค่าวันปัจจุบัน
             document.getElementById('date_in').value = new Date().toISOString().split('T')[0];
 
-            // 3. Event Listeners (แก้ไขบัคตรงนี้)
+            // Event Listeners 
             // เมื่อมีการเปลี่ยนสินค้า -> อัปเดตราคา และ สร้างช่อง Serial
             $('#products_prod_id').on('change', function() {
                 updatePriceFromProduct();
@@ -594,10 +593,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             }
         }
 
-        // --- Helper: สร้าง HTML สำหรับแต่ละแถว Serial ---
+        // --- ฟังก์ชันสร้าง HTML สำหรับแต่ละแถว Serial ---
         function createSerialField(name, itemNumber) {
             const row = document.createElement('div');
-            row.className = 'serial-row animate__animated animate__fadeIn'; // เพิ่ม Animation เล็กน้อย (ถ้ามี library)
+            row.className = 'serial-row animate__animated animate__fadeIn'; 
             row.innerHTML = `
                 <div class="d-flex justify-content-between align-items-center mb-2">
                     <div class="item-number mb-0">ชิ้นที่ ${itemNumber}</div>
@@ -713,7 +712,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             });
 
             input.files = dt.files;
-            previewImages(input); // Render ใหม่
+            previewImages(input);
         }
 
         // --- Form Validation & Submit ---
@@ -723,7 +722,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
             let isValid = true;
             const requiredFields = ['products_prod_id', 'quantity', 'price', 'manual_reason'];
 
-            // 1. เช็คฟิลด์หลัก
+            // เช็คฟิลด์หลัก
             requiredFields.forEach(fieldName => {
                 const field = document.querySelector(`[name="${fieldName}"]`);
                 if (!field.value.trim() || (fieldName === 'price' && parseFloat(field.value) <= 0)) {
@@ -734,7 +733,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 }
             });
 
-            // 2. เช็ค Serial Numbers
+            // เช็ค Serial Numbers
             const serialInputs = document.querySelectorAll('.serial-input');
             const serialValues = [];
 
@@ -757,7 +756,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['action'])) {
                 }
             });
 
-            // 3. เช็คค่าซ้ำในฟอร์มเอง
+            // เช็คค่าซ้ำในฟอร์มเอง
             const uniqueSerial = [...new Set(serialValues)];
             if (uniqueSerial.length !== serialValues.length && serialValues.length > 0) {
                 Swal.fire('ข้อมูลซ้ำ', 'Serial Number ที่กรอกต้องไม่ซ้ำกันในรายการเดียวกัน', 'warning');

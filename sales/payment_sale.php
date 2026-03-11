@@ -117,12 +117,15 @@ checkPageAccess($conn, 'add_sale');
         </div>
     </div>
     <script>
+        
+        // ฟังก์ชันสำหรับเลือกวิธีการชำระเงิน
         function selectMethod(method) {
             document.querySelectorAll('.card-option').forEach(el => el.classList.remove('selected'));
             document.querySelector(`#card-${method}`).classList.add('selected');
             document.querySelector(`#card-${method} input[type=radio]`).checked = true;
         }
 
+        // ฟังก์ชันสำหรับแสดง Popup ยืนยันการชำระเงิน
         function showCashConfirm() {
             const method = document.querySelector('input[name="payment_method"]:checked').value;
             if (method === 'cash') {

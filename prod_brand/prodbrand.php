@@ -6,11 +6,11 @@ require '../config/config.php';
 checkPageAccess($conn, 'prodbrand');
 require '../config/load_theme.php';
 
-// [1] รับค่า Shop ID และ User ID จาก Session
+// รับค่า Shop ID และ User ID จาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์และบทบาท (ตรวจสอบว่าเป็น Admin สูงสุดหรือไม่)
+// ตรวจสอบสิทธิ์และบทบาท (ตรวจสอบว่าเป็น Admin สูงสุดหรือไม่)
 $is_super_admin = false;
 $has_centralinf_permission = false;
 
@@ -27,7 +27,6 @@ if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
   mysqli_stmt_execute($stmt_user);
   $res_user = mysqli_stmt_get_result($stmt_user);
   while ($row = mysqli_fetch_assoc($res_user)) {
-    // แก้ไข: เปลี่ยนจาก 'SystemOwner' เป็น 'Admin' ให้ตรงกับฐานข้อมูล
     if ($row['role_name'] === 'Admin') {
       $is_super_admin = true;
     }
@@ -39,18 +38,18 @@ if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
   mysqli_stmt_close($stmt_user);
 }
 
-// [3] การจัดการการลบ (Logic แยกตามระดับสิทธิ์)
+// การจัดการการลบ
 if (isset($_GET['delete_id'])) {
   $delete_id = $_GET['delete_id'];
 
   if ($is_super_admin) {
-    // 1. Super Admin: ลบยี่ห้อของร้านใดก็ได้ในระบบ
+    // Admin: ลบยี่ห้อของร้านใดก็ได้ในระบบ
     $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ?";
   } elseif ($has_centralinf_permission) {
-    // 2. มีสิทธิ์ Central: ลบของร้านตัวเอง และข้อมูลส่วนกลาง (shop_id = 0)
+    // มีสิทธิ์ Central: ลบของร้านตัวเอง และข้อมูลส่วนกลาง
     $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ? AND (shop_info_shop_id = ? OR shop_info_shop_id = 0)";
   } else {
-    // 3. ทั่วไป: ลบได้เฉพาะยี่ห้อที่ร้านตัวเองสร้างขึ้นเท่านั้น
+    // ทั่วไป: ลบได้เฉพาะยี่ห้อที่ร้านตัวเองสร้างขึ้นเท่านั้น
     $delete_sql = "DELETE FROM prod_brands WHERE brand_id = ? AND shop_info_shop_id = ?";
   }
 
@@ -81,7 +80,7 @@ if (isset($_GET['delete_id'])) {
   exit();
 }
 
-// [4] การดึงข้อมูลและการกรอง (Data Isolation vs Super Admin View)
+// การดึงข้อมูลและการกรอง 
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 $sort_by = isset($_GET['sort']) ? $_GET['sort'] : 'brand_id';
 $order = isset($_GET['order']) && $_GET['order'] == 'desc' ? 'DESC' : 'ASC';
@@ -91,9 +90,9 @@ $offset = ($page - 1) * $items_per_page;
 
 $where_conditions = [];
 
-// ส่วนสำคัญ: หากเป็น Super Admin จะไม่กรอง shop_id เพื่อให้เห็นข้อมูลทุกร้าน
+// หากเป็น Admin จะไม่กรอง shop_id เพื่อให้เห็นข้อมูลทุกร้าน
 if (!$is_super_admin) {
-  // สำหรับ Partner หรือพนักงานทั่วไป: เห็นเฉพาะของร้านตัวเอง และข้อมูลส่วนกลาง (shop_id = 0)
+  // สำหรับ Partner หรือพนักงานทั่วไป: เห็นเฉพาะของร้านตัวเอง และข้อมูลส่วนกลาง
   $where_conditions[] = "(shop_info_shop_id = 0 OR shop_info_shop_id = '$shop_id')";
 }
 

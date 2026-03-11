@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// Security Check: ต้องผ่านการยืนยัน OTP มาแล้วเท่านั้น
+// ต้องผ่านการยืนยัน OTP มาแล้วเท่านั้น
 if (!isset($_SESSION['allow_reset']) || !isset($_SESSION['reset_user_id'])) {
     // ถ้าไม่มีตั๋วผ่านทาง ให้กลับไปหน้า Login
     header("Location: login.php");
@@ -12,7 +12,7 @@ if (!isset($_SESSION['allow_reset']) || !isset($_SESSION['reset_user_id'])) {
 $error = '';
 $user_id = $_SESSION['reset_user_id'];
 
-// Handle Form Submit
+// Form Submit
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $new_pass = $_POST['new_password'];
     $confirm_pass = $_POST['confirm_password'];

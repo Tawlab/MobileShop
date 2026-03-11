@@ -23,7 +23,7 @@ if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
 
 $bill_id = (int)$_GET['id'];
 
-// 1. ดึงข้อมูลหัวบิลพื้นฐาน
+// ดึงข้อมูลหัวบิลพื้นฐาน
 $stmt = $conn->prepare("SELECT * FROM bill_headers WHERE bill_id = ?");
 $stmt->bind_param("i", $bill_id);
 $stmt->execute();
@@ -33,7 +33,7 @@ if (!$header) {
     die("Error: ไม่พบข้อมูลบิลในระบบ");
 }
 
-// 2. คำนวณยอดเงินรวม
+// คำนวณยอดเงินรวม
 $stmt_sum = $conn->prepare("SELECT SUM(price * amount) as subtotal FROM bill_details WHERE bill_headers_bill_id = ?");
 $stmt_sum->bind_param("i", $bill_id);
 $stmt_sum->execute();
@@ -46,7 +46,7 @@ $vat_amount = $subtotal * ($vat_rate / 100);
 $grand_total = $subtotal + $vat_amount - $discount;
 if ($grand_total < 0) $grand_total = 0;
 
-// 3. เตรียมข้อมูล ID สำหรับงานซ่อม
+// เตรียมข้อมูล ID สำหรับงานซ่อม
 $repair_id = 0;
 $stock_id = 0;
 $back_btn_url = "sale_list.php"; 
@@ -87,10 +87,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // --------------------------------------------------------------------
         if ($method === 'Cash') {
             
-            // A. ปิดบิล
+            // ปิดบิล
             $conn->query("UPDATE bill_headers SET bill_status = 'Completed', receipt_date = NOW() WHERE bill_id = $bill_id");
 
-            // B. จัดการงานซ่อมและสต็อก (ถ้ามี)
+            // จัดการงานซ่อมและสต็อก (ถ้ามี)
             if ($header['bill_type'] === 'Repair' && $repair_id > 0) {
                 // อัปเดตสถานะงานซ่อม
                 $conn->query("UPDATE repairs SET repair_status = 'ส่งมอบ', update_at = NOW() WHERE repair_id = $repair_id");
@@ -113,14 +113,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // C. เริ่มกระบวนการส่งอีเมล (Embedded Logic)
+            // เริ่มกระบวนการส่งอีเมล (Embedded Logic)
             // ------------------------------------------------------------------
             $redirect_url = "";
             $swal_msg = "ชำระเงินเรียบร้อยแล้ว";
             $email_sent_status = false;
 
-            // 1. ดึงข้อมูลครบชุดเพื่อส่งเมล (ร้านค้า + ลูกค้า)
-            // JOIN branches เพื่อหา shop_info ที่ถูกต้อง
+            // ดึงข้อมูลครบชุดเพื่อส่งเมล (ร้านค้า + ลูกค้า)
             $sql_full_info = "SELECT bh.*, 
                                      c.firstname_th, c.lastname_th, c.cs_email,
                                      s.shop_name, s.shop_email, s.shop_app_password
@@ -161,7 +160,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </tr>";
                     }
 
-                    // 3. สร้างเนื้อหาอีเมล (HTML Body)
+                    // สร้างเนื้อหาอีเมล (HTML Body)
                     $customer_name = $bill_data['firstname_th'] . " " . $bill_data['lastname_th'];
                     $bill_title = ($header['bill_type'] === 'Repair') ? "ใบเสร็จค่าซ่อม" : "ใบเสร็จรับเงิน";
                     
@@ -196,7 +195,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                     </div>";
 
-                    // 4. ตั้งค่า PHPMailer และส่ง
+                    // ตั้งค่า PHPMailer และส่ง
                     $mail = new PHPMailer(true);
                     $mail->isSMTP();
                     $mail->Host       = 'smtp.gmail.com';

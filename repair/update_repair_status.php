@@ -1,5 +1,4 @@
 <?php
-// ไฟล์: update_repair_status.php
 session_start();
 require '../config/config.php';
 require '../vendor/autoload.php';

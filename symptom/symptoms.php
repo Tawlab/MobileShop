@@ -6,7 +6,7 @@ checkPageAccess($conn, 'symptoms');
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// --- 1. ตรวจสอบสิทธิ์ ---
+// --- ตรวจสอบสิทธิ์ ---
 $is_super_admin = false;
 $has_central_perm = false;
 
@@ -29,7 +29,7 @@ if ($stmt = $conn->prepare($check_user_sql)) {
     $stmt->close();
 }
 
-// --- 2. AJAX Fetch Data ---
+// --- AJAX Fetch Data ---
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;

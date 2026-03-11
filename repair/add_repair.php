@@ -1,7 +1,7 @@
 <?php
 session_start();
 
-// 1. เรียกใช้ Config และ Autoload
+// เรียกใช้ Config และ Autoload
 require '../config/config.php';
 require '../vendor/autoload.php';
 
@@ -33,7 +33,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// [Admin Only] ดึงรายชื่อร้านค้าและสาขาทั้งหมดเตรียมไว้สำหรับ Dropdown
+// ดึงรายชื่อร้านค้าและสาขาทั้งหมดเตรียมไว้สำหรับ Dropdown
 $shops_list = [];
 $branches_list = [];
 if ($is_admin) {
@@ -50,13 +50,13 @@ if ($is_admin) {
 }
 
 // --- ดึงข้อมูลสำหรับ Dropdown ---
-// Logic: ถ้าเป็น Admin จะยังไม่โหลดลูกค้า/พนักงาน (รอเลือกสาขาผ่าน AJAX)
-// แต่ถ้าเป็น User ทั่วไป ให้โหลดข้อมูลของสาขาตัวเองทันที
+// Admin จะยังไม่โหลดลูกค้า/พนักงาน (รอเลือกสาขาผ่าน AJAX)
+// User ทั่วไป ให้โหลดข้อมูลของสาขาตัวเองทันที
 $customers_list = [];
 $employees_list = [];
 
 if (!$is_admin) {
-    // 1. ดึงรายชื่อลูกค้า (เฉพาะสาขาตัวเอง)
+    // ดึงรายชื่อลูกค้า (เฉพาะสาขาตัวเอง)
     $sql_cust = "SELECT cs_id, firstname_th, lastname_th, cs_phone_no, cs_email 
                  FROM customers 
                  WHERE branches_branch_id = '$current_branch_id' 
@@ -64,7 +64,7 @@ if (!$is_admin) {
     $res_cust = $conn->query($sql_cust);
     while ($row = $res_cust->fetch_assoc()) $customers_list[] = $row;
 
-    // 2. ดึงรายชื่อพนักงาน (เฉพาะสาขาตัวเอง)
+    // ดึงรายชื่อพนักงาน (เฉพาะสาขาตัวเอง)
     $sql_emp = "SELECT emp_id, emp_code, firstname_th, lastname_th 
                 FROM employees 
                 WHERE emp_status = 'Active' AND branches_branch_id = '$current_branch_id' 
@@ -78,7 +78,7 @@ use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
 // -----------------------------------------------------------------------------
-//  HELPER FUNCTIONS (ฟังก์ชันช่วยงานต่างๆ)
+//  ฟังก์ชันช่วยงานต่างๆ
 // -----------------------------------------------------------------------------
 
 function getNextRepairId($conn)
@@ -109,7 +109,7 @@ function getNextBillId($conn)
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
-// [UPDATED] ฟังก์ชันเช็คสต็อก โดยเพิ่ม parameter $branch_id
+// ฟังก์ชันเช็คสต็อก
 // เพื่อตรวจสอบว่า Serial นี้มีอยู่ในสาขานั้นๆ หรือยัง
 function getStockIdBySerial($conn, $serial, $branch_id = null)
 {
@@ -126,7 +126,7 @@ function getStockIdBySerial($conn, $serial, $branch_id = null)
     return $stmt->get_result()->fetch_assoc();
 }
 
-// --- ฟังก์ชันส่งอีเมล (คงเดิมตามต้นฉบับ) ---
+// --- ฟังก์ชันส่งอีเมล  ---
 function sendJobOrderEmail($to_email, $customer_name, $repair_id, $device_name, $serial_no, $symptoms_txt, $shop_name, $sender_email, $sender_password)
 {
     $mail = new PHPMailer(true);
@@ -226,7 +226,7 @@ mysqli_data_seek($products_result, 0);
 
 
 // -----------------------------------------------------------------------------
-//  AJAX HANDLER (ส่วนจัดการคำขอจาก JavaScript)
+//  AJAX ส่วนจัดการคำขอจาก JavaScript
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     ob_clean();
@@ -321,11 +321,11 @@ if (isset($_POST['action'])) {
 }
 
 // -----------------------------------------------------------------------------
-// บันทึกข้อมูล (SAVE LOGIC)
+// บันทึกข้อมูล 
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // 1. ตรวจสอบและรับค่า Shop/Branch (Logic ข้อ 1)
+    // ตรวจสอบและรับค่า Shop/Branch 
     if ($is_admin) {
         // Admin: รับค่าจาก Dropdown
         $target_shop_id = isset($_POST['selected_shop_id']) ? (int)$_POST['selected_shop_id'] : 0;
@@ -402,7 +402,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($r = $res_prod->fetch_assoc()) $device_name_for_mail = $r['prod_name'];
         }
 
-        // [2] สร้างบิลซ่อม (Bill Header)
+        // สร้างบิลซ่อม (Bill Header)
         $bill_date = date('Y-m-d H:i:s');
         $bill_status = 'Pending';
         $bill_type = 'Repair';
@@ -422,7 +422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$stmt_bill->execute()) throw new Exception('สร้างบิลซ่อมไม่สำเร็จ: ' . $stmt_bill->error);
         $stmt_bill->close();
 
-        // [3] สร้างใบงานซ่อม (Job Order)
+        // สร้างใบงานซ่อม (Job Order)
         $repair_id = getNextRepairId($conn);
         $sql_repair = "INSERT INTO repairs (
             repair_id, customers_cs_id, employees_emp_id, assigned_employee_id, 
@@ -437,7 +437,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$stmt_repair->execute()) throw new Exception('บันทึกงานซ่อมไม่สำเร็จ: ' . $stmt_repair->error);
         $stmt_repair->close();
 
-        // [4] Stock Movement Log
+        // Stock Movement Log
         $movement_id = getNextMovementId($conn);
         $sql_move = "INSERT INTO stock_movements (movement_id, movement_type, ref_table, ref_id, create_at, prod_stocks_stock_id) VALUES (?, 'IN', 'repairs', ?, NOW(), ?)";
         $stmt_move = $conn->prepare($sql_move);
@@ -445,7 +445,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_move->execute();
         $stmt_move->close();
 
-        // [5] บันทึกอาการเสีย (Repair Symptoms)
+        // บันทึกอาการเสีย (Repair Symptoms)
         $sql_symptoms = "INSERT INTO repair_symptoms (repairs_repair_id, symptoms_symptom_id) VALUES ";
         $values = [];
         $params = [];
@@ -470,13 +470,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_sym->close();
         }
 
-        // [6] Log Status (Repair Status Log)
+        // Log Status 
         $conn->query("INSERT INTO repair_status_log (repairs_repair_id, new_status, update_by_employee_id, update_at) VALUES ($repair_id, 'รับเครื่อง', $employee_id, NOW())");
 
         // Commit Transaction
         mysqli_commit($conn);
 
-        // [7] ส่งอีเมลแจ้งเตือนลูกค้า (Email Notification)
+        // ส่งอีเมลแจ้งเตือนลูกค้า
         try {
             $res_cust = $conn->query("SELECT firstname_th, lastname_th, cs_email FROM customers WHERE cs_id = $customer_id");
             $cust_data = $res_cust->fetch_assoc();
@@ -969,10 +969,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // สถานะการเลือกพนักงาน (สำหรับ Modal Search)
         let isAssignedMode = false;
 
-        // =============================================================================
-        //  HELPER FUNCTIONS
-        // =============================================================================
-
         // ฟังก์ชันดึง Branch ID ปัจจุบัน (ใช้ได้ทั้ง Admin และ User)
         function getCurrentBranchId() {
             // ถ้าเป็น Admin ให้ดึงจาก Dropdown, ถ้าเป็น User ให้ดึงจาก Hidden Input
@@ -985,7 +981,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $(document).ready(function() {
-            // 1. เริ่มต้นใช้งาน Select2
+            // เริ่มต้นใช้งาน Select2
             $('.select2').select2({
                 theme: "bootstrap-5",
                 width: '100%',
@@ -994,7 +990,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
 
             // =========================================================================
-            //  ADMIN LOGIC: Shop & Branch Selection
+            //  ADMIN Shop & Branch Selection
             // =========================================================================
             const $shopSelect = $('#selected_shop_id');
             const $branchSelect = $('#selected_branch_id');
@@ -1023,9 +1019,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 });
             }
 
-            // =========================================================================
-            //  BRANCH CHANGE LOGIC (Load Customers & Employees)
-            // =========================================================================
             // เมื่อเปลี่ยนสาขา (ทั้ง Admin เลือกเอง หรือ User โหลดมาตอนแรก)
             $branchSelect.on('change', function() {
                 const branchId = $(this).val();
@@ -1046,13 +1039,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         branch_id: branchId
                     }, function(data) {
                         if (data.success) {
-                            // 1. เติมข้อมูลลูกค้า
+                            // เติมข้อมูลลูกค้า
                             data.customers.forEach(c => {
                                 const text = `${c.firstname_th} ${c.lastname_th} (${c.cs_phone_no})`;
                                 $('#customer_id').append(new Option(text, c.cs_id));
                             });
 
-                            // 2. เติมข้อมูลพนักงาน (ใส่ทั้ง 2 ช่อง)
+                            // เติมข้อมูลพนักงาน (ใส่ทั้ง 2 ช่อง)
                             data.employees.forEach(e => {
                                 const text = `${e.firstname_th} ${e.lastname_th} (${e.emp_code})`;
                                 $('#employee_id').append(new Option(text, e.emp_id));
@@ -1077,8 +1070,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 const val = $(this).val();
 
                 if (val) {
-                    // (Optional) ถ้าต้องการข้อมูลละเอียดอาจต้องยิง AJAX เพิ่ม 
-                    // แต่เบื้องต้นแสดง text จาก Dropdown ก็เพียงพอสำหรับการยืนยัน
                     $('#customer_info_box').html(`
                         <div class="text-success text-center">
                             <i class="fas fa-check-circle fa-2x mb-2"></i><br>
@@ -1092,7 +1083,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
 
         // =============================================================================
-        //  SERIAL NUMBER CHECK LOGIC (หัวใจสำคัญข้อ 2 และ 3)
+        //  SERIAL NUMBER CHECK LOGIC 
         // =============================================================================
         const serialInput = document.getElementById('serial_no');
         const serialStatusDiv = document.getElementById('serial_status');
@@ -1321,7 +1312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             let isValid = true;
             let errorMsg = '';
 
-            // 1. ตรวจสอบการเลือกสาขา (Admin)
+            // ตรวจสอบการเลือกสาขา (Admin)
             if ($('#selected_shop_id').length > 0 && !$('#selected_shop_id').val()) {
                 isValid = false;
                 errorMsg += '- กรุณาเลือกร้านค้า\n';
@@ -1331,7 +1322,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 errorMsg += '- กรุณาเลือกสาขา\n';
             }
 
-            // 2. ตรวจสอบข้อมูลหลัก
+            // ตรวจสอบข้อมูลหลัก
             if (!$('#customer_id').val()) {
                 isValid = false;
                 errorMsg += '- กรุณาเลือกลูกค้า\n';
@@ -1350,7 +1341,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $('#serial_no').addClass('is-invalid');
             }
 
-            // 3. ตรวจสอบสินค้าใหม่ (ถ้าเป็นสินค้าใหม่ ต้องเลือกรุ่น)
+            // ตรวจสอบสินค้าใหม่ (ถ้าเป็นสินค้าใหม่ ต้องเลือกรุ่น)
             if ($('#is_new_device').val() === '1' && !$('#new_product_id').val()) {
                 isValid = false;
                 errorMsg += '- Serial นี้เป็นเครื่องใหม่ กรุณาเลือกรุ่นสินค้าด้วย\n';
@@ -1360,7 +1351,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $('#new_product_id').next('.select2-container').find('.select2-selection').css('border-color', '#dee2e6');
             }
 
-            // 4. ตรวจสอบอาการเสีย
+            // ตรวจสอบอาการเสีย
             if (document.querySelectorAll('.symptom-checkbox:checked').length === 0) {
                 isValid = false;
                 errorMsg += '- กรุณาเลือกอาการเสียอย่างน้อย 1 ข้อ\n';
@@ -1369,7 +1360,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 document.querySelector('.symptom-grid').style.borderColor = '#dee2e6';
             }
 
-            // 5. ตรวจสอบราคา
+            // ตรวจสอบราคา
             const cost = parseFloat($('#estimated_cost').val());
             if (isNaN(cost) || cost < 0) {
                 isValid = false;

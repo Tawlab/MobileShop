@@ -6,6 +6,7 @@ $form_data = [];
 $errors_to_display = [];
 $permissions_list = [];
 
+// บันทึก
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $role_name = trim($_POST['role_name']);
     $role_desc = trim($_POST['role_desc']) ?: NULL;
@@ -23,6 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_check->close();
     }
 
+    // ถ้าไม่มีข้อผิดพลาด ให้เริ่มทำการบันทึกข้อมูล
     if (empty($errors)) {
         $conn->begin_transaction();
         try {
@@ -87,7 +89,7 @@ $checked_permissions = $form_data['permissions'] ?? [];
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
+        /* ป้องกันการล้นจอ */
         *, *::before, *::after {
             box-sizing: border-box; 
         }
@@ -100,7 +102,7 @@ $checked_permissions = $form_data['permissions'] ?? [];
         .form-container {
             max-width: 1000px;
             margin: 40px auto;
-            /* **[แก้ไข]** เพื่อรองรับ Mobile */
+            /* รองรับ Mobile */
             padding: 15px; 
             margin-top: 20px;
             margin-bottom: 20px;
@@ -152,7 +154,7 @@ $checked_permissions = $form_data['permissions'] ?? [];
         }
         
         /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
+        /*  Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) 
         /* -------------------------------------------------------------------- */
         @media (max-width: 767.98px) {
             .form-container {
@@ -165,22 +167,22 @@ $checked_permissions = $form_data['permissions'] ?? [];
                 box-shadow: none;
             }
             
-            /* 1. จัดการ Permission Grid */
+            /* จัดการ Permission Grid */
             .permission-grid {
                 padding: 1rem;
                 max-height: 300px; 
             }
             
-            /* 2. จัดการ Checkbox Item */
+            /* จัดการ Checkbox Item */
             .form-check {
                  padding: 0.75rem; 
             }
 
             .form-check-label {
-                 font-size: 0.9rem; /* เพิ่มขนาด Font ให้ชัดเจนขึ้น */
+                 font-size: 0.9rem; /* ขนาด Font ให้ชัดเจนขึ้น */
             }
 
-            /* 3. ทำให้ปุ่มหลัก (Save) ใช้เต็มความกว้าง */
+            /* ทำให้ปุ่มหลัก (Save) ใช้เต็มความกว้าง */
             .d-grid .btn {
                 width: 100% !important;
                 margin-top: 10px;
@@ -188,7 +190,7 @@ $checked_permissions = $form_data['permissions'] ?? [];
         }
         
         /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Tablet (จอ 768px - 991px) --- */
+        /* Responsive Override สำหรับ Tablet (จอ 768px - 991px) 
         /* -------------------------------------------------------------------- */
         @media (min-width: 768px) and (max-width: 991.98px) {
              .form-check-label {

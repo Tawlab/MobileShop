@@ -223,7 +223,7 @@ $danger_txt = $config['danger_text_color'] ?? '#dc3545';
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             
-            // 1. บันทึกข้อมูล (Save Settings)
+            // บันทึกข้อมูล (Save Settings)
             document.getElementById('settingsForm').addEventListener('submit', function(e) {
                 e.preventDefault();
 
@@ -256,7 +256,7 @@ $danger_txt = $config['danger_text_color'] ?? '#dc3545';
                 .catch(() => Swal.fire('Error', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error'));
             });
 
-            // 2. คืนค่าเริ่มต้น (Reset Settings)
+            // คืนค่าเริ่มต้น (Reset Settings)
             document.getElementById('btnReset').addEventListener('click', function() {
                 Swal.fire({
                     title: 'ยืนยันการคืนค่าเริ่มต้น?',

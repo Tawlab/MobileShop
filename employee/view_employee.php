@@ -86,7 +86,6 @@ $full_address = implode(" ", $address_parts);
     <style>
         body {
             background-color: #f3f4f6;
-            /* font-family: 'Sarabun', sans-serif; */
         }
 
         .view-container {

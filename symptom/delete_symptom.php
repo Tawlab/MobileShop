@@ -4,7 +4,7 @@ require '../config/config.php';
 checkPageAccess($conn, 'delete_symptom');
 
 // -----------------------------------------------------------------------------
-//POST HANDLER: จัดการการลบ
+//จัดการการลบ
 // -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
@@ -20,7 +20,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mysqli_autocommit($conn, false);
 
     try {
-        // CRITICAL CHECK ***: ตรวจสอบว่ามีงานซ่อมใดๆ ใช้อาการนี้อยู่หรือไม่
+        // ตรวจสอบว่ามีงานซ่อมใดๆ ใช้อาการนี้อยู่หรือไม่
         $check_sql = "SELECT COUNT(*) FROM repair_symptoms WHERE symptoms_symptom_id = ?";
         $stmt_check = $conn->prepare($check_sql);
         $stmt_check->bind_param("i", $symptom_id);

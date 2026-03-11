@@ -1,5 +1,4 @@
 <?php
-// reset_settings.php
 ob_start();
 session_start();
 require '../config/config.php';

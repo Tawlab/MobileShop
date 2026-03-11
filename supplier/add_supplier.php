@@ -8,7 +8,7 @@ checkPageAccess($conn, 'add_supplier');
 $current_user_id = $_SESSION['user_id'];
 $current_shop_id = $_SESSION['shop_id'];
 
-// --- 1. ตรวจสอบสถานะ Admin ---
+// --- ตรวจสอบสถานะ Admin ---
 $is_admin = false;
 $sql_role = "SELECT r.role_name FROM user_roles ur 
              JOIN roles r ON ur.roles_role_id = r.role_id 
@@ -27,7 +27,7 @@ if (!$is_admin) {
 }
 
 // -----------------------------------------------------------------------------
-// AJAX HANDLER (สำหรับดึงข้อมูลที่อยู่และสาขา)
+// AJAX สำหรับดึงข้อมูลที่อยู่และสาขา
 // -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     ob_end_clean();
@@ -336,7 +336,7 @@ if ($is_admin) {
     <script>
         let isEmailVerified = true; 
 
-        // 1. Validation Logic
+        // Validation 
         document.querySelectorAll('.input-thai-eng').forEach(el => {
             el.addEventListener('input', function() { this.value = this.value.replace(/[^ก-๙a-zA-Z\s]/g, ''); });
         });
@@ -353,7 +353,7 @@ if ($is_admin) {
             return check === parseInt(id.charAt(12));
         }
 
-        // 2. AJAX Duplicate Checks
+        // AJAX Duplicate Checks
         
         // ตรวจสอบเลขผู้เสียภาษี
         $('#tax_id').on('blur', function() {
@@ -399,7 +399,7 @@ if ($is_admin) {
             });
         });
 
-        // 3. Email OTP Logic
+        // Email OTP Logic
         $('#supplier_email').on('input', function() {
             const email = $(this).val();
             if(email.length > 0) {
@@ -421,7 +421,7 @@ if ($is_admin) {
             fetch('send_otp.php', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ emp_email: email }) // ใช้ parameter เดิมที่ตั้งไว้
+                body: JSON.stringify({ emp_email: email }) 
             })
             .then(res => res.json())
             .then(data => {
@@ -457,7 +457,7 @@ if ($is_admin) {
             });
         });
 
-        // 4. UI Toggle & Address Loaders
+        // UI Toggle & Address Loaders
         function toggleAddress() {
             $('#extraAddress').slideToggle();
             $('#addressIcon').toggleClass('fa-chevron-down fa-chevron-up');
@@ -506,7 +506,7 @@ if ($is_admin) {
 
         function updateZipcode(el) { $('#zipcode').val($(el).find(':selected').data('zip')); }
 
-        // 5. Form Submission Intercept
+        // Form Submission Intercept
         $('#addSupplierForm').on('submit', function(e) {
             if($('.is-invalid').length > 0) {
                 e.preventDefault();

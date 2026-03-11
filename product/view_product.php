@@ -13,7 +13,7 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $product_id = $_GET['id'];
 
-// ดึงข้อมูลสินค้า (แก้คอลัมน์และ JOIN)
+// ดึงข้อมูลสินค้า 
 $product_sql = "SELECT p.prod_id, p.prod_name, p.model_name, p.model_no, p.prod_desc, p.prod_price, 
                        pb.brand_name_th as brand_name, pt.type_name_th as type_name 
                 FROM products p 

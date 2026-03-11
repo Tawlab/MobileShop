@@ -9,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $response = ['status' => 'error', 'message' => 'เกิดข้อผิดพลาด'];
 
     try {
-        // --- 1. ตรวจสอบข้อมูล (Verify Identity) ---
+        // --- ตรวจสอบข้อมูล (Verify Identity) ---
         if ($action === 'verify_identity') {
             $username = trim($_POST['username']);
             $email = trim($_POST['email']);
@@ -42,7 +42,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // --- 2. เปลี่ยนรหัสผ่าน (Update Password) ---
+        // --- เปลี่ยนรหัสผ่าน (Update Password) ---
         elseif ($action === 'update_password') {
             if (!isset($_SESSION['allow_reset']) || !isset($_SESSION['reset_user_id'])) {
                 throw new Exception('Session หมดอายุ กรุณาทำรายการใหม่');
@@ -242,7 +242,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const stepReset = document.getElementById('step-reset');
         const userNameDisplay = document.getElementById('userNameDisplay');
 
-        // --- 1. จัดการฟอร์มตรวจสอบตัวตน ---
+        // --- จัดการฟอร์มตรวจสอบตัวตน ---
         document.getElementById('formVerify').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -296,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
-        // --- 2. จัดการฟอร์มเปลี่ยนรหัสผ่าน ---
+        // --- จัดการฟอร์มเปลี่ยนรหัสผ่าน ---
         document.getElementById('formReset').addEventListener('submit', function(e) {
             e.preventDefault();
 

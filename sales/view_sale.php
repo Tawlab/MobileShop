@@ -135,7 +135,7 @@ $shop_address .= "ต.{$shop['subdistrict_name_th']} อ.{$shop['district_name_t
         }
         
         /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
+        /* --- Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
         /* -------------------------------------------------------------------- */
         @media (max-width: 767.98px) {
             .card-bill {

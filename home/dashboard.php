@@ -13,7 +13,7 @@ $current_user_id = $_SESSION['user_id'];
 $my_branch_id = $_SESSION['branch_id'];
 
 // =============================================================================
-// 1. ตรวจสอบสิทธิ์และการเลือกสาขา (Admin Logic)
+// ตรวจสอบสิทธิ์และการเลือกสาขา 
 // =============================================================================
 $is_admin = false;
 $chk_role = $conn->query("SELECT r.role_name FROM roles r JOIN user_roles ur ON r.role_id = ur.roles_role_id WHERE ur.users_user_id = '$current_user_id' AND r.role_name = 'Admin'");
@@ -39,7 +39,7 @@ if ($is_admin) {
 }
 
 // =============================================================================
-// 2. ตัวกรองช่วงเวลา (Advanced Date Filter)
+// ตัวกรองช่วงเวลา (Advanced Date Filter)
 // =============================================================================
 $period = $_GET['period'] ?? 'year';
 $custom_start = $_GET['custom_start'] ?? date('Y-m-d 00:00');
@@ -98,33 +98,30 @@ switch ($period) {
 }
 
 // =============================================================================
-// 3. ดึงข้อมูล Widgets (Summary)
+// ดึงข้อมูล Widgets (Summary)
 // =============================================================================
 
-// 1. ยอดขายวันนี้ (Specific Date = CURDATE)
+// ยอดขายวันนี้ (Specific Date = CURDATE)
 $sql = "SELECT SUM(bd.price * bd.amount) as total 
         FROM bill_details bd 
         JOIN bill_headers bh ON bd.bill_headers_bill_id = bh.bill_id 
         WHERE DATE(bh.create_at) = CURDATE() AND bh.bill_status = 'Completed' $sql_branch_bh";
 $sales_today = mysqli_fetch_assoc(mysqli_query($conn, $sql))['total'] ?? 0;
 
-// 2. งานซ่อมค้าง (Status check)
+// งานซ่อมค้าง (Status check)
 $sql = "SELECT COUNT(*) as count FROM repairs WHERE repair_status NOT IN ('ส่งมอบ', 'ยกเลิก') $sql_branch_rep";
 $repair_pending = mysqli_fetch_assoc(mysqli_query($conn, $sql))['count'];
 
-// 3. สินค้าพร้อมขาย (Stock Status)
+// สินค้าพร้อมขาย (Stock Status)
 // ตรวจสอบว่า prod_stocks มี branches_branch_id หรือไม่ หากไม่มีอาจต้องลบเงื่อนไขกรองสาขาออก
-// ในที่นี้สมมติว่าต้องการนับรวม หรือมี field นี้
 $sql = "SELECT COUNT(*) as count FROM prod_stocks WHERE stock_status = 'In Stock'"; 
-// ถ้า Database มี field branches_branch_id ให้ uncomment บรรทัดล่าง
-// if($target_branch_id > 0) $sql .= " AND branches_branch_id = '$target_branch_id'";
 $stock_count = mysqli_fetch_assoc(mysqli_query($conn, $sql))['count'];
 
-// 4. ฐานลูกค้า (All customers)
+// ฐานลูกค้า (All customers)
 $sql = "SELECT COUNT(*) as count FROM customers"; 
 $cust_count = mysqli_fetch_assoc(mysqli_query($conn, $sql))['count'];
 
-// 5. กำไรขั้นต้น (ตามช่วงเวลาที่เลือก)
+// กำไรขั้นต้น (ตามช่วงเวลาที่เลือก)
 // ใช้ต้นทุนเฉลี่ยจาก order_details (ซื้อเข้า)
 $sql_profit = "SELECT SUM((bd.price - IFNULL(costs.avg_cost, 0)) * bd.amount) as profit
                FROM bill_details bd
@@ -139,10 +136,10 @@ $profit_total = mysqli_fetch_assoc(mysqli_query($conn, $sql_profit))['profit'] ?
 
 
 // =============================================================================
-// 4. ข้อมูลกราฟ (Charts)
+// ข้อมูลกราฟ (Charts)
 // =============================================================================
 
-// 4.1 กราฟรายได้ (ตามช่วงเวลา)
+// กราฟรายได้ (ตามช่วงเวลา)
 $revenue_labels = [];
 $revenue_data = [];
 $sql = "SELECT DATE_FORMAT(bh.create_at, '%Y-%m-%d %H:00:00') as time_slot, 
@@ -159,7 +156,7 @@ while ($row = mysqli_fetch_assoc($res)) {
     $revenue_data[] = $row['total'];
 }
 
-// 4.2 สัดส่วนรายได้ (ปีนี้ - Fixed 'This Year')
+// สัดส่วนรายได้ (ปีนี้ - Fixed 'This Year')
 $income_values = [0, 0]; // [Sale, Repair]
 $sql = "SELECT bh.bill_type, SUM(bd.price * bd.amount) as total 
         FROM bill_headers bh 
@@ -172,7 +169,7 @@ while ($row = mysqli_fetch_assoc($res)) {
     elseif ($row['bill_type'] == 'Repair') $income_values[1] = $row['total'];
 }
 
-// 4.3 สถานะงานซ่อม (ภาพรวมตลอดกาล - All Time)
+// สถานะงานซ่อม (ภาพรวมตลอดกาล - All Time)
 $rep_labels = [];
 $rep_values = [];
 $sql = "SELECT repair_status, COUNT(*) as c FROM repairs WHERE 1=1 $sql_branch_rep GROUP BY repair_status";
@@ -182,7 +179,7 @@ while ($row = mysqli_fetch_assoc($res)) {
     $rep_values[] = $row['c'];
 }
 
-// 4.4 Top 5 สินค้าขายดี (ตลอดกาล - All Time)
+// Top 5 สินค้าขายดี (ตลอดกาล - All Time)
 $top_prod_lbl = [];
 $top_prod_val = [];
 $sql = "SELECT p.prod_name, SUM(bd.amount) as qty 
@@ -197,7 +194,7 @@ while ($row = mysqli_fetch_assoc($res)) {
     $top_prod_val[] = $row['qty'];
 }
 
-// 4.5 Top 5 อาการเสีย (ตลอดกาล - All Time)
+// Top 5 อาการเสีย (ตลอดกาล - All Time)
 $top_sym_lbl = [];
 $top_sym_val = [];
 $sql = "SELECT s.symptom_name, COUNT(*) as c 
@@ -212,7 +209,7 @@ while ($row = mysqli_fetch_assoc($res)) {
     $top_sym_val[] = $row['c'];
 }
 
-// 4.6 ประสิทธิภาพพนักงาน (ตลอดกาล - All Time)
+// ประสิทธิภาพพนักงาน (ตลอดกาล - All Time)
 $top_emp_data = [];
 $top_emp_lbl = [];
 $top_emp_val = [];
@@ -612,7 +609,7 @@ $json_emp_val = json_encode($top_emp_val);
         Chart.defaults.font.family = "'Sarabun', sans-serif";
         Chart.defaults.color = '#666';
 
-        // 1. Revenue Chart (กราฟรายได้)
+        // Revenue Chart (กราฟรายได้)
         let revenueChartCtx = document.getElementById('revenueChart');
         let revenueChart = new Chart(revenueChartCtx, {
             type: 'bar', // เริ่มต้นเป็นกราฟแท่ง
@@ -645,7 +642,7 @@ $json_emp_val = json_encode($top_emp_val);
             revenueChart.update();
         }
 
-        // 2. Income Proportion Chart (สัดส่วนรายได้)
+        // Income Proportion Chart (สัดส่วนรายได้)
         new Chart(document.getElementById('incomePropChart'), {
             type: 'doughnut',
             data: {
@@ -666,7 +663,7 @@ $json_emp_val = json_encode($top_emp_val);
             }
         });
 
-        // 3. Repair Status Chart (สถานะงานซ่อม)
+        // Repair Status Chart (สถานะงานซ่อม)
         // สร้างสีอัตโนมัติให้ครบตามจำนวนสถานะ
         const colors = ['#e74a3b', '#f6c23e', '#4e73df', '#1cc88a', '#36b9cc', '#858796', '#5a5c69'];
         
@@ -686,8 +683,7 @@ $json_emp_val = json_encode($top_emp_val);
             }
         });
 
-        // 4. Top 5 Products Chart (สินค้าขายดี)
-        // ** แก้ไข ID ให้ตรงกับ HTML: topProdChart **
+        // Top 5 Products Chart (สินค้าขายดี)
         new Chart(document.getElementById('topProdChart'), {
             type: 'bar',
             data: {
@@ -708,7 +704,7 @@ $json_emp_val = json_encode($top_emp_val);
             }
         });
 
-        // 5. Top 5 Symptoms Chart (อาการเสีย)
+        // Top 5 Symptoms Chart (อาการเสีย)
         new Chart(document.getElementById('topSymptomChart'), {
             type: 'bar',
             data: {
@@ -729,7 +725,7 @@ $json_emp_val = json_encode($top_emp_val);
             }
         });
 
-        // 6. Top 5 Employees Chart (พนักงานยอดขายสูงสุด)
+        // Top 5 Employees Chart (พนักงานยอดขายสูงสุด)
         new Chart(document.getElementById('topEmpChart'), {
             type: 'bar',
             data: {

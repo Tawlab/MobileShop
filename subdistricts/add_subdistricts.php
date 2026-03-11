@@ -9,7 +9,6 @@ $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th FR
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-  // แก้ไขชื่อฟิลด์
   $subdistrict_id = trim($_POST['subdistrict_id']);
   $subdistrict_name_th = trim($_POST['subdistrict_name_th']);
   $subdistrict_name_en = trim($_POST['subdistrict_name_en']);

@@ -1,5 +1,4 @@
 <?php
-// save_settings.php
 ob_start(); // ป้องกัน HTML แทรก
 session_start();
 require '../config/config.php';

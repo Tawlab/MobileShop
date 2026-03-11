@@ -22,7 +22,7 @@ if (!empty($search)) {
 }
 $where_clause = empty($where_conditions) ? '' : 'WHERE ' . implode(' AND ', $where_conditions);
 
-//  SQL QUERY (หลัก)
+//  SQL QUERY
 $main_sql = "SELECT 
                 po.purchase_id,
                 po.purchase_date,
@@ -55,7 +55,7 @@ $main_sql = "SELECT
             $where_clause
             ORDER BY po.purchase_id DESC";
 
-// COUNT TOTAL (สำหรับ Pagination)
+// COUNT TOTAL
 $count_result = mysqli_query($conn, "SELECT COUNT(*) as total FROM ($main_sql) as count_table");
 $total_records = mysqli_fetch_assoc($count_result)['total'];
 $total_pages = ceil($total_records / $limit);
@@ -228,7 +228,7 @@ function build_query_string($exclude = [])
         }
 
         /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
+        /* ---  Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- 
         /* -------------------------------------------------------------------- */
         @media (max-width: 991.98px) {
             .container-xl {
@@ -236,7 +236,7 @@ function build_query_string($exclude = [])
                 padding-right: 10px;
             }
 
-            /* 1. จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex) */
+            /* จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex) */
             .card-header .d-flex {
                 flex-direction: column; 
                 gap: 10px;
@@ -246,27 +246,27 @@ function build_query_string($exclude = [])
                  width: 100% !important; 
             }
 
-            /* 2. ทำให้ Form Control และ Button ใช้เต็มความกว้าง */
+            /* ทำให้ Form Control และ Button ใช้เต็มความกว้าง */
             .card-header .form-control,
             .card-header .form-select,
             .card-header .btn {
                 width: 100% !important; 
             }
 
-            /* 3. ปรับ Table Cell Padding/Font */
+            /* ปรับ Table Cell Padding/Font */
             .table th, .table td {
                 padding: 0.5rem 0.5rem; 
                 font-size: 0.8rem; 
                 white-space: nowrap; 
             }
             
-            /* 4. จัดการคอลัมน์ Action ในตาราง */
+            /* จัดการคอลัมน์ Action ในตาราง */
             .table td:last-child {
                 flex-direction: column; /* เรียงปุ่ม Action เป็นแนวตั้งบน Mobile */
                 gap: 5px;
             }
 
-            /* 5. ปรับขนาด Badge */
+            /* ปรับขนาด Badge */
             .status-badge {
                 font-size: 10px;
                 padding: 3px 6px;
@@ -600,7 +600,7 @@ function build_query_string($exclude = [])
             });
         });
 
-        //  เพิ่มการ Validation ก่อน Submit
+        //  การ Validation ก่อน Submit
         cancelForm.addEventListener('submit', function(event) {
             if (!cancelCommentInput.value.trim()) {
                 event.preventDefault(); // หยุดการส่งฟอร์ม

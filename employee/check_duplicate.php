@@ -1,7 +1,6 @@
 <?php
-// check_duplicate.php
 session_start();
-require '../config/config.php'; // ตรวจสอบว่า Path ถูกต้องตามโครงสร้างโฟลเดอร์ของคุณ
+require '../config/config.php';
 
 // กำหนด Header ให้ตอบกลับเป็น JSON
 header('Content-Type: application/json');

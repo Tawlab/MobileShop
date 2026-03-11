@@ -1,13 +1,13 @@
 <?php
 session_start();
 
-// [เพิ่ม 1] เรียกใช้ PHPMailer
+// เรียกใช้ PHPMailer
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 use PHPMailer\PHPMailer\SMTP;
 
 require '../config/config.php';
-require '../vendor/autoload.php'; // [เพิ่ม 2] โหลด Library
+require '../vendor/autoload.php'; // โหลด Library
 
 checkPageAccess($conn, 'add_sale');
 
@@ -121,10 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
     if ($stmt->execute()) {
         
         // -------------------------------------------------------------------------
-        // [เพิ่มใหม่] ส่วนการส่งอีเมลใบเสร็จเมื่อชำระสำเร็จ
+        // ส่วนการส่งอีเมลใบเสร็จเมื่อชำระสำเร็จ
         // -------------------------------------------------------------------------
         try {
-            // 1. ดึงข้อมูล Email ร้านค้า (SMTP) และ Email ลูกค้า
+            // ดึงข้อมูล Email ร้านค้า (SMTP) และ Email ลูกค้า
             $sql_info = "SELECT h.bill_date, h.vat, h.discount,
                                 c.cs_email, c.firstname_th, c.lastname_th,
                                 br.branch_name, 
@@ -143,7 +143,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
             // ตรวจสอบว่ามีข้อมูลครบถ้วน (เมลลูกค้า + เมลร้าน + รหัสแอพร้าน)
             if ($info && !empty($info['cs_email']) && !empty($info['shop_email']) && !empty($info['shop_app_password'])) {
                 
-                // 2. ดึงรายการสินค้า
+                // ดึงรายการสินค้า
                 $sql_items = "SELECT bd.amount, bd.price, p.prod_name, p.model_name
                               FROM bill_details bd
                               JOIN products p ON bd.products_prod_id = p.prod_id
@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
                 $stmt_items->execute();
                 $res_items = $stmt_items->get_result();
 
-                // 3. เตรียม HTML รายการสินค้า
+                // เตรียม HTML รายการสินค้า
                 $items_html = "";
                 $calc_subtotal = 0;
                 while ($item = $res_items->fetch_assoc()) {
@@ -172,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
                 $cal_vat = $calc_subtotal * ($info['vat'] / 100);
                 $cal_net = $calc_subtotal + $cal_vat - $info['discount'];
 
-                // 4. สร้าง HTML Body
+                // สร้าง HTML Body
                 $email_content = "
                 <div style='background-color: #f4f6f9; padding: 20px; font-family: sans-serif;'>
                     <div style='max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);'>
@@ -224,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['confirm_payment'])) {
                     </div>
                 </div>";
 
-                // 5. ส่งเมลผ่าน PHPMailer
+                // ส่งเมลผ่าน PHPMailer
                 $mail = new PHPMailer(true);
                 $mail->isSMTP();
                 $mail->Host       = 'smtp.gmail.com';

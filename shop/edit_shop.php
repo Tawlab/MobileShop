@@ -546,6 +546,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         let newSelectedFiles = [];
         const maxFiles = 4;
 
+        // ฟังก์ชันลบรูปเดิมออกจาก preview และ input hidden
         function removeExistingImage(button, fileName) {
             button.parentElement.remove();
             const hiddenInput = document.querySelector(`input[name="existing_images[]"][value="${fileName}"]`);
@@ -572,6 +573,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             updateNewFileInput();
         });
 
+        // ฟังก์ชันแสดงรูปภาพใหม่
         function displayNewImage(file) {
             const reader = new FileReader();
             reader.onload = function(e) {
@@ -589,11 +591,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             reader.readAsDataURL(file);
         }
 
+        // ฟังก์ชันลบรูปใหม่ที่เลือกออกจาก preview และอัปเดต input type="file"
         function removeNewImage(button, fileName) {
             newSelectedFiles = newSelectedFiles.filter(file => file.name !== fileName);
             button.parentElement.remove(); updateNewFileInput();
         }
 
+        // ฟังก์ชันอัปเดตค่าใน input type="file" ใหม่หลังจากลบไฟล์ออก
         function updateNewFileInput() {
             const dataTransfer = new DataTransfer();
             newSelectedFiles.forEach(file => dataTransfer.items.add(file));
@@ -604,6 +608,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // --- เริ่มต้นส่วน AJAX & SweetAlert การตรวจสอบข้อมูล (Validation) ---------
         // -------------------------------------------------------------------------
         
+        // เช็คข้อมูลซ้ำ (Duplicate Check) ผ่าน AJAX
         async function checkDuplicate(action, fieldName, value, inputElement) {
             const shopId = document.getElementById('shop_id').value; // เอา ID ร้านค้าไปเช็คไม่ให้ชนกับตัวเอง
             try {
@@ -639,7 +644,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return check === parseInt(id.charAt(12));
         }
 
-        // 1. ตรวจสอบเลขผู้เสียภาษี (Tax ID)
+        // ตรวจสอบเลขผู้เสียภาษี (Tax ID)
         const taxInput = document.getElementById('tax_id');
         if(taxInput) {
             taxInput.addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, ''); });
@@ -657,7 +662,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
-        // 2. ตรวจสอบเบอร์โทรศัพท์ (Phone)
+        // ตรวจสอบเบอร์โทรศัพท์ (Phone)
         const phoneInput = document.getElementById('shop_phone');
         if(phoneInput) {
             phoneInput.addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, ''); });
@@ -674,7 +679,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
-        // 3. ตรวจสอบอีเมล (Email) และระบบ OTP 
+        // ตรวจสอบอีเมล (Email) และระบบ OTP 
         const originalEmail = "<?= htmlspecialchars($data['shop_email'] ?? '') ?>";
         let isShopEmailVerified = true; // ค่าเริ่มต้น true (กรณีใช้เมลเดิม)
         
@@ -693,6 +698,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             });
 
+            // ตรวจสอบรูปแบบอีเมล และเช็คความซ้ำซ้อนเมื่อผู้ใช้เลิกแก้ไขช่องอีเมล (blur)
             emailInput.addEventListener('blur', function() {
                 let email = this.value.trim();
                 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -709,6 +715,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
+        // ดึงค่าจาก input อีเมลไปส่ง AJAX เพื่อขอรหัส OTP และแสดงกล่องให้กรอก OTP เมื่อได้รับการตอบกลับสำเร็จ
         document.getElementById('btnSendShopOTP')?.addEventListener('click', function() {
             const email = document.getElementById('shop_email').value.trim();
             if (!email || document.getElementById('shop_email').classList.contains('is-invalid')) return;
@@ -725,6 +732,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             .finally(() => { btn.disabled = false; btn.innerHTML = 'ส่ง OTP'; });
         });
 
+        // ดึงค่าจาก input รหัส OTP ไปส่ง AJAX เพื่อยืนยันรหัส OTP เมื่อได้รับการตอบกลับสำเร็จให้ล็อคอีเมลและซ่อนกล่อง OTP
         document.getElementById('btnVerifyShopOTP')?.addEventListener('click', function() {
             const otp = document.getElementById('shop_otp_code').value.trim();
             if (otp.length !== 6) return Swal.fire('แจ้งเตือน', 'กรุณากรอก OTP 6 หลักให้ครบ', 'warning');
@@ -743,9 +751,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
         // -------------------------------------------------------------------------
-        // --- สิ้นสุดส่วน AJAX & SweetAlert ---------------------------------------
+        //  สิ้นสุดส่วน AJAX & SweetAlert
         // -------------------------------------------------------------------------
 
+        // แสดงข้อผิดพลาดใต้ช่องกรอกข้อมูล
         function showError(input, message) {
             input.classList.add('is-invalid');
             let errorDiv = input.nextElementSibling;
@@ -753,6 +762,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (errorDiv && errorDiv.classList.contains('error-feedback')) { errorDiv.textContent = message; errorDiv.style.display = 'block'; }
         }
 
+        // ซ่อนข้อผิดพลาดเมื่อผู้ใช้แก้ไขข้อมูลในช่องนั้นๆ
         function hideError(input) {
             input.classList.remove('is-invalid');
             let errorDiv = input.nextElementSibling;
@@ -793,6 +803,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             element.addEventListener('change', function() { if (this.classList.contains('is-invalid') && this.value.trim() !== '') hideError(this); });
         });
 
+        // แสดงแจ้งเตือนแบบกำหนดเอง (Custom Alert)
         function showAlert(type, message) {
             const alertDiv = document.createElement('div');
             alertDiv.className = `custom-alert alert-${type}`;

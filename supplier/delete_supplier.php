@@ -19,7 +19,7 @@ $result_check = $stmt_check->get_result()->fetch_assoc();
 $stmt_check->close();
 
 if ($result_check['po_count'] > 0) {
-    // (3) ถ้ามี PO, ห้ามลบ
+    // ถ้ามี PO, ห้ามลบ
     header("Location: supplier.php?error=has_po");
     exit();
 }

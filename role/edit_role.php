@@ -3,13 +3,13 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_role');
 
-// 1. รับ ID ที่จะแก้ไข
+// รับ ID ที่จะแก้ไข
 $role_id_to_edit = (int)($_GET['id'] ?? 0);
 if ($role_id_to_edit === 0) {
     die("ไม่พบ ID บทบาทที่ต้องการแก้ไข");
 }
 
-// 2. ดึงสิทธิ์เดิมที่มีอยู่ (Checked Permissions) เพื่อใช้ใน AJAX และ JS
+// ดึงสิทธิ์เดิมที่มีอยู่ (Checked Permissions) เพื่อใช้ใน AJAX และ JS
 $checked_permissions_from_db = [];
 $stmt_get_checked = $conn->prepare("SELECT permissions_permission_id FROM role_permissions WHERE roles_role_id = ?");
 $stmt_get_checked->bind_param("i", $role_id_to_edit);
@@ -21,7 +21,7 @@ while ($row = $result_checked->fetch_assoc()) {
 $stmt_get_checked->close();
 
 // ==========================================
-// ส่วนจัดการ AJAX (สำหรับค้นหาและกรอง Real-time)
+// ส่วนจัดการ AJAX สำหรับค้นหาและกรอง Real-time
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search_perm = isset($_GET['search_perm']) ? trim($_GET['search_perm']) : '';
@@ -32,7 +32,7 @@ if (isset($_GET['ajax'])) {
     $bind_types = "";
     $bind_values = [];
 
-    // 1. กรองตามคำค้นหา
+    // กรองตามคำค้นหา
     if (!empty($search_perm)) {
         $where_clauses[] = "(permission_name LIKE ? OR permission_desc LIKE ?)";
         $search_like = "%" . $search_perm . "%";
@@ -40,7 +40,7 @@ if (isset($_GET['ajax'])) {
         array_push($bind_values, $search_like, $search_like);
     }
 
-    // 2. กรองตามประเภท (ตามโจทย์ 2.1 - 2.6)
+    // กรองตามประเภท 
     if ($filter_type != 'all') {
         if ($filter_type == 'list') {
             // หน้าหลัก: ไม่ขึ้นต้นด้วย add, edit, del, delete, view
@@ -64,7 +64,7 @@ if (isset($_GET['ajax'])) {
         $sql_perms .= " WHERE " . implode(" AND ", $where_clauses);
     }
     
-    // 2.1 เรียงลำดับ A-Z
+    // เรียงลำดับ A-Z
     $sql_perms .= " ORDER BY permission_name ASC";
 
     $stmt_perms = $conn->prepare($sql_perms);
@@ -104,7 +104,7 @@ if (isset($_GET['ajax'])) {
 }
 
 // ==========================================
-// ส่วนจัดการ POST (บันทึกข้อมูล Role + Permissions)
+// ส่วนจัดการ POST เมื่อกดบันทึก
 // ==========================================
 $form_data = []; 
 $errors_to_display = [];
@@ -148,21 +148,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $conn->begin_transaction(); 
 
         try {
-            // 1. อัปเดต Role Info
+            // อัปเดต Role Info
             $sql_role = "UPDATE roles SET role_name = ?, role_desc = ?, update_at = NOW() WHERE role_id = ?";
             $stmt_role = $conn->prepare($sql_role);
             $stmt_role->bind_param("ssi", $role_name, $role_desc, $role_id_to_edit);
             $stmt_role->execute();
             $stmt_role->close();
 
-            // 2. ลบสิทธิ์เดิม
+            // ลบสิทธิ์เดิม
             $sql_del_perm = "DELETE FROM role_permissions WHERE roles_role_id = ?";
             $stmt_del = $conn->prepare($sql_del_perm);
             $stmt_del->bind_param("i", $role_id_to_edit);
             $stmt_del->execute();
             $stmt_del->close();
 
-            // 3. เพิ่มสิทธิ์ใหม่
+            // เพิ่มสิทธิ์ใหม่
             $sql_perm = "INSERT INTO role_permissions (roles_role_id, permissions_permission_id, create_at) VALUES (?, ?, NOW())";
             $stmt_perm = $conn->prepare($sql_perm);
             foreach ($selected_permissions as $perm_id) {
@@ -462,10 +462,7 @@ if (empty($form_data)) {
                 }
                 
                 // สร้าง Hidden Input สำหรับค่าที่อยู่ใน Set เพื่อส่งไปกับ Form POST
-                // (เพราะ Checkbox บางตัวอาจถูกซ่อนโดย Filter ทำให้ไม่ถูก Submit ตามปกติ)
                 selectedPermissions.forEach(val => {
-                    // ถ้าค่านี้ไม่ได้มี input อยู่ในฟอร์มปัจจุบัน (เช่น ถูกซ่อนโดยตัวกรอง) หรือมีอยู่แล้วแต่อยากชัวร์
-                    // สร้างใหม่เลยเพื่อความแน่นอน
                     if (!document.querySelector(`input[name="permissions[]"][value="${val}"]`)) {
                         const hiddenInput = document.createElement('input');
                         hiddenInput.type = 'hidden';
@@ -475,7 +472,6 @@ if (empty($form_data)) {
                     }
                 });
                 
-                // (หมายเหตุ: Checkbox ที่แสดงอยู่และ Checked จะถูกส่งไปโดยอัตโนมัติตามธรรมชาติของ HTML Form)
             });
 
             // Debounce function

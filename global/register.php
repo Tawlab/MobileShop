@@ -365,7 +365,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
 
     <script>
         let isEmailVerified = true; // ของ Step 1
-        let isShopEmailVerified = true; // เพิ่มใหม่: ของ Step 2 (ค่าเริ่มต้น true เพราะไม่บังคับกรอก)
+        let isShopEmailVerified = true; // เพิ่มใหม่: ของ Step 2 
 
         $(document).ready(function() {
             $('.select2').select2({
@@ -384,7 +384,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 this.value = this.value.replace(/[^0-9]/g, '');
             });
 
-            // 1. ตรวจสอบ Username
+            // ตรวจสอบ Username
             $('#username').on('blur', function() {
                 let el = $(this);
                 let usr = el.val().trim();
@@ -403,7 +403,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 } else el.removeClass('is-invalid is-valid-custom');
             });
 
-            // 2. ตรวจสอบ Password
+            // ตรวจสอบ Password
             $('#password').on('blur', function() {
                 let el = $(this);
                 let pwd = el.val();
@@ -422,7 +422,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 } else el.removeClass('is-invalid is-valid-custom');
             });
 
-            // 3. ตรวจสอบเบอร์โทรซ้ำ
+            // ตรวจสอบเบอร์โทรซ้ำ
             $('.check-phone').on('blur', function() {
                 let el = $(this);
                 let phone = el.val().trim();
@@ -454,7 +454,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 }
             });
 
-            // 4. ระบบ OTP และตรวจสอบอีเมลซ้ำ
+            // ระบบ OTP และตรวจสอบอีเมลซ้ำ
             $('#emp_email').on('input', function() {
                 const email = $(this).val().trim();
                 if (email.length > 0) {
@@ -567,7 +567,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 } else el.removeClass('is-invalid is-valid-custom');
             });
 
-            // ตรวจสอบชื่อร้านและสาขา (เหมือนเดิม)
+            // ตรวจสอบชื่อร้านและสาขา 
             $('#shop_name').on('blur', function() {
                 let shopName = $(this).val().trim();
                 if (shopName.length > 0) {
@@ -606,7 +606,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 }
             });
             // ---------------------------------------------------------
-            // 1. ตรวจสอบเบอร์โทรร้านค้า (shop_phone) + เช็ค Pattern
+            // ตรวจสอบเบอร์โทรร้านค้า (shop_phone) + เช็ค Pattern
             // ---------------------------------------------------------
             $('#shop_phone').on('input', function() {
                 this.value = this.value.replace(/[^0-9]/g, ''); // พิมพ์ได้แค่ตัวเลข
@@ -641,7 +641,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
             });
 
             // ---------------------------------------------------------
-            // 2. ตรวจสอบเลขประจำตัวผู้เสียภาษี (shop_tax_id) + เช็คสูตร 13 หลัก
+            // ตรวจสอบเลขประจำตัวผู้เสียภาษี (shop_tax_id) + เช็คสูตร 13 หลัก
             // ---------------------------------------------------------
             // ฟังก์ชันคำนวณความถูกต้องของเลข 13 หลัก (Mod 11)
             function validateThaiTaxID(id) {
@@ -724,7 +724,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
             });
         });
         // ---------------------------------------------------------
-        // 2. ตรวจสอบอีเมลร้านค้า (shop_email) และระบบ OTP
+        // ตรวจสอบอีเมลร้านค้า (shop_email) และระบบ OTP
         // ---------------------------------------------------------
         $('#shop_email').on('input', function() {
             const email = $(this).val().trim();
@@ -821,7 +821,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
 
 
         // -----------------------
-        // NAVIGATION & VALIDATION (แทนที่ของเดิมด้วยโค้ดนี้)
+        // NAVIGATION & VALIDATION 
         // -----------------------
         function updatePrefixEn() {
             const select = document.getElementById('prefix_id');
@@ -831,13 +831,13 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
         function validateStep1() {
             let emptyFields = 0;
 
-            // 1. วนลูปเช็คเฉพาะช่องที่บังคับกรอก (required)
+            // วนลูปเช็คเฉพาะช่องที่บังคับกรอก (required)
             $('#step1 input[required]').each(function() {
                 if ($(this).val().trim() === '') {
                     $(this).addClass('is-invalid'); // ใส่ขอบแดงถ้าว่าง
                     emptyFields++;
                 } else {
-                    // หากพิมพ์แล้ว จะลบขอบแดงออก (แต่ถ้าติด Error จาก AJAX จะยังคงไว้)
+                    // หากพิมพ์แล้ว จะลบขอบแดงออก 
                     if (!$(this).hasClass('is-invalid-custom')) {
                         $(this).removeClass('is-invalid');
                     }
@@ -854,7 +854,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 });
             }
 
-            // 2. เช็คว่ามี Error จากระบบดักจับ (เช่น รหัสสั้นไป, ชื่อซ้ำ) ค้างอยู่หรือไม่
+            // เช็คว่ามี Error จากระบบดักจับ (เช่น รหัสสั้นไป, ชื่อซ้ำ) ค้างอยู่หรือไม่
             if ($('#step1 .is-invalid').length > 0) {
                 return Swal.fire({
                     icon: 'error',
@@ -864,7 +864,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 });
             }
 
-            // 3. ตรวจสอบสถานะ OTP
+            // ตรวจสอบสถานะ OTP
             if (!isEmailVerified) {
                 return Swal.fire({
                     icon: 'warning',
@@ -1019,7 +1019,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                 });
         }
         // ---------------------------------------------------------
-        // 1. ตรวจสอบเบอร์โทรร้านค้า (shop_phone)
+        // ตรวจสอบเบอร์โทรร้านค้า (shop_phone)
         // ---------------------------------------------------------
         // บังคับให้พิมพ์ได้เฉพาะตัวเลขเท่านั้น
         $('input[name="shop_phone"]').on('input', function() {

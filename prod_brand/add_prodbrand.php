@@ -4,11 +4,11 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_prodbrand');
 require '../config/load_theme.php';
 
-// [แก้ไข 1] รับค่า Shop ID และ User ID
+// รับค่า Shop ID และ User ID
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [แก้ไข 2] ตรวจสอบสิทธิ์ "centralinf" (จัดการข้อมูลส่วนกลาง)
+// ตรวจสอบสิทธิ์ "centralinf" 
 $has_centralinf_permission = false;
 $check_perm_sql = "SELECT p.permission_id 
                    FROM permissions p
@@ -57,8 +57,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $brand_name_th = trim($brand['brand_name_th'] ?? '');
         $brand_name_en = trim($brand['brand_name_en'] ?? '');
         $brand_id = trim($brand['brand_id'] ?? '');
-
-        // [แก้ไข 3] รับค่า Checkbox และกำหนด Shop ID ที่จะบันทึก
         $is_central = isset($brand['is_central']) && $brand['is_central'] == '1';
         
         if ($has_centralinf_permission && $is_central) {
@@ -78,7 +76,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        // ตรวจสอบ ID ซ้ำ (Global Check เพราะ ID ห้ามซ้ำทั้งระบบ)
+        // ตรวจสอบ ID ซ้ำ 
         $stmt_check_id = $conn->prepare("SELECT COUNT(*) FROM prod_brands WHERE brand_id = ?");
         $stmt_check_id->bind_param("s", $brand_id);
         $stmt_check_id->execute();
@@ -90,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        // [แก้ไข 4] ตรวจสอบชื่อซ้ำ (Check Scope: เฉพาะที่มีผลกับร้านเรา หรือ ส่วนกลาง)
+        // ตรวจสอบชื่อซ้ำ (เฉพาะที่มีผลกับร้านเรา หรือ ส่วนกลาง)
         $stmt_check_name = $conn->prepare("SELECT COUNT(*) FROM prod_brands WHERE (brand_name_th = ? OR brand_name_en = ?) AND (shop_info_shop_id = 0 OR shop_info_shop_id = ?)");
         $stmt_check_name->bind_param("ssi", $brand_name_th, $brand_name_en, $shop_id);
         $stmt_check_name->execute();
@@ -103,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        // [แก้ไข 5] เพิ่มข้อมูล (เพิ่ม shop_info_shop_id)
+        // เพิ่มข้อมูล 
         $stmt = $conn->prepare("INSERT INTO prod_brands (brand_id, brand_name_th, brand_name_en, shop_info_shop_id) VALUES (?, ?, ?, ?)");
         $stmt->bind_param("sssi", $brand_id, $brand_name_th, $brand_name_en, $save_shop_id);
 

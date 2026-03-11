@@ -10,7 +10,7 @@ $current_user_id = $_SESSION['user_id'];
 $current_branch_id = $_SESSION['branch_id'];
 
 // -----------------------------------------------------------------------------
-//  1. CHECK ADMIN & PREPARE DATA
+//  CHECK ADMIN & PREPARE DATA
 // -----------------------------------------------------------------------------
 $is_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
@@ -23,7 +23,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// [Admin] ดึงรายชื่อร้านค้าและสาขา
+// ดึงรายชื่อร้านค้าและสาขา
 $shops_list = [];
 $branches_list = [];
 if ($is_admin) {
@@ -45,7 +45,7 @@ $type_res = $conn->query("SELECT type_id, type_name_th FROM prod_types ORDER BY 
 
 
 // -----------------------------------------------------------------------------
-//  2. AJAX HANDLER (ประมวลผลรายงาน)
+//  AJAX ประมวลผลรายงาน
 // -----------------------------------------------------------------------------
 if (isset($_POST['action']) && $_POST['action'] === 'get_report') {
     ob_clean();
@@ -69,7 +69,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'get_report') {
     $data = [];
     $summary = ['total_sales' => 0, 'total_items' => 0, 'count_bill' => 0];
 
-    // --- SQL Queries (เปลี่ยน bill_type เป็น 'Repair') ---
+    // --- SQL Queries เปลี่ยน bill_type เป็น 'Repair' ---
     if ($report_type === 'employee') {
         // รายงานตามพนักงาน (คนที่ออกบิล/รับเงิน)
         $sql = "SELECT e.firstname_th, e.lastname_th, e.emp_code,
@@ -144,7 +144,7 @@ if (isset($_POST['action']) && $_POST['action'] === 'get_report') {
     exit;
 }
 
-// [AJAX Load Branches & Employees for Admin]
+// AJAX Load Branches & Employees for Admin
 if (isset($_POST['action']) && $_POST['action'] === 'get_branch_employees') {
     ob_clean();
     header('Content-Type: application/json');

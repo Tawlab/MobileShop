@@ -3,7 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'repair_list');
 
-// 1. รับค่า ID ให้รองรับทั้งจาก Modal (POST) และจากการเข้าผ่านลิงก์ (GET)
+// รับค่า ID ให้รองรับทั้งจาก Modal (POST) และจากการเข้าผ่านลิงก์ (GET)
 $repair_id = 0;
 if (isset($_POST['repair_id']) && !empty($_POST['repair_id'])) {
     $repair_id = (int)$_POST['repair_id'];
@@ -20,7 +20,7 @@ if ($repair_id === 0) {
 // เช็คไอดีพนักงานที่กำลังล็อกอิน
 $emp_id = $_SESSION['emp_id'] ?? $_SESSION['user_id'] ?? 1;
 
-// 2. ดึงข้อมูลงานซ่อม
+// ดึงข้อมูลงานซ่อม
 $sql = "SELECT r.repair_id, r.repair_status, r.bill_headers_bill_id, r.prod_stocks_stock_id,
         c.firstname_th, c.lastname_th, p.prod_name
         FROM repairs r 
@@ -44,7 +44,7 @@ if ($repair['repair_status'] == 'ส่งมอบ') {
 }
 
 // =========================================================
-// 3. กระบวนการอัปเดตและยกเลิกงานซ่อม (เมื่อมีการ POST ส่งเหตุผลมา)
+// กระบวนการอัปเดตและยกเลิกงานซ่อม (เมื่อมีการ POST ส่งเหตุผลมา)
 // =========================================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $cancel_reason = mysqli_real_escape_string($conn, trim($_POST['cancel_reason']));
@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     mysqli_autocommit($conn, false);
     try {
-        // 3.1 อัปเดตสถานะงานซ่อม -> 'ยกเลิก'
+        // อัปเดตสถานะงานซ่อม -> 'ยกเลิก'
         $conn->query("UPDATE repairs SET repair_status = 'ยกเลิก', update_at = NOW() WHERE repair_id = $repair_id");
 
         // 3.2 บันทึก Log การเปลี่ยนสถานะ
@@ -67,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     VALUES ($repair_id, '$old_status', 'ยกเลิก', $emp_id, '$log_comment', NOW())";
         $conn->query($sql_log);
 
-        // 3.3 จัดการบิลและคืนสต็อกอะไหล่ (ถ้ามีการเปิดบิลแล้ว)
+        // จัดการบิลและคืนสต็อกอะไหล่ (ถ้ามีการเปิดบิลแล้ว)
         if (!empty($repair['bill_headers_bill_id'])) {
             $bill_id = $repair['bill_headers_bill_id'];
             

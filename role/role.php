@@ -328,7 +328,7 @@ if ($stmt) {
             });
         }, 5000);
 
-        // [เพิ่ม] ฟังก์ชันสำหรับเปิด Modal ลบ
+        // ฟังก์ชันสำหรับเปิด Modal ลบ
         function openDeleteModal(roleId, roleName) {
             // เซ็ตชื่อบทบาทใน Modal
             document.getElementById('modalRoleName').innerText = roleName;

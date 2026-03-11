@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// --- 1. ตรวจสอบสิทธิ์ Admin ---
+// ตรวจสอบสิทธิ์ Admin
 $current_user_id = $_SESSION['user_id'];
 $current_shop_id = $_SESSION['shop_id'];
 $is_admin = false;
@@ -17,8 +17,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// --- 2. หา Branch ID ของ User ปัจจุบัน (กรณีไม่ใช่ Admin) ---
-// เพื่อนำไปกรองให้เห็นเฉพาะแผนกในสาขาตัวเอง
+// หา Branch ID ของ User ปัจจุบัน (กรณีไม่ใช่ Admin)
 $current_branch_id = 0;
 if (!$is_admin) {
     $stmt_b = $conn->prepare("SELECT branches_branch_id FROM employees WHERE users_user_id = ?");
@@ -31,25 +30,23 @@ if (!$is_admin) {
     $stmt_b->close();
 }
 
-// --- 3. Prepare Data Queries ---
+// Prepare Data Queries
 
-// A. Shops (Load only if Admin)
+// Shops (Load only if Admin)
 $shops_data = [];
 if ($is_admin) {
     $shops_res = $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name");
     while ($row = $shops_res->fetch_assoc()) $shops_data[] = $row;
 }
 
-// B. Departments & Branches
-// Logic: 
-// - Admin: โหลดทั้งหมด (เพราะต้องเห็นทุกสาขาในร้าน เพื่อเลือกให้พนักงานใหม่)
-// - User:  โหลดเฉพาะของ "สาขาตัวเอง"
+// Departments & Branches
+// Admin: โหลดทั้งหมด
+// User:  โหลดเฉพาะของ "สาขาตัวเอง"
 if ($is_admin) {
     $dept_sql = "SELECT * FROM departments";
     $branch_sql = "SELECT * FROM branches";
 } else {
     // User ทั่วไป: กรองด้วย branch_id ที่หามาได้
-    // *สำคัญ: ตาราง departments ต้องมีคอลัมน์ branches_branch_id
     $dept_sql = "SELECT * FROM departments WHERE branches_branch_id = '$current_branch_id'";
 
     // สาขาก็ต้องล็อคไว้ที่สาขาตัวเองเช่นกัน
@@ -65,17 +62,17 @@ $branches_res = $conn->query($branch_sql);
 $branches_data = [];
 while ($row = $branches_res->fetch_assoc()) $branches_data[] = $row;
 
-// C. Roles
+// บทบาท
 $roles_res = $conn->query("SELECT * FROM roles");
 $roles_data = [];
 while ($row = $roles_res->fetch_assoc()) $roles_data[] = $row;
 
-// D. Other static data
+// Other static data
 $prefixs = $conn->query("SELECT * FROM prefixs");
 $religions = $conn->query("SELECT * FROM religions WHERE is_active = 1");
 $provinces = $conn->query("SELECT * FROM provinces ORDER BY province_name_th");
 
-// E. Location Data (JSON for JS)
+// Location Data (JSON for JS)
 $subdistricts_res = $conn->query("SELECT s.subdistrict_id, s.subdistrict_name_th, s.zip_code, d.district_name_th, p.province_id 
                                   FROM subdistricts s 
                                   JOIN districts d ON s.districts_district_id = d.district_id 
@@ -337,7 +334,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
         const isAdmin = <?= json_encode($is_admin) ?>;
         let isEmailVerified = false;
 
-        // --- ส่วนส่ง OTP ---
+        // ส่วนส่ง OTP 
         $('#btnSendOTP').on('click', function() {
             const email = $('#emp_email').val();
             if (!email) return Swal.fire('คำเตือน', 'กรุณากรอกอีเมลก่อน', 'warning');
@@ -365,7 +362,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 .finally(() => btn.prop('disabled', false).text('ส่งรหัส OTP'));
         });
 
-        // --- ส่วนยืนยัน OTP ---
+        // ส่วนยืนยัน OTP
         $('#btnVerifyOTP').on('click', function() {
             const otp = $('#otp_code').val();
             if (!otp) return Swal.fire('คำเตือน', 'กรุณากรอกรหัส OTP', 'warning');
@@ -397,7 +394,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 width: '100%'
             });
 
-            // 1. ตรวจสอบเลขบัตรประชาชน (Modulus 11)
+            // ตรวจสอบเลขบัตรประชาชน 
             function validateThaiID(id) {
                 if (id.length !== 13 || !/^\d{13}$/.test(id)) return false;
                 let sum = 0;
@@ -406,17 +403,17 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 return check === parseInt(id.charAt(12));
             }
 
-            // 2. จำกัดภาษา (Real-time Regex)
+            // จำกัดภาษา
             window.filterInput = function(input, type) {
                 if (type === 'th') input.value = input.value.replace(/[^ก-๙\s]/g, '');
                 if (type === 'en') input.value = input.value.replace(/[^a-zA-Z\s]/g, '');
                 if (type === 'num') input.value = input.value.replace(/[^0-9]/g, '');
             };
 
-            // 3. ระบบที่อยู่ 3 ชั้น (จังหวัด > อำเภอ > ตำบล)
+            // ระบบที่อยู่
             $('#provinceSelect').on('change', function() {
                 const pId = $(this).val();
-                const $distSelect = $('#districtSelect'); // เพิ่ม id นี้ใน HTML ช่องอำเภอ
+                const $distSelect = $('#districtSelect'); 
                 $distSelect.empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', !pId);
                 $('#subdistrictSelect').empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
 
@@ -447,7 +444,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 $('#zipcodeField').val($(this).find(':selected').data('zip') || '');
             });
 
-            // 4. บันทึกข้อมูล
+            // บันทึกข้อมูล
             $('#addEmpForm').on('submit', function(e) {
                 e.preventDefault();
                 const nationalID = $('input[name="emp_national_id"]').val();

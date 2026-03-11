@@ -3,11 +3,11 @@ session_start();
 require_once '../config/config.php';
 checkPageAccess($conn, 'shop');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบบทบาทว่าเป็น Admin (แอดมินระบบ) หรือไม่
+// ตรวจสอบบทบาทว่าเป็น Admin หรือไม่
 $is_super_admin = false;
 $check_user_sql = "SELECT r.role_name 
                    FROM users u
@@ -28,10 +28,10 @@ if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
     mysqli_stmt_close($stmt_user);
 }
 
-// [3] รับค่าการค้นหา
+// รับค่าการค้นหา
 $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
 
-// [4] สร้างคำสั่ง SQL เพื่อดึงข้อมูลร้านค้าและที่อยู่
+// สร้างคำสั่ง SQL เพื่อดึงข้อมูลร้านค้าและที่อยู่
 $sql = "SELECT 
             s.shop_id, s.shop_name, s.tax_id, s.shop_phone, s.shop_email, s.logo,
             a.home_no, a.moo, a.soi, a.road, a.village,
@@ -45,7 +45,7 @@ $sql = "SELECT
         LEFT JOIN provinces p ON d.provinces_province_id = p.province_id
         WHERE 1=1";
 
-// [5] เงื่อนไขการกรองข้อมูล (Data Isolation)
+// เงื่อนไขการกรองข้อมูล (Data Isolation)
 // หากไม่ใช่แอดมินระบบ ให้แสดงเฉพาะข้อมูลของร้านตัวเองเท่านั้น
 if (!$is_super_admin) {
     $sql .= " AND s.shop_id = '$current_shop_id'";
@@ -61,7 +61,7 @@ if ($search) {
 $sql .= " ORDER BY s.shop_id DESC";
 $result = mysqli_query($conn, $sql);
 
-// --- ฟังก์ชันสำหรับการแสดงผลคงเดิม ---
+// --- ฟังก์ชันสำหรับการแสดงผล ---
 function truncateText($text, $length = 50)
 {
     if (mb_strlen($text) > $length) {

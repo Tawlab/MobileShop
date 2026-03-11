@@ -5,11 +5,11 @@ require '../config/config.php';
 // ตรวจสอบสิทธิ์
 // checkPageAccess($conn, 'print_employee');
 
-// --- 1. รับ ID พนักงาน ---
+// ---  รับ ID พนักงาน ---
 $emp_id = (int)($_GET['id'] ?? 0);
 if ($emp_id === 0) die("ไม่พบรหัสพนักงาน");
 
-// --- 2. ดึงข้อมูลพนักงาน ---
+// --- ดึงข้อมูลพนักงาน ---
 $sql = "
     SELECT
         e.*, 

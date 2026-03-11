@@ -12,7 +12,7 @@ if (!isset($_GET['id'])) {
 
 $target_user_id = (int)$_GET['id'];
 
-// 1. หา emp_id ของ user นี้ก่อน (เพราะรายการขาย/ซ่อมผูกกับตาราง employees)
+// หา emp_id ของ user นี้ก่อน 
 $emp_id = 0;
 $stmt_emp = $conn->prepare("SELECT emp_id FROM employees WHERE users_user_id = ? LIMIT 1");
 $stmt_emp->bind_param("i", $target_user_id);
@@ -25,7 +25,7 @@ $stmt_emp->close();
 
 if ($emp_id > 0) {
     // ------------------------------------------------------------------------
-    // 2. ตรวจสอบประวัติการเปิดบิล (ตาราง bill_headers)
+    // ตรวจสอบประวัติการเปิดบิล (ตาราง bill_headers)
     // ------------------------------------------------------------------------
     $stmt_bills = $conn->prepare("SELECT bill_id FROM bill_headers WHERE employees_emp_id = ? LIMIT 1");
     $stmt_bills->bind_param("i", $emp_id);
@@ -38,8 +38,7 @@ if ($emp_id > 0) {
     $stmt_bills->close();
 
     // ------------------------------------------------------------------------
-    // 3. ตรวจสอบประวัติการซ่อม (ตาราง repairs)
-    // เช็คทั้งในฐานะคนรับเครื่อง (employees_emp_id) และช่างซ่อม (assigned_employee_id)
+    // ตรวจสอบประวัติการซ่อม (ตาราง repairs)
     // ------------------------------------------------------------------------
     $stmt_repairs = $conn->prepare("SELECT repair_id FROM repairs WHERE employees_emp_id = ? OR assigned_employee_id = ? LIMIT 1");
     $stmt_repairs->bind_param("ii", $emp_id, $emp_id);

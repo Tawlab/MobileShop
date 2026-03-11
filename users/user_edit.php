@@ -6,7 +6,7 @@ require '../config/config.php';
 checkPageAccess($conn, 'menu_manage_users');
 
 // ==========================================================================================
-// [1] AJAX HANDLER: (ต้องอยู่บนสุด)
+// AJAX HANDLER
 // ==========================================================================================
 if (isset($_GET['ajax_action'])) {
     ob_clean();
@@ -67,7 +67,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
 }
 
 // ==========================================================================================
-// [2] LOAD DATA: ดึงข้อมูลเดิมมาแสดง และเตรียมไว้เช็ค OTP
+// ดึงข้อมูลเดิมมาแสดง และเตรียมไว้เช็ค OTP
 // ==========================================================================================
 $sql = "SELECT u.username, u.user_status, 
                e.*,
@@ -97,7 +97,7 @@ if (!$data) {
 }
 
 // ==========================================================================================
-// [3] FORM SUBMISSION: บันทึกการแก้ไข
+// FORM SUBMISSION
 // ==========================================================================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $user_status = $_POST['user_status'];
@@ -257,7 +257,6 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         .card-header-custom { background: linear-gradient(135deg, <?= $theme_color ?>, #14532d); color: white; border-radius: 15px 15px 0 0 !important; padding: 1.5rem; }
         .form-section-title { font-size: 1.15rem; font-weight: 600; color: <?= $theme_color ?>; padding-bottom: 8px; border-bottom: 2px solid #e9ecef; margin-bottom: 1.5rem; margin-top: 2rem; display: flex; align-items: center; }
         .form-section-title i { margin-right: 10px; background: #e8f5e9; color: <?= $theme_color ?>; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 1rem; }
-        
         .img-preview-box { width: 140px; height: 140px; border: 4px solid #e2e8f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; overflow: hidden; margin: 0 auto; background: #f8f9fa; cursor: pointer; position: relative; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         .img-preview-box img { width: 100%; height: 100%; object-fit: cover; }
         .img-preview-box i { font-size: 3rem; color: #adb5bd; }
@@ -542,7 +541,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         $('#shopSelect').on('change', function() { loadShopData($(this).val(), false); });
         
         // ========================================================
-        // 1. ควบคุมภาษาที่พิมพ์
+        // ควบคุมภาษาที่พิมพ์
         // ========================================================
         document.querySelectorAll('.input-thai').forEach(el => {
             el.addEventListener('input', function() { this.value = this.value.replace(/[^ก-๙\s]/g, ''); });
@@ -555,7 +554,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         });
 
         // ========================================================
-        // 2. ตรวจสอบเลขบัตรประชาชน 13 หลัก
+        // ตรวจสอบเลขบัตรประชาชน 13 หลัก
         // ========================================================
         function validateThaiID(id) {
             if (id.length !== 13) return false;
@@ -594,7 +593,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         });
 
         // ========================================================
-        // 3. ตรวจสอบเบอร์โทรศัพท์
+        // ตรวจสอบเบอร์โทรศัพท์
         // ========================================================
         $('#phone').on('blur', function() {
             let el = $(this);
@@ -626,7 +625,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         });
 
         // ========================================================
-        // 4. ตรวจสอบอีเมล และ OTP (กรณีแก้ไขอีเมลใหม่)
+        // ตรวจสอบอีเมล และ OTP (กรณีแก้ไขอีเมลใหม่)
         // ========================================================
         $('#email').on('input', function() {
             const email = $(this).val().trim();
@@ -704,7 +703,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         });
 
         // ========================================================
-        // 5. ควบคุมการ Submit ฟอร์มขั้นสุดท้าย
+        // ควบคุมการ Submit ฟอร์มขั้นสุดท้าย
         // ========================================================
         $('#editForm').on('submit', function(e) {
             e.preventDefault();
@@ -771,7 +770,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
     }
 
     // ==========================================
-    // LOCATION LOGIC (ที่อยู่)
+    // LOCATION ที่อยู่
     // ==========================================
     function loadProvinces() {
         $.getJSON('user_edit.php?ajax_action=get_provinces', function(data) {

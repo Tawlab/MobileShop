@@ -1,5 +1,4 @@
 <?php
-// get_locations.php
 require '../config/config.php';
 header('Content-Type: application/json');
 

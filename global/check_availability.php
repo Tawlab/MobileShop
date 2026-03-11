@@ -1,11 +1,10 @@
 <?php
-// check_availability.php
 require '../config/config.php';
 
 header('Content-Type: application/json');
 $action = $_POST['action'] ?? '';
 
-// 1. ตรวจสอบ Username ซ้ำ และมีความยาวมากกว่า 6 ตัว
+// ตรวจสอบ Username ซ้ำ และมีความยาวมากกว่า 6 ตัว
 if ($action === 'check_username') {
     $username = trim($_POST['username']);
     
@@ -26,7 +25,7 @@ if ($action === 'check_username') {
     exit;
 }
 
-// 2. ตรวจสอบ Password
+// ตรวจสอบ Password
 if ($action === 'check_password') {
     $password = trim($_POST['password']);
     if (strlen($password) < 6) {
@@ -39,7 +38,7 @@ if ($action === 'check_password') {
     exit;
 }
 
-// 3. ตรวจสอบชื่อร้านค้าซ้ำ
+// ตรวจสอบชื่อร้านค้าซ้ำ
 if ($action === 'check_shop_name') {
     $shop_name = trim($_POST['shop_name']);
     $stmt = $conn->prepare("SELECT shop_id, shop_name, tax_id FROM shop_info WHERE shop_name = ? LIMIT 1");
@@ -62,7 +61,7 @@ if ($action === 'check_shop_name') {
     exit;
 }
 
-// 4. ตรวจสอบชื่อสาขาซ้ำ
+// ตรวจสอบชื่อสาขาซ้ำ
 if ($action === 'check_branch_duplicate') {
     $shop_id = (int)$_POST['shop_id'];
     $branch_name = trim($_POST['branch_name']);
@@ -82,7 +81,7 @@ if ($action === 'check_branch_duplicate') {
     exit;
 }
 
-// 5. ตรวจสอบเบอร์โทรซ้ำ (เช็คทั้งพนักงานและร้านค้า)
+// ตรวจสอบเบอร์โทรซ้ำ (เช็คทั้งพนักงานและร้านค้า)
 if ($action === 'check_phone') {
     $phone = trim($_POST['phone']);
     $stmt = $conn->prepare("SELECT emp_id FROM employees WHERE emp_phone_no = ? UNION SELECT shop_id FROM shop_info WHERE shop_phone = ?");
@@ -97,7 +96,7 @@ if ($action === 'check_phone') {
     exit;
 }
 
-// 6. ตรวจสอบอีเมลซ้ำ
+// ตรวจสอบอีเมลซ้ำ
 if ($action === 'check_email') {
     $email = trim($_POST['email']);
     $stmt = $conn->prepare("SELECT shop_id FROM shop_info WHERE shop_email = ? UNION SELECT emp_id FROM employees WHERE emp_email = ?");
@@ -112,7 +111,7 @@ if ($action === 'check_email') {
     exit;
 }
 
-// 7. ตรวจสอบเลขผู้เสียภาษี
+// ตรวจสอบเลขผู้เสียภาษี
 if ($action === 'check_tax_id') {
     $tax_id = trim($_POST['tax_id']);
     $stmt = $conn->prepare("SELECT shop_id FROM shop_info WHERE tax_id = ? AND tax_id != '' AND tax_id != '-'");

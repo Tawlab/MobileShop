@@ -3,15 +3,15 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'prod_stock');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $branch_id = $_SESSION['branch_id'];
 $current_user_id = $_SESSION['user_id'];
 
 // =========================================================
-// [CHECK PERMISSION] ตรวจสอบสิทธิ์ต่างๆ
+// ตรวจสอบสิทธิ์ต่างๆ
 // =========================================================
 
-// 1. ตรวจสอบว่าเป็น Admin (Super Admin) หรือไม่
+// ตรวจสอบว่าเป็น Admin หรือไม่
 $is_super_admin = false;
 $chk_admin_sql = "SELECT r.role_name FROM roles r 
                   JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -23,7 +23,7 @@ if ($stmt = $conn->prepare($chk_admin_sql)) {
     $stmt->close();
 }
 
-// 2. ตรวจสอบสิทธิ์ "centralinf" (เผื่อใช้ในอนาคต)
+// ตรวจสอบสิทธิ์ "centralinf"
 $has_central_perm = false;
 if ($is_super_admin) {
     $has_central_perm = true;
@@ -41,7 +41,7 @@ if ($is_super_admin) {
 }
 
 // =========================================================
-// [3] ส่วนประมวลผล AJAX
+// ส่วนประมวลผล AJAX
 // =========================================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -63,10 +63,6 @@ if (isset($_GET['ajax'])) {
     $conditions = [];
     
     if ($is_super_admin) {
-        // [Admin]
-        // 1. ถ้าเลือกสาขา -> กรองตามสาขา
-        // 2. ถ้าเลือกร้าน (แต่ไม่เลือกสาขา) -> กรองตามร้าน
-        // 3. ถ้าไม่เลือกอะไรเลย -> ไม่กรอง (เห็นทั้งหมด)
         if (!empty($branch_f)) {
             $conditions[] = "ps.branches_branch_id = '$branch_f'";
         } elseif (!empty($shop_f)) {
@@ -74,7 +70,6 @@ if (isset($_GET['ajax'])) {
         }
     } else {
         // [User ทั่วไป] 
-        // แสดงเฉพาะสินค้าของสาขาตัวเองเท่านั้น (Strict Mode)
         $conditions[] = "ps.branches_branch_id = '$branch_id'";
     }
 
@@ -139,7 +134,7 @@ if (isset($_GET['ajax'])) {
                         // ตรวจสอบว่าเป็นของส่วนกลางหรือไม่
                         $is_central_stock = ($row['branches_branch_id'] == 0);
                         
-                        // [Logic สิทธิ์การแก้ไข]
+                        // สิทธิ์การแก้ไข
                         $can_edit = false;
                         if ($is_super_admin) {
                             $can_edit = true; // แอดมินทำได้หมด
@@ -214,8 +209,7 @@ if (isset($_GET['ajax'])) {
     exit();
 }
 
-// [4] โหลดข้อมูล Dropdown สำหรับหน้าเว็บหลัก
-// สำหรับตัวกรอง Brand/Type (ถ้าเป็นแอดมินเห็นหมด ถ้า User เห็นเฉพาะของร้านตัวเอง)
+// โหลดข้อมูล Dropdown สำหรับหน้าเว็บหลัก
 $filter_shop_sql = $is_super_admin ? "1=1" : "(shop_info_shop_id = '{$_SESSION['shop_id']}' OR shop_info_shop_id = 0)";
 
 $brands_res = $conn->query("SELECT brand_id, brand_name_th FROM prod_brands WHERE $filter_shop_sql ORDER BY brand_name_th ASC");
@@ -415,13 +409,11 @@ if ($is_super_admin) {
             });
 
             // แสดง Loading เล็กๆ (Optional)
-            // document.getElementById('tableContainer').style.opacity = '0.5';
 
             fetch(`prod_stock.php?${params.toString()}`)
                 .then(res => res.text())
                 .then(data => {
                     document.getElementById('tableContainer').innerHTML = data;
-                    // document.getElementById('tableContainer').style.opacity = '1';
                 });
         }
 
@@ -463,7 +455,7 @@ if ($is_super_admin) {
             if(el) el.addEventListener('change', () => fetchStockData(1));
         });
 
-        // Logic กรองสาขา เมื่อเลือกร้านค้า
+        // กรองสาขา เมื่อเลือกร้านค้า
         document.getElementById('shopFilter')?.addEventListener('change', function() {
             const shopId = this.value;
             const branchSelect = document.getElementById('branchFilter');

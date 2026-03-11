@@ -1,5 +1,4 @@
 <?php
-// register_process.php
 session_start();
 require '../config/config.php';
 
@@ -10,7 +9,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// --- 1. รับค่าจากฟอร์ม ---
+// --- รับค่าจากฟอร์ม ---
 $existing_shop_id = !empty($_POST['existing_shop_id']) ? (int)$_POST['existing_shop_id'] : 0;
 
 $prefix_id = $_POST['prefix_id'] ?? 100001;
@@ -31,11 +30,11 @@ $shop_tax_id = trim($_POST['shop_tax_id']) ?: '-';
 $shop_phone  = trim($_POST['shop_phone']) ?: $emp_phone; 
 $shop_email  = trim($_POST['shop_email']) ?: NULL; 
 
-// รับค่าที่อยู่ (ตอนนี้ถูกบังคับกรอกแล้ว)
+// รับค่าที่อยู่ 
 $subdistrict_id = !empty($_POST['subdistrict_id']) ? (int)$_POST['subdistrict_id'] : 0; 
 $home_no = trim($_POST['home_no']);
 
-// --- ตรวจสอบความครบถ้วนของข้อมูลที่อยู่ (Backend Validation) ---
+// --- ตรวจสอบความครบถ้วนของข้อมูลที่อยู่  ---
 if ($subdistrict_id === 0) {
     echo json_encode(['status' => 'error', 'message' => 'กรุณาเลือก จังหวัด, อำเภอ และตำบล ให้ครบถ้วน']);
     exit;
@@ -44,14 +43,14 @@ if ($subdistrict_id === 0) {
 mysqli_begin_transaction($conn);
 
 try {
-    // --- 2. ตรวจสอบ Username ซ้ำ (Backend Check) ---
+    // --- ตรวจสอบ Username ซ้ำ ---
     $stmt_check = $conn->prepare("SELECT user_id FROM users WHERE username = ?");
     $stmt_check->bind_param("s", $username);
     $stmt_check->execute();
     if ($stmt_check->get_result()->num_rows > 0) throw new Exception("ชื่อผู้ใช้งาน '$username' ถูกใช้งานไปแล้ว");
     $stmt_check->close();
 
-    // --- 3. บันทึกที่อยู่ (Address) ---
+    // --- บันทึกที่อยู่ (Address) ---
     $res_addr = mysqli_query($conn, "SELECT MAX(address_id) as max_id FROM addresses");
     $new_address_id = (mysqli_fetch_assoc($res_addr)['max_id'] ?? 0) + 1;
 
@@ -61,7 +60,7 @@ try {
     if (!$stmt_addr->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ");
     $stmt_addr->close();
 
-    // --- 4. จัดการ Shop Info ---
+    // --- จัดการ Shop Info ---
     $target_shop_id = 0;
     if ($existing_shop_id > 0) {
         $chk_shop = $conn->query("SELECT shop_id FROM shop_info WHERE shop_id = $existing_shop_id");
@@ -83,7 +82,7 @@ try {
         $stmt_shop->close();
     }
 
-    // --- 5. จัดการ Branch ---
+    // --- จัดการ Branch ---
     $stmt_br_chk = $conn->prepare("SELECT branch_id FROM branches WHERE shop_info_shop_id = ? AND branch_name = ?");
     $stmt_br_chk->bind_param("is", $target_shop_id, $branch_name);
     $stmt_br_chk->execute();
@@ -98,7 +97,7 @@ try {
     if (!$stmt_branch->execute()) throw new Exception("บันทึกสาขาไม่สำเร็จ");
     $stmt_branch->close();
 
-    // --- 6. จัดการ Department ---
+    // --- จัดการ Department ---
     $target_dept_id = 0;
     $dept_name_owner = 'เจ้าของร้านค้า';
     $stmt_dept_chk = $conn->prepare("SELECT dept_id FROM departments WHERE shop_info_shop_id = ? AND dept_name = ? LIMIT 1");
@@ -118,7 +117,7 @@ try {
         $stmt_dept->close();
     }
 
-    // --- 7. จัดการ User ---
+    // --- จัดการ User ---
     $res_user = mysqli_query($conn, "SELECT MAX(user_id) as max_id FROM users");
     $new_user_id = (mysqli_fetch_assoc($res_user)['max_id'] ?? 0) + 1;
 
@@ -129,7 +128,7 @@ try {
     if (!$stmt_user->execute()) throw new Exception("สร้างบัญชีผู้ใช้ไม่สำเร็จ");
     $stmt_user->close();
 
-    // --- 8. จัดการ Role ---
+    // --- จัดการ Role ---
     $role_id = 0;
     $role_res = mysqli_query($conn, "SELECT role_id FROM roles WHERE role_name = 'Partner' LIMIT 1");
     if ($role_row = mysqli_fetch_assoc($role_res)) {
@@ -141,7 +140,7 @@ try {
     }
     mysqli_query($conn, "INSERT INTO user_roles (roles_role_id, users_user_id) VALUES ($role_id, $new_user_id)");
 
-    // --- 9. จัดการ Employee ---
+    // --- จัดการ Employee ---
     $res_emp_id = mysqli_query($conn, "SELECT MAX(emp_id) as max_id FROM employees");
     $new_emp_id = (mysqli_fetch_assoc($res_emp_id)['max_id'] ?? 0) + 1;
 

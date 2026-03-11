@@ -12,7 +12,6 @@ if ($purchase_id === 0) {
 }
 
 // ดึงข้อมูลส่วนหัว (Header)
-// (ใช้ Query ที่แก้ไขแล้ว ตัด field ที่ไม่มีจริงออก)
 $sql_header = "SELECT 
                     po.*, 
                     s.co_name as supplier_name, 
@@ -90,12 +89,12 @@ $stmt_details->close();
         .card-header { background-color: #fff; border-bottom: 1px solid #eee; padding: 1.5rem; }
         
         /* ==========================================================================
-           PRINT STYLES (ส่วนสำคัญ)
+           PRINT STYLES
            ========================================================================== */
         @media print {
             @page {
                 size: A4;
-                margin: 0; /* [สำคัญ] ตั้งขอบเป็น 0 เพื่อซ่อน Header/Footer ของ Browser */
+                margin: 0; /* ตั้งขอบเป็น 0 เพื่อซ่อน Header/Footer ของ Browser */
             }
 
             /* ซ่อน Element ที่ไม่ต้องการ */

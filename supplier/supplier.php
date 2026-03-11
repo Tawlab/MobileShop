@@ -3,11 +3,11 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'supplier');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
+// ตรวจสอบสิทธิ์ผู้ดูแลระบบ (Admin)
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -19,7 +19,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
     $stmt_admin->close();
 }
 
-// [2.1] เพิ่มเติม: หา Branch ID ของพนักงานปัจจุบัน (เพื่อนำไปกรอง)
+// หา Branch ID ของพนักงานปัจจุบัน (เพื่อนำไปกรอง)
 $current_user_branch_id = 0;
 if (!$is_super_admin) {
     $sql_emp_branch = "SELECT branches_branch_id FROM employees WHERE users_user_id = ? LIMIT 1";
@@ -35,17 +35,13 @@ if (!$is_super_admin) {
 }
 
 // =========================================================================
-// [3] ส่วนประมวลผล AJAX: ตรวจสอบประวัติการสั่งซื้อก่อนลบ
+// ส่วนประมวลผล AJAX: ตรวจสอบประวัติการสั่งซื้อก่อนลบ
 // =========================================================================
 if (isset($_GET['action']) && $_GET['action'] === 'check_po') {
     header('Content-Type: application/json');
     $id = (int)$_GET['id'];
-    
-    // 🛑 ⚠️ หมายเหตุสำคัญ: 
-    // กรุณาเปลี่ยนชื่อตาราง 'purchase_orders' และคอลัมน์ 'suppliers_supplier_id' 
-    // ให้ตรงกับตารางที่คุณใช้เก็บข้อมูลการสั่งซื้อสินค้าจากซัพพลายเออร์ใน Database จริงๆ
-    $table_name = "purchase_orders"; // <- เปลี่ยนตรงนี้ (เช่น purchases, purchase_orders)
-    $column_name = "suppliers_supplier_id"; // <- เปลี่ยนตรงนี้ (เช่น supplier_id)
+    $table_name = "purchase_orders"; 
+    $column_name = "suppliers_supplier_id";
     
     $check_sql = "SELECT COUNT(*) as total FROM $table_name WHERE $column_name = $id";
     $res = @mysqli_query($conn, $check_sql); // ใช้ @ ป้องกัน Error แจ้งหน้าเว็บกรณีชื่อตารางผิด
@@ -63,7 +59,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'check_po') {
 }
 
 // =========================================================================
-// [4] ส่วนประมวลผล AJAX: โหลดตาราง (ทำงานเมื่อเรียกผ่าน Fetch API)
+// โหลดตาราง
 // =========================================================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -75,7 +71,7 @@ if (isset($_GET['ajax'])) {
     // สร้างเงื่อนไข Query
     $conditions = [];
 
-    // --- จุดที่แก้ไข: กรองตามสิทธิ์ ---
+    // --- กรองตามสิทธิ์ ---
     if (!$is_super_admin) {
         $conditions[] = "s.branches_branch_id = '$current_user_branch_id'";
     }

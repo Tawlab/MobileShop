@@ -3,12 +3,12 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'purchase_order');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $branch_id = $_SESSION['branch_id'];
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ Admin
+// ตรวจสอบสิทธิ์ Admin
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -21,7 +21,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX (ทำงานเมื่อเรียกผ่าน Fetch API)
+// ส่วนประมวลผล AJAX 
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
@@ -31,10 +31,10 @@ if (isset($_GET['ajax'])) {
     $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
 
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $limit = 20; // 2. แสดงรายการ 20 รายการต่อหน้า
+    $limit = 20; // แสดงรายการ 20 รายการต่อหน้า
     $offset = ($page - 1) * $limit;
 
-    // 3. กรองตามสิทธิ์ (สาขาตัวเอง vs ทั้งหมดสำหรับ Admin)
+    // กรองตามสิทธิ์ 
     $conditions = [];
     if (!$is_super_admin) {
         $conditions[] = "po.branches_branch_id = '$branch_id'";
@@ -324,7 +324,7 @@ if ($is_super_admin) {
         }
 
         /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- */
+        /* --- Responsive Override สำหรับ Mobile (จอเล็กกว่า 992px) --- 
         /* -------------------------------------------------------------------- */
         @media (max-width: 991.98px) {
             .container-xl {
@@ -332,7 +332,7 @@ if ($is_super_admin) {
                 padding-right: 10px;
             }
 
-            /* 1. จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex) */
+            /* จัดการ Filter/Action Bar (สมมติว่าใช้ d-flex) */
             .card-header .d-flex {
                 flex-direction: column;
                 gap: 10px;
@@ -342,14 +342,14 @@ if ($is_super_admin) {
                 width: 100% !important;
             }
 
-            /* 2. ทำให้ Form Control และ Button ใช้เต็มความกว้าง */
+            /* ทำให้ Form Control และ Button ใช้เต็มความกว้าง */
             .card-header .form-control,
             .card-header .form-select,
             .card-header .btn {
                 width: 100% !important;
             }
 
-            /* 3. ปรับ Table Cell Padding/Font */
+            /* ปรับ Table Cell Padding/Font */
             .table th,
             .table td {
                 padding: 0.5rem 0.5rem;
@@ -357,14 +357,14 @@ if ($is_super_admin) {
                 white-space: nowrap;
             }
 
-            /* 4. จัดการคอลัมน์ Action ในตาราง */
+            /* จัดการคอลัมน์ Action ในตาราง */
             .table td:last-child {
                 flex-direction: column;
                 /* เรียงปุ่ม Action เป็นแนวตั้งบน Mobile */
                 gap: 5px;
             }
 
-            /* 5. ปรับขนาด Badge */
+            /* ปรับขนาด Badge */
             .status-badge {
                 font-size: 10px;
                 padding: 3px 6px;

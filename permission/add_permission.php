@@ -37,7 +37,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($errors)) {
         try {
 
-            // --- ใหม่: ค้นหา ID สูงสุด ---
+            // --- ค้นหา ID สูงสุด ---
             $sql_max_id = "SELECT MAX(permission_id) AS max_id FROM permissions";
             $max_result = $conn->query($sql_max_id);
             if (!$max_result) {

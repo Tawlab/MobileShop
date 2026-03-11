@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// รวจสอบ Session: ถ้าล็อกอินอยู่แล้ว ให้ไปที่หน้า Home 
+// ถ้าล็อกอินอยู่แล้ว ให้ไปที่หน้า Home 
 if (isset($_SESSION['user_id'])) {
     header("Location: ../global/home.php"); 
     exit;
@@ -17,7 +17,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = "กรุณากรอกข้อมูลให้ครบถ้วน";
     } else {
-        // [แก้ไข] JOIN ตาราง employees, departments เพื่อดึง shop_id และ branch_id
+        // JOIN ตาราง employees, departments เพื่อดึง shop_id และ branch_id
         $sql = "SELECT u.user_id, u.username, u.password, u.user_status, 
                        e.emp_id, d.shop_info_shop_id, e.branches_branch_id 
                 FROM users u
@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $user = $result->fetch_assoc();
             if (password_verify($password, $user['password'])) {
                 if ($user['user_status'] === 'Active') {
-                    // [แก้ไข] เก็บค่า ID ร้านและสาขาลง Session
+                    //  เก็บค่า ID ร้านและสาขาลง Session
                     $_SESSION['user_id'] = $user['user_id'];
                     $_SESSION['username'] = $user['username'];
                     $_SESSION['emp_id'] = $user['emp_id'];        // ไอดีพนักงาน

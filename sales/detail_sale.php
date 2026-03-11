@@ -2,6 +2,7 @@
 session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'detail_sale');
+
 // ตรวจสอบว่าได้รับ id จาก URL หรือไม่
 if (!isset($_GET['id']) || !is_numeric($_GET['id'])) {
     echo "ไม่พบรหัสบิล";

@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// ตรวจสอบสิทธิ์ (ต้องมีสิทธิ์เพิ่ม User หรือ Employee)
+// ตรวจสอบสิทธิ์ 
 checkPageAccess($conn, 'menu_manage_users');
 
 $current_shop_id = $_SESSION['shop_id'];
@@ -27,7 +27,7 @@ function getNextId($conn, $table, $column) {
 }
 
 // ==========================================================================================
-// [1] AJAX HANDLER
+// AJAX HANDLER
 // ==========================================================================================
 if (isset($_GET['ajax_action'])) {
     ob_clean();
@@ -74,7 +74,7 @@ if (isset($_GET['ajax_action'])) {
 }
 
 // ==========================================================================================
-// [2] FORM SUBMISSION
+// FORM SUBMISSION
 // ==========================================================================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // รับค่าพื้นฐาน
@@ -146,7 +146,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $conn->begin_transaction();
 
         try {
-            // --- 1. บันทึกที่อยู่ ---
+            // --- บันทึกที่อยู่ ---
             $new_addr_id = getNextId($conn, 'addresses', 'address_id');
             $sql_addr = "INSERT INTO addresses (address_id, home_no, moo, soi, road, village, subdistricts_subdistrict_id) VALUES (?, ?, ?, ?, ?, ?, ?)";
             $stmt = $conn->prepare($sql_addr);
@@ -154,7 +154,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (!$stmt->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ");
             $stmt->close();
 
-            // --- 2. สร้าง User ---
+            // --- สร้าง User ---
             $new_user_id = getNextId($conn, 'users', 'user_id'); 
             $hashed_password = password_hash($password, PASSWORD_DEFAULT);
             $sql_user = "INSERT INTO users (user_id, username, password, user_status, create_at, update_at) VALUES (?, ?, ?, 'Active', NOW(), NOW())";
@@ -163,7 +163,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt->execute();
             $stmt->close();
 
-            // --- 3. สร้าง Employee ---
+            // --- สร้าง Employee ---
             $new_emp_id = getNextId($conn, 'employees', 'emp_id'); 
             $emp_code = 'EMP' . date('ym') . str_pad(rand(0, 999), 3, '0', STR_PAD_LEFT); 
             $default_religion = 10; 
@@ -190,14 +190,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $stmt->execute();
             $stmt->close();
 
-            // --- 4. กำหนด Role ---
+            // --- กำหนด Role ---
             $sql_role = "INSERT INTO user_roles (roles_role_id, users_user_id, create_at) VALUES (?, ?, NOW())";
             $stmt = $conn->prepare($sql_role);
             $stmt->bind_param("ii", $role_id, $new_user_id);
             $stmt->execute();
             $stmt->close();
 
-            // --- 5. เพิ่ม Config ---
+            // --- เพิ่ม Config ---
             $sql_conf = "INSERT INTO systemconfig (user_id, theme_color, background_color, text_color, font_style, header_bg_color, header_text_color) 
                          VALUES (?, '#198754', '#ffffff', '#000000', 'Prompt', '#198754', '#ffffff')";
             $stmt = $conn->prepare($sql_conf);
@@ -222,7 +222,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // ==========================================================================================
-// [3] PREPARE VIEW DATA
+// PREPARE VIEW DATA
 // ==========================================================================================
 $chk_col = $conn->query("SHOW COLUMNS FROM prefixs LIKE 'prefix_en'");
 $has_prefix_en = ($chk_col->num_rows > 0);
@@ -511,7 +511,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
             if(shopInput.tagName === 'INPUT') loadShopData(shopInput.value);
 
             // ========================================================
-            // 1. ควบคุมภาษาที่พิมพ์
+            // ควบคุมภาษาที่พิมพ์
             // ========================================================
             document.querySelectorAll('.input-thai').forEach(el => {
                 el.addEventListener('input', function() { this.value = this.value.replace(/[^ก-๙\s]/g, ''); });
@@ -524,7 +524,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
             });
 
             // ========================================================
-            // 2. ตรวจสอบ Username & Password
+            // ตรวจสอบ Username & Password
             // ========================================================
             $('#username').on('blur', function() {
                 let el = $(this);
@@ -557,7 +557,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
             });
 
             // ========================================================
-            // 3. ตรวจสอบเลขบัตรประชาชน 13 หลัก
+            // ตรวจสอบเลขบัตรประชาชน 13 หลัก
             // ========================================================
             function validateThaiID(id) {
                 if (id.length !== 13) return false;
@@ -592,7 +592,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
             });
 
             // ========================================================
-            // 4. ตรวจสอบเบอร์โทรศัพท์
+            // ตรวจสอบเบอร์โทรศัพท์
             // ========================================================
             $('#phone').on('blur', function() {
                 let el = $(this);
@@ -619,7 +619,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
             });
 
             // ========================================================
-            // 5. ตรวจสอบอีเมล และ OTP
+            // ตรวจสอบอีเมล และ OTP
             // ========================================================
             $('#email').on('input', function() {
                 const email = $(this).val().trim();
@@ -704,18 +704,18 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
             });
 
             // ========================================================
-            // 6. ควบคุมการ Submit ฟอร์มขั้นสุดท้าย
+            // ควบคุมการ Submit ฟอร์มขั้นสุดท้าย
             // ========================================================
             $('#addForm').on('submit', function(e) {
                 e.preventDefault();
 
-                // 1. เช็คว่ามีช่องไหนแจ้งเตือน Error ค้างอยู่ไหม
+                // เช็คว่ามีช่องไหนแจ้งเตือน Error ค้างอยู่ไหม
                 if ($('.is-invalid').length > 0) {
                     Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาแก้ไขข้อมูลในช่องที่มีขอบสีแดงให้ถูกต้อง', 'error');
                     return;
                 }
 
-                // 2. เช็คว่าช่องที่บังคับกรอก (required) มีค่าว่างไหม
+                // เช็คว่าช่องที่บังคับกรอก (required) มีค่าว่างไหม
                 let emptyFields = 0;
                 $(this).find('input[required], select[required]').each(function() {
                     let val = $(this).val();
@@ -730,14 +730,14 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
                     return;
                 }
 
-                // 3. เช็ครหัสผ่านให้ตรงกัน
+                // เช็ครหัสผ่านให้ตรงกัน
                 if ($('#password').val() !== $('#confirm_password').val()) {
                     Swal.fire('ข้อมูลไม่ตรงกัน', 'กรุณายืนยันรหัสผ่านให้ตรงกัน', 'warning');
                     $('#confirm_password').addClass('is-invalid');
                     return;
                 }
 
-                // 4. เช็คสถานะการยืนยันอีเมล
+                // เช็คสถานะการยืนยันอีเมล
                 if (!isEmailVerified) {
                     Swal.fire({ icon: 'warning', title: 'รอสักครู่', text: 'กรุณายืนยันรหัส OTP ของอีเมลก่อนทำการบันทึก' });
                     return;

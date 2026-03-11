@@ -6,11 +6,11 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_prodtype');
 require '../config/load_theme.php';
 
-// [1] รับค่า Shop ID และ User ID
+// รับค่า Shop ID และ User ID
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ "centralinf" (จัดการข้อมูลส่วนกลาง)
+// ตรวจสอบสิทธิ์ "centralinf" 
 $has_centralinf_permission = false;
 $check_perm_sql = "SELECT p.permission_id 
                    FROM permissions p
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $type_name_en = !empty($type_name_en_input) ? $type_name_en_input : NULL;
         $type_id = trim($type['type_id'] ?? '');
 
-        // [3] รับค่า Checkbox และกำหนด Shop ID
+        // รับค่า Checkbox และกำหนด Shop ID
         $is_central = isset($type['is_central']) && $type['is_central'] == '1';
         
         if ($has_centralinf_permission && $is_central) {
@@ -93,7 +93,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             continue;
         }
 
-        // [4] ตรวจสอบชื่อไทยซ้ำ (Hybrid Check: ร้านเรา หรือ ส่วนกลาง)
+        // ตรวจสอบชื่อไทยซ้ำ 
         $stmt_check_th = $conn->prepare("SELECT COUNT(*) FROM prod_types WHERE type_name_th = ? AND (shop_info_shop_id = 0 OR shop_info_shop_id = ?)");
         $stmt_check_th->bind_param("si", $type_name_th, $shop_id);
         $stmt_check_th->execute();
@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // [5] เพิ่มข้อมูล (เพิ่ม shop_info_shop_id)
+        // เพิ่มข้อมูล (เพิ่ม shop_info_shop_id)
         $stmt = $conn->prepare("INSERT INTO prod_types (type_id, type_name_th, type_name_en, shop_info_shop_id) VALUES (?, ?, ?, ?)");
         $stmt->bind_param("sssi", $type_id, $type_name_th, $type_name_en, $save_shop_id);
 

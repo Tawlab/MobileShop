@@ -732,7 +732,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
         // -------------------------------------------------------------------------
-        // --- เริ่มต้นส่วน AJAX & SweetAlert การตรวจสอบข้อมูล (Validation) ---------
+        // --- การตรวจสอบข้อมูล (Validation) ---------
         // -------------------------------------------------------------------------
 
         async function checkDuplicate(action, fieldName, value, inputElement) {
@@ -765,7 +765,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // 1. ตรวจสอบเลขผู้เสียภาษี (Tax ID)
+        // ตรวจสอบเลขผู้เสียภาษี (Tax ID)
         const taxInput = document.getElementById('tax_id');
         // ฟังก์ชันคำนวณความถูกต้องของเลข 13 หลัก (Mod 11)
         function validateThaiTaxID(id) {
@@ -792,7 +792,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         this.classList.add('is-invalid');
                         Swal.fire('รูปแบบผิดพลาด', 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก', 'error');
                     } else if (!validateThaiTaxID(tax)) {
-                        // เพิ่มการตรวจสอบตามสูตรคำนวณ
+                        // ตรวจสอบตามสูตรคำนวณ
                         this.classList.add('is-invalid');
                         Swal.fire('รูปแบบผิดพลาด', 'เลขประจำตัวผู้เสียภาษีไม่ถูกต้อง', 'error');
                     } else {
@@ -806,7 +806,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         }
 
-        // 2. ตรวจสอบเบอร์โทรศัพท์ (Phone)
+        // ตรวจสอบเบอร์โทรศัพท์ (Phone)
         const phoneInput = document.getElementById('shop_phone');
         if (phoneInput) {
             phoneInput.addEventListener('input', function() {
@@ -833,7 +833,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // ตัวแปรเช็คสถานะ OTP
         let isShopEmailVerified = true; // ค่าเริ่มต้น true เพราะไม่บังคับกรอก
 
-        // 3. ตรวจสอบอีเมล (Email) และระบบ OTP
+        // ตรวจสอบอีเมล (Email) และระบบ OTP
         const emailInput = document.getElementById('shop_email');
         if (emailInput) {
             emailInput.addEventListener('input', function() {

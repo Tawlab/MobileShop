@@ -4,11 +4,11 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_product');
 require '../config/load_theme.php';
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ Admin เพื่อกำหนดปลายทางข้อมูล (Target Shop ID)
+// ตรวจสอบสิทธิ์ Admin เพื่อกำหนดปลายทางข้อมูล (Target Shop ID)
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -22,10 +22,10 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
     $stmt_admin->close();
 }
 
-// *** หัวใจสำคัญ: ถ้าเป็น Admin ให้บันทึกเข้า '0' (ส่วนกลาง), ถ้าไม่ใช่ให้บันทึกเข้า Shop ID ตัวเอง ***
+// ถ้าเป็น Admin ให้บันทึกเข้า '0' (ส่วนกลาง), ถ้าไม่ใช่ให้บันทึกเข้า Shop ID ตัวเอง
 $save_as_shop_id = $is_super_admin ? 0 : $shop_id;
 
-// ฟังก์ชันหา prod_id ถัดไป (Manual Increment)
+// ฟังก์ชันหา prod_id ถัดไป
 function getNextProductId($conn) {
     $sql = "SELECT IFNULL(MAX(prod_id), 100000) + 1 as next_id FROM products";
     $result = mysqli_query($conn, $sql);
@@ -33,7 +33,7 @@ function getNextProductId($conn) {
     return $row['next_id'];
 }
 
-// [3] ดึงข้อมูล Brands และ Types (ให้เห็นของตัวเอง + ของส่วนกลาง)
+// ดึงข้อมูล Brands และ Types (ให้เห็นของตัวเอง + ของส่วนกลาง)
 $brands_query = "SELECT brand_id, brand_name_th FROM prod_brands 
                  WHERE shop_info_shop_id = '$shop_id' OR shop_info_shop_id = 0 
                  ORDER BY brand_name_th";
@@ -65,9 +65,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (empty($model_name)) $errors[] = "กรุณากรอกชื่อรุ่น";
     if ($prod_price < 0) $errors[] = "ราคาห้ามติดลบ";
 
-    // [4] ตรวจสอบรหัสซ้ำ (Check Duplicate)
+    // ตรวจสอบรหัสซ้ำ 
     if (empty($errors)) {
-        // 4.1 เช็ค prod_code ซ้ำ (เฉพาะใน Scope ที่เราจะบันทึก)
+        // เช็ค prod_code ซ้ำ
         $check_code_sql = "SELECT prod_id FROM products WHERE prod_code = ? AND shop_info_shop_id = ?";
         $stmt_check = $conn->prepare($check_code_sql);
         $stmt_check->bind_param("si", $prod_code, $save_as_shop_id);
@@ -79,7 +79,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $stmt_check->close();
     }
 
-    // [5] บันทึกข้อมูล (INSERT)
+    // บันทึกข้อมูล 
     if (empty($errors)) {
         // หา ID ถัดไป
         $prod_id = getNextProductId($conn);
@@ -88,7 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $conn->prepare($sql);
-        // Param types: i=int, s=string, d=double
         $stmt->bind_param(
             "issiisssdi",
             $prod_id,
@@ -100,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $model_no,
             $prod_desc,
             $prod_price,
-            $save_as_shop_id // <-- บันทึกเป็น 0 หรือ ID ร้าน ตามสิทธิ์
+            $save_as_shop_id 
         );
 
         if ($stmt->execute()) {

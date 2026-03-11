@@ -3,11 +3,11 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'subdistricts');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ Admin และ Permission 'centralinf'
+// ตรวจสอบสิทธิ์ Admin และ Permission 'centralinf'
 $is_super_admin = false;
 $has_central_perm = false;
 
@@ -35,7 +35,7 @@ if ($stmt_user = mysqli_prepare($conn, $check_user_sql)) {
 }
 
 // ==========================================
-// [3] ส่วนประมวลผล AJAX
+// ส่วนประมวลผล AJAX
 // ==========================================
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';

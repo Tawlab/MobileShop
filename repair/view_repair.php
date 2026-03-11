@@ -998,9 +998,8 @@ function getStatusColor($status)
                             &nbsp;|&nbsp; พิมพ์เมื่อ: <?= date('d/m/Y H:i') ?> น.
                         </div>
 
-                    </div><!-- /.receipt-wrapper -->
+                    </div>
                 </div>
-                <!-- =================== END PRINT ONLY =================== -->
 
             </div>
         </div>

@@ -1,13 +1,13 @@
 <?php
 session_start();
 require '../config/config.php';
-checkPageAccess($conn, 'prodtype'); // ตรวจสอบสิทธิ์การเข้าถึงหน้าเพจ
+checkPageAccess($conn, 'prodtype'); 
 
-// [1] รับค่า Shop ID และ User ID จาก Session
+// รับค่า Shop ID และ User ID จาก Session
 $shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ "centralinf" (ผู้ดูแลระบบส่วนกลาง)
+// ตรวจสอบสิทธิ์ "centralinf" 
 $has_central_perm = false;
 $check_perm_sql = "SELECT p.permission_id 
                    FROM permissions p
@@ -22,16 +22,16 @@ if ($stmt_perm = $conn->prepare($check_perm_sql)) {
     $stmt_perm->close();
 }
 
-// [3] ตรวจสอบ ID ที่ต้องการลบ
+// ตรวจสอบ ID ที่ต้องการลบ
 if (isset($_GET['id']) && !empty($_GET['id'])) {
     $delete_id = mysqli_real_escape_string($conn, $_GET['id']);
 
-    // [4] เตรียมคำสั่ง SQL ตามเงื่อนไขสิทธิ์
+    // เตรียมคำสั่ง SQL ตามเงื่อนไขสิทธิ์
     if ($has_central_perm) {
         // แอดมินลบได้ทุกรายการ (ทั้งส่วนกลางและของร้านค้า)
         $sql = "DELETE FROM prod_types WHERE type_id = ?";
     } else {
-        // ร้านค้าทั่วไปลบได้เฉพาะรายการที่เป็นของ "ตนเอง" เท่านั้น (shop_id ตรงกัน)
+        // ร้านค้าทั่วไปลบได้เฉพาะรายการที่เป็นของ "ตนเอง" เท่านั้น
         $sql = "DELETE FROM prod_types WHERE type_id = ? AND shop_info_shop_id = ?";
     }
 
@@ -51,7 +51,7 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
                 }
             }
         } catch (mysqli_sql_exception $e) {
-            // [5] จัดการกรณีติดเงื่อนไข Foreign Key (เช่น มีสินค้าที่ใช้ประเภทนี้อยู่)
+            // จัดการกรณีติดเงื่อนไข Foreign Key 
             if ($e->getCode() == 1451) {
                 $_SESSION['error'] = "ไม่สามารถลบได้เนื่องจากมีข้อมูลสินค้าที่ผูกกับประเภทนี้อยู่ในระบบ";
             } else {
@@ -64,6 +64,6 @@ if (isset($_GET['id']) && !empty($_GET['id'])) {
     $_SESSION['error'] = "ระบุรหัสที่ต้องการลบไม่ถูกต้อง";
 }
 
-// [6] ส่งกลับไปหน้าหลัก
+// ส่งกลับไปหน้าหลัก
 header("Location: prodtype.php");
 exit();

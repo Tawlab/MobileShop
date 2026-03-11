@@ -4,10 +4,10 @@ require '../config/config.php';
 checkPageAccess($conn, 'add_product');
 require '../config/load_theme.php';
 
-// [แก้ไข 1] รับค่า Shop ID จาก Session
+// รับค่า Shop ID จาก Session
 $shop_id = $_SESSION['shop_id'];
 
-// [แก้ไข 2] ดึงข้อมูล brands และ types (เฉพาะของร้านนี้)
+// ดึงข้อมูล brands และ types (เฉพาะของร้านนี้)
 $brands_query = "SELECT brand_id, brand_name_th FROM prod_brands WHERE shop_info_shop_id = '$shop_id' ORDER BY brand_name_th";
 $brands_result = mysqli_query($conn, $brands_query);
 
@@ -61,12 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 
     if (empty($errors)) {
-        // [แก้ไข 3] เพิ่ม shop_info_shop_id ลงใน INSERT
         $sql = "INSERT INTO products (prod_id, prod_name, prod_brands_brand_id, prod_types_type_id, model_name, model_no, prod_desc, prod_price, shop_info_shop_id) 
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         $stmt = $conn->prepare($sql);
-        // เพิ่ม 'i' ท้ายสุดของ types string และเพิ่ม $shop_id ในพารามิเตอร์
         $stmt->bind_param(
             "isiisssdi",
             $prod_id,

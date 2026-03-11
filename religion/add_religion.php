@@ -10,7 +10,7 @@ checkPageAccess($conn, 'add_religion');
 $current_user_id = $_SESSION['user_id'];
 
 // --------------------------------------------------------------------------
-// [1] Security Check: ตรวจสอบว่าเป็น Admin หรือไม่? (เฉพาะ Admin เพิ่มได้)
+// Security Check: ตรวจสอบว่าเป็น Admin หรือไม่? (เฉพาะ Admin เพิ่มได้)
 // --------------------------------------------------------------------------
 $is_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
@@ -31,7 +31,7 @@ if (!$is_admin) {
 }
 
 // --------------------------------------------------------------------------
-// [2] Function: หา ID ถัดไป (Manual Increment)
+// หา ID ถัดไป (Manual Increment)
 // --------------------------------------------------------------------------
 function getNextReligionId($conn) {
     // หาค่ามากสุดจากตาราง religions
@@ -43,7 +43,7 @@ function getNextReligionId($conn) {
 }
 
 // ==========================================================================================
-// [3] FORM SUBMISSION: บันทึกข้อมูล
+// บันทึกข้อมูล
 // ==========================================================================================
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     ob_clean(); 
@@ -74,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         // หา ID ใหม่
         $new_id = getNextReligionId($conn);
 
-        // บันทึกข้อมูล (ตัด create_at, update_at ออก เพราะไม่มีในตาราง)
+        // บันทึกข้อมูล 
         // กำหนด is_active = 1 (ใช้งาน), shop_info_shop_id = 0 (ส่วนกลาง)
         $sql = "INSERT INTO religions (religion_id, religion_name_th, religion_name_en, is_active, shop_info_shop_id) 
                 VALUES (?, ?, ?, 1, 0)";

@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         /* -------------------------------------------------------------------- */
         @media (max-width: 767.98px) {
             .container {
-                /* เพิ่มขอบด้านข้างบนมือถือ */
+                /* ขอบด้านข้างบนมือถือ */
                 padding-left: 15px;
                 padding-right: 15px;
             }
@@ -119,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 padding-bottom: 0 !important;
             }
 
-            /* เพิ่ม Margin ด้านล่างให้ Input Field (td ตัวสุดท้าย) */
+            /* Margin ด้านล่างให้ Input Field (td ตัวสุดท้าย) */
             tr td:last-child {
                 margin-bottom: 15px;
             }

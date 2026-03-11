@@ -7,7 +7,7 @@ $current_user_id = $_SESSION['user_id'];
 $current_shop_id = $_SESSION['shop_id'];
 $current_branch_id = $_SESSION['branch_id'];
 
-// 1. ตรวจสอบสิทธิ์ Admin
+// ตรวจสอบสิทธิ์ Admin
 $is_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
             JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -29,7 +29,7 @@ function getNextMovementId($conn)
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
-// [ใหม่] ฟังก์ชันหา bill_id ถัดไป
+// ฟังก์ชันหา bill_id ถัดไป
 function getNextBillId($conn)
 {
     $sql = "SELECT IFNULL(MAX(bill_id), 0) + 1 as next_id FROM bill_headers";
@@ -37,7 +37,7 @@ function getNextBillId($conn)
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
-// [ใหม่] ฟังก์ชันหา detail_id ล่าสุด (สำหรับรายการสินค้า)
+// ฟังก์ชันหา detail_id ล่าสุด (สำหรับรายการสินค้า)
 function getNextBillDetailId($conn)
 {
     $sql = "SELECT IFNULL(MAX(detail_id), 0) as max_id FROM bill_details";
@@ -69,12 +69,12 @@ if (isset($_GET['ajax_action'])) {
         exit;
     }
 
-    // 2. โหลดทรัพยากรของสาขา (ลูกค้า, พนักงาน, สินค้า)
+    // โหลดทรัพยากรของสาขา (ลูกค้า, พนักงาน, สินค้า)
     if ($action == 'get_branch_resources' && isset($_GET['branch_id'])) {
         $branch_id = (int)$_GET['branch_id'];
         $bill_id_edit = isset($_GET['bill_id']) ? (int)$_GET['bill_id'] : 0;
 
-        // A. ดึงพนักงาน (Employees)
+        // ดึงพนักงาน (Employees)
         $emp_sql = "SELECT emp_id, firstname_th, lastname_th FROM employees 
                     WHERE branches_branch_id = $branch_id AND emp_status = 'Active' 
                     ORDER BY firstname_th";
@@ -82,7 +82,7 @@ if (isset($_GET['ajax_action'])) {
         $employees = [];
         while ($row = $emp_res->fetch_assoc()) $employees[] = $row;
 
-        // B. ดึงลูกค้า (Customers) - ของสาขานั้นๆ
+        // ดึงลูกค้า (Customers) - ของสาขานั้นๆ
         $cust_sql = "SELECT cs_id, firstname_th, lastname_th FROM customers 
                      WHERE branches_branch_id = $branch_id 
                      ORDER BY firstname_th";
@@ -90,7 +90,7 @@ if (isset($_GET['ajax_action'])) {
         $customers = [];
         while ($row = $cust_res->fetch_assoc()) $customers[] = $row;
 
-        // C. ดึงสินค้า (Stocks)
+        // ดึงสินค้า (Stocks)
         $stock_sql = "SELECT ps.stock_id, ps.serial_no, ps.price, p.prod_id, p.prod_name, p.model_name
                       FROM prod_stocks ps
                       JOIN products p ON ps.products_prod_id = p.prod_id
@@ -178,7 +178,7 @@ if (isset($_GET['id']) && is_numeric($_GET['id'])) {
 // -----------------------------------------------------------------------------
 // FETCH MASTER DATA (Initial PHP Load)
 // -----------------------------------------------------------------------------
-// กรณี Non-Admin: โหลดข้อมูลของสาขาตัวเองเลย
+// กรณีไม่ใช่ Admin: โหลดข้อมูลของสาขาตัวเองเลย
 $filter_branch = $selected_branch ? $selected_branch : 0;
 
 $customers_list = [];
@@ -186,17 +186,17 @@ $employees_list = [];
 $stocks_list = [];
 
 if ($filter_branch > 0) {
-    // 1. Customers
+    // Customers
     $c_sql = "SELECT cs_id, firstname_th, lastname_th FROM customers WHERE branches_branch_id = $filter_branch ORDER BY firstname_th";
     $c_res = mysqli_query($conn, $c_sql);
     while ($r = mysqli_fetch_assoc($c_res)) $customers_list[] = $r;
 
-    // 2. Employees
+    // Employees
     $e_sql = "SELECT emp_id, firstname_th, lastname_th FROM employees WHERE branches_branch_id = $filter_branch AND emp_status = 'Active' ORDER BY firstname_th";
     $e_res = mysqli_query($conn, $e_sql);
     while ($r = mysqli_fetch_assoc($e_res)) $employees_list[] = $r;
 
-    // 3. Stocks (Initial for PHP Variable -> JS)
+    // Stocks (Initial for PHP Variable -> JS)
     $s_sql = "SELECT ps.stock_id, ps.serial_no, ps.price, p.prod_id, p.prod_name, p.model_name
               FROM prod_stocks ps
               JOIN products p ON ps.products_prod_id = p.prod_id
@@ -253,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                 $stmt->close();
                 $bill_id = $current_bill_id;
             } else {
-                // [แก้ไข] สร้างบิลใหม่แบบ Manual ID
+                // สร้างบิลใหม่แบบ Manual ID
                 $bill_id = getNextBillId($conn);
 
                 $sql_header = "INSERT INTO bill_headers 
@@ -262,7 +262,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                     VALUES (?, ?, ?, 'Cash', 'Pending', ?, ?, ?, ?, 'Sale', ?, ?, NOW(), NOW())";
 
                 $stmt = $conn->prepare($sql_header);
-                // bind_param: i(id) s(date) s(date) d(vat) s(comment) d(discount) i(cust) i(branch) i(emp)
                 $stmt->bind_param("issdsdiii", $bill_id, $bill_date, $bill_date, $vat_rate, $comment, $discount, $customer_id, $target_branch_id, $employee_id);
 
                 if (!$stmt->execute()) throw new Exception("สร้างบิลไม่สำเร็จ: " . $stmt->error);
@@ -273,7 +272,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             $stock_ids = $_POST['stock_ids'] ?? [];
             $prices    = $_POST['prices'] ?? [];
 
-            // [แก้ไข] เตรียม ID รายการสินค้า
+            // เตรียม ID รายการสินค้า
             $running_detail_id = getNextBillDetailId($conn);
 
             for ($i = 0; $i < count($stock_ids); $i++) {
@@ -291,12 +290,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
 
                 $prod_id = $row_chk['products_prod_id'];
 
-                // [แก้ไข] Insert Detail แบบระบุ ID
+                // Insert Detail แบบระบุ ID
                 $running_detail_id++; // บวก ID ทีละ 1
                 $sql_detail = "INSERT INTO bill_details (detail_id, amount, price, bill_headers_bill_id, products_prod_id, prod_stocks_stock_id, create_at, update_at) 
                                VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())";
                 $stmt2 = $conn->prepare($sql_detail);
-                // bind_param: i(detail_id) i(amount) d(price) i(bill_id) i(prod_id) i(stock_id)
                 $stmt2->bind_param('iidiii', $running_detail_id, $qty, $price, $bill_id, $prod_id, $sid);
 
                 if (!$stmt2->execute()) throw new Exception("บันทึกรายการสินค้าไม่สำเร็จ");
@@ -549,6 +547,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
         let currentBranchStocks = [];
         let existingItems = [];
 
+        
         $(document).ready(function() {
             $('.select2').select2({
                 theme: 'bootstrap-5',
@@ -610,6 +609,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             }, 'json');
         }
 
+        // ฟังก์ชันสำหรับโหลดข้อมูลสาขา
         function loadBranchResources(branchId) {
             const empSelect = $('#employeeSelect');
             const custSelect = $('#customerSelect');
@@ -658,7 +658,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             }, 'json');
         }
 
-        // [แก้ไข] เพิ่ม parameter excludeIds เพื่อรับรายการ ID ที่ต้องซ่อน
+        // ฟังก์ชันสร้างตัวเลือกสต็อก โดยสามารถส่ง ID ที่ต้องการให้แสดงได้ (สำหรับกรณีแก้ไข)
         function buildStockOptions(selectedId = null, excludeIds = []) {
             let options = '<option value="">-- เลือกสินค้า --</option>';
 
@@ -675,9 +675,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
             return options;
         }
 
-        // [เพิ่มใหม่] ฟังก์ชันสำหรับอัปเดตตัวเลือกสินค้าในทุกแถว
+        // ฟังก์ชันสำหรับอัปเดตตัวเลือกสินค้าในทุกแถว
         function refreshStockDropdowns() {
-            // 1. รวบรวม Stock ID ทั้งหมดที่ถูกเลือกไปแล้วในขณะนี้
+            // รวบรวม Stock ID ทั้งหมดที่ถูกเลือกไปแล้วในขณะนี้
             let usedIds = [];
             $('.stock-select').each(function() {
                 const val = $(this).val();
@@ -686,7 +686,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                 }
             });
 
-            // 2. วนลูปทุก Dropdown เพื่อสร้าง Option ใหม่ โดยส่ง usedIds ไปตัดออก
+            //  วนลูปทุก Dropdown เพื่อสร้าง Option ใหม่ โดยส่ง usedIds ไปตัดออก
             $('.stock-select').each(function() {
                 const $select = $(this);
                 const currentVal = $select.val(); // เก็บค่าปัจจุบันไว้ก่อน
@@ -738,7 +738,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_bill'])) {
                 width: '100%'
             });
 
-            // [สำคัญ] เรียก Refresh เพื่อซ่อนสินค้าที่ถูกเลือกไปแล้วในทุก Dropdown
+            // เรียก Refresh เพื่อซ่อนสินค้าที่ถูกเลือกไปแล้วในทุก Dropdown
             refreshStockDropdowns();
 
             // คำนวณยอดเงินรวมใหม่

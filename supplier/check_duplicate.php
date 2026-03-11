@@ -1,7 +1,6 @@
 <?php
-// check_duplicate.php
 session_start();
-require '../config/config.php'; // ดึงไฟล์เชื่อมต่อฐานข้อมูล
+require '../config/config.php';
 
 // กำหนด Header ให้ตอบกลับเป็น JSON
 header('Content-Type: application/json');
@@ -11,7 +10,6 @@ $type = $_POST['type'] ?? '';
 $value = trim($_POST['value'] ?? '');
 
 // รับ ID เพื่อใช้ "ยกเว้น" การเช็คซ้ำกับข้อมูลตัวเอง (สำหรับหน้าแก้ไขข้อมูล)
-// ถ้าเป็นหน้า "เพิ่มข้อมูลใหม่" ค่าเหล่านี้จะเป็น 0
 $emp_id = (int)($_POST['emp_id'] ?? 0);           // พนักงาน
 $cs_id = (int)($_POST['cs_id'] ?? 0);             // ลูกค้า
 $supplier_id = (int)($_POST['supplier_id'] ?? 0); // ผู้จัดจำหน่าย (Supplier)
@@ -22,7 +20,7 @@ if (!empty($type) && !empty($value)) {
     switch ($type) {
         
         // ==========================================================
-        // ส่วนที่ 1: พนักงาน (Employees)
+        // พนักงาน (Employees)
         // ==========================================================
         case 'national_id':
             $stmt = $conn->prepare("SELECT emp_id FROM employees WHERE emp_national_id = ? AND emp_id != ?");
@@ -58,7 +56,7 @@ if (!empty($type) && !empty($value)) {
             break;
 
         // ==========================================================
-        // ส่วนที่ 2: ลูกค้า (Customers)
+        // ลูกค้า (Customers)
         // ==========================================================
         case 'customer_national_id':
             $stmt = $conn->prepare("SELECT cs_id FROM customers WHERE cs_national_id = ? AND cs_id != ?");
@@ -76,7 +74,7 @@ if (!empty($type) && !empty($value)) {
             break;
 
         // ==========================================================
-        // ส่วนที่ 3: ผู้จัดจำหน่าย (Suppliers) -> [ส่วนที่เพิ่มใหม่ล่าสุด]
+        // ผู้จัดจำหน่าย (Suppliers) -> [ส่วนที่เพิ่มใหม่ล่าสุด]
         // ==========================================================
         case 'supplier_tax_id':
             // ตรวจสอบเลขประจำตัวผู้เสียภาษีอากรซ้ำ
