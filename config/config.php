@@ -17,5 +17,5 @@ $conn->set_charset("utf8mb4");
 // ตั้งค่า Timezone
 date_default_timezone_set('Asia/Bangkok');
 
-// เรียกใช้ไฟล์ฟังก์ชันรวม (เช่น ระบบสิทธิ์)
+// เรียกใช้ไฟล์ฟังก์ชันรวม 
 require_once __DIR__ . '/functions.php';

@@ -11,7 +11,7 @@ if (!isset($_GET['id'])) {
 
 $cs_id = (int)$_GET['id'];
 
-// ดึงข้อมูลลูกค้าก่อนลบ (เพื่อเอาชื่อและ ID ที่อยู่)
+// ดึงข้อมูลลูกค้าก่อนลบ
 $sql = "SELECT firstname_th, lastname_th, Addresses_address_id FROM customers WHERE cs_id = $cs_id";
 $result = mysqli_query($conn, $sql);
 $customer = mysqli_fetch_assoc($result);
@@ -27,13 +27,13 @@ $fullname = $customer['firstname_th'] . ' ' . $customer['lastname_th'];
 mysqli_autocommit($conn, false);
 
 try {
-    // ลบข้อมูลลูกค้า (Customers)
+    // ลบข้อมูลลูกค้า 
     $sql_del_cus = "DELETE FROM customers WHERE cs_id = $cs_id";
     if (!mysqli_query($conn, $sql_del_cus)) {
         throw new Exception(mysqli_error($conn), mysqli_errno($conn));
     }
 
-    // ลบข้อมูลที่อยู่ (Addresses) ที่ผูกกัน
+    // ลบข้อมูลที่อยู่ ที่ผูกกัน
     if ($addr_id > 0) {
         $sql_del_addr = "DELETE FROM addresses WHERE address_id = $addr_id";
         mysqli_query($conn, $sql_del_addr);

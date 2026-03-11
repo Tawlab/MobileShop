@@ -9,7 +9,7 @@ checkPageAccess($conn, 'branch');
 $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [1] ตรวจสอบว่าเป็น Admin หรือไม่
+// ตรวจสอบว่าเป็น Admin หรือไม่
 $is_super_admin = false;
 $chk_sql = "SELECT r.role_name FROM roles r 
             JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -21,9 +21,7 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// ==========================================
-// [2] ส่วนประมวลผล AJAX
-// ==========================================
+// ส่วนประมวลผล AJAX
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, trim($_GET['search'])) : '';
     $shop_f = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
@@ -31,7 +29,7 @@ if (isset($_GET['ajax'])) {
     // สร้างเงื่อนไข Query
     $conditions = [];
     
-    // 2.1 กรองตามสิทธิ์
+    // กรองตามสิทธิ์
     if (!$is_super_admin) {
         // ร้านค้าทั่วไป: เห็นแค่ของตัวเอง
         $conditions[] = "b.shop_info_shop_id = '$current_shop_id'";
@@ -40,14 +38,14 @@ if (isset($_GET['ajax'])) {
         $conditions[] = "b.shop_info_shop_id = '$shop_f'";
     }
 
-    // 2.2 กรองจากการค้นหา
+    // กรองจากการค้นหา
     if (!empty($search)) {
         $conditions[] = "(b.branch_name LIKE '%$search%' OR b.branch_code LIKE '%$search%' OR b.branch_phone LIKE '%$search%')";
     }
 
     $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-    // 2.3 ดึงข้อมูลสาขา
+    // ดึงข้อมูลสาขา
     $sql = "SELECT b.*, s.shop_name,
                    p.province_name_th, d.district_name_th, sd.subdistrict_name_th, sd.zip_code
             FROM branches b

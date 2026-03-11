@@ -8,7 +8,7 @@ checkPageAccess($conn, 'add_department');
 $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// --- 1. ตรวจสอบสิทธิ์ Admin ---
+// ตรวจสอบสิทธิ์ Admin
 $is_admin = false;
 $sql_role = "SELECT r.role_name FROM user_roles ur 
              JOIN roles r ON ur.roles_role_id = r.role_id 
@@ -33,9 +33,7 @@ if (!$is_admin) {
     $stmt->close();
 }
 
-// --------------------------------------------------------------------------
-// AJAX HANDLER (สำหรับโหลดสาขา)
-// --------------------------------------------------------------------------
+// AJAX สำหรับโหลดสาขา
 if (isset($_POST['action'])) {
     ob_end_clean();
     header('Content-Type: application/json; charset=utf-8');
@@ -62,9 +60,7 @@ function getNextId($conn, $table, $column) {
     return ($row['max_id']) ? $row['max_id'] + 1 : 1;
 }
 
-// ==========================================================================
-// [POST] BUNDLE DATA
-// ==========================================================================
+// BUNDLE DATA
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     ob_end_clean(); 
     header('Content-Type: application/json');
@@ -105,8 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         $new_dept_id = getNextId($conn, 'departments', 'dept_id');
 
-        // Insert (เพิ่ม branches_branch_id)
-        // ** ต้องแน่ใจว่าตาราง departments มีคอลัมน์ branches_branch_id แล้ว **
+        // Insert แผนกใหม่
         $sql = "INSERT INTO departments (dept_id, shop_info_shop_id, branches_branch_id, dept_name, dept_desc, create_at, update_at) 
                 VALUES (?, ?, ?, ?, ?, NOW(), NOW())";
         
@@ -265,7 +260,7 @@ if ($is_admin) {
                 if (!this.checkValidity()) {
                     e.stopPropagation();
                     $(this).addClass('was-validated');
-                    // ถ้าเป็น Admin แล้วยังไม่เลือก Select2 ต้องบังคับโชว์แดง (Select2 ซ่อน input เดิม)
+                    // ถ้าเป็น Admin แล้วยังไม่เลือก Select2 ต้องบังคับโชว์แดง
                     if ($('#shopSelect').length && !$('#shopSelect').val()) {
                         $('#shopSelect').next('.select2-container').find('.select2-selection').addClass('border-danger');
                     }

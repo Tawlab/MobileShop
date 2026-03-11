@@ -8,7 +8,7 @@ checkPageAccess($conn, 'add_customer');
 $current_user_id = $_SESSION['user_id'];
 $current_shop_id = $_SESSION['shop_id'];
 
-// --- 1. ตรวจสอบสถานะ Admin ---
+// ตรวจสอบสถานะ
 $is_admin = false;
 $sql_role = "SELECT r.role_name FROM user_roles ur 
              JOIN roles r ON ur.roles_role_id = r.role_id 
@@ -28,9 +28,7 @@ if (!$is_admin) {
     }
 }
 
-// -----------------------------------------------------------------------------
-// AJAX HANDLER (สำหรับ Dropdown ข้อมูลร้านค้าและที่อยู่)
-// -----------------------------------------------------------------------------
+// AJAX HANDLER สำหรับ Dropdown ข้อมูลร้านค้าและที่อยู่
 if (isset($_POST['action'])) {
     ob_end_clean();
     header('Content-Type: application/json; charset=utf-8');
@@ -63,9 +61,7 @@ if (isset($_POST['action'])) {
 
 $return_url = isset($_GET['return_to']) ? urldecode($_GET['return_to']) : 'customer_list.php';
 
-// -----------------------------------------------------------------------------
-// HANDLE FORM SUBMIT (บันทึกข้อมูล)
-// -----------------------------------------------------------------------------
+// FORM SUBMIT
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     
     if ($is_admin) {
@@ -93,7 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $village   = trim($_POST['village']); 
     $subdist_id = (int)$_POST['subdistrict_id'];
 
-    // 1. ตรวจสอบข้อมูลเบื้องต้นฝั่ง Server
+    // ตรวจสอบข้อมูลเบื้องต้นฝั่ง Server
     if (empty($fname_th) || empty($lname_th) || empty($phone)) {
         $_SESSION['error'] = "กรุณากรอกข้อมูลสำคัญ (ชื่อ, นามสกุล, เบอร์โทร)";
     } elseif (empty($subdist_id)) {
@@ -101,7 +97,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (empty($target_shop_id) || empty($target_branch_id)) {
         $_SESSION['error'] = "ข้อมูลร้านค้าหรือสาขาไม่ถูกต้อง";
     } 
-    // 2. ตรวจสอบว่ายืนยัน OTP หรือยัง (ถ้ามีการกรอกอีเมล)
+    // ตรวจสอบว่ายืนยัน OTP หรือยัง (ถ้ามีการกรอกอีเมล)
     elseif (!empty($email) && (!isset($_SESSION['email_verified']) || $_SESSION['email_verified'] !== true)) {
         $_SESSION['error'] = "กรุณายืนยันอีเมลด้วยรหัส OTP ให้สำเร็จก่อนบันทึกข้อมูล";
     } else {
@@ -413,9 +409,7 @@ if ($is_admin) {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
-        // ---------------------------------------------------------------------
-        // 1. Validation Logic & Restrictions
-        // ---------------------------------------------------------------------
+        // Validation Logic & Restrictions
         let isEmailVerified = true; // เริ่มต้นให้ true เผื่อกรณีลูกค้าไม่ได้กรอกอีเมล
 
         // จำกัดภาษาการพิมพ์
@@ -438,9 +432,7 @@ if ($is_admin) {
             return check === parseInt(id.charAt(12));
         }
 
-        // ---------------------------------------------------------------------
         // 2. AJAX Duplicate Checks (Real-time)
-        // ---------------------------------------------------------------------
         
         // ตรวจสอบเลขบัตร ปชช.
         $('#cs_national_id').on('blur', function() {
@@ -480,9 +472,7 @@ if ($is_admin) {
             });
         });
 
-        // ---------------------------------------------------------------------
-        // 3. Email OTP Logic
-        // ---------------------------------------------------------------------
+        // 3. Email OTP
         $('#cs_email').on('input', function() {
             const email = $(this).val();
             if(email.length > 0) {
@@ -491,7 +481,7 @@ if ($is_admin) {
             } else {
                 $('#btnSendOTP').fadeOut();
                 $('#otpBox').fadeOut();
-                isEmailVerified = true; // ลบเมลออก ไม่ต้อง Verify แล้ว
+                isEmailVerified = true; // ลบเมลออก ไม่ต้อง Verify
             }
             $(this).removeClass('is-valid is-invalid');
         });
@@ -536,9 +526,7 @@ if ($is_admin) {
             });
         });
 
-        // ---------------------------------------------------------------------
-        // 4. UI Toggle & Address Loaders
-        // ---------------------------------------------------------------------
+        // UI Toggle & Address Loaders
         
         // พับ/ขยาย ที่อยู่ย่อย
         function toggleAddress() {
@@ -600,9 +588,7 @@ if ($is_admin) {
         function loadSubdistricts(id) { if(id) fetchData('get_subdistricts', id, 'subdistrict'); }
         function updateZipcode(el) { document.getElementById('zipcode').value = el.options[el.selectedIndex].dataset.zip || ''; }
 
-        // ---------------------------------------------------------------------
-        // 5. Form Submission Intercept
-        // ---------------------------------------------------------------------
+        // Form Submission Intercept
         $('#addCustomerForm').on('submit', function(e) {
             // เช็คว่าถ้ามี error แดงๆ อยู่ ห้ามกดผ่าน
             if($('.is-invalid').length > 0) {

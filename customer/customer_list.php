@@ -3,11 +3,11 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'customer_list');
 
-// [1] รับค่าพื้นฐานจาก Session
+// รับค่าพื้นฐานจาก Session
 $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// [2] ตรวจสอบสิทธิ์ Admin (Super Admin)
+// ตรวจสอบสิทธิ์ 
 $is_super_admin = false;
 $check_admin_sql = "SELECT r.role_name FROM roles r 
                     JOIN user_roles ur ON r.role_id = ur.roles_role_id 
@@ -19,7 +19,7 @@ if ($stmt_admin = $conn->prepare($check_admin_sql)) {
     $stmt_admin->close();
 }
 
-// [2.1] หา Branch ID ของพนักงานปัจจุบัน (เพื่อนำไปกรอง)
+// หา Branch ID ของพนักงานปัจจุบัน (เพื่อนำไปกรอง)
 $current_user_branch_id = 0;
 if (!$is_super_admin) {
     $sql_emp_branch = "SELECT branches_branch_id FROM employees WHERE users_user_id = ? LIMIT 1";
@@ -34,15 +34,13 @@ if (!$is_super_admin) {
     }
 }
 
-// =========================================================================
-// [3] ส่วนประมวลผล AJAX: ตรวจสอบประวัติการซื้อขายก่อนลบ
-// =========================================================================
+// ส่วนประมวลผล AJAX: ตรวจสอบประวัติการซื้อขายก่อนลบ
 if (isset($_GET['action']) && $_GET['action'] === 'check_transactions') {
     header('Content-Type: application/json');
     $id = (int)$_GET['id'];
     
-    $table_name = "bill_headers"; // <- เปลี่ยนตรงนี้
-    $column_name = "customers_cs_id"; // <- เปลี่ยนตรงนี้
+    $table_name = "bill_headers"; 
+    $column_name = "customers_cs_id";
     
     $check_sql = "SELECT COUNT(*) as total FROM $table_name WHERE $column_name = $id";
     $res = @mysqli_query($conn, $check_sql); // ใส่ @ เพื่อซ่อน Error กรณีชื่อตารางไม่ตรง
@@ -59,9 +57,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'check_transactions') {
     exit;
 }
 
-// =========================================================================
-// [4] ส่วนประมวลผล AJAX: สร้างตารางข้อมูลลูกค้า
-// =========================================================================
+// ส่วนประมวลผล AJAX: สร้างตารางข้อมูลลูกค้า
 if (isset($_GET['ajax'])) {
     $search = isset($_GET['search']) ? mysqli_real_escape_string($conn, $_GET['search']) : '';
     $shop_filter = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
@@ -74,10 +70,10 @@ if (isset($_GET['ajax'])) {
     $conditions = [];
 
     if (!$is_super_admin) {
-        // กรณีไม่ใช่ Admin: กรองเฉพาะ "สาขาของฉัน" (branches_branch_id)
+        // กรณีไม่ใช่ Admin: กรองเฉพาะ "สาขาของฉัน" 
         $conditions[] = "c.branches_branch_id = '$current_user_branch_id'";
     } elseif (!empty($shop_filter)) {
-        // กรณี Admin: กรองตามร้านที่เลือก (shop_info_shop_id)
+        // กรณี Admin: กรองตามร้านที่เลือก 
         $conditions[] = "c.shop_info_shop_id = '$shop_filter'";
     }
 
@@ -87,12 +83,12 @@ if (isset($_GET['ajax'])) {
 
     $where_sql = !empty($conditions) ? "WHERE " . implode(" AND ", $conditions) : "";
 
-    // Query นับจำนวนทั้งหมด
+    // นับจำนวนทั้งหมด
     $count_sql = "SELECT COUNT(*) as total FROM customers c $where_sql";
     $total_items = $conn->query($count_sql)->fetch_assoc()['total'];
     $total_pages = ceil($total_items / $limit);
 
-    // Query ดึงข้อมูลลูกค้า
+    // ดึงข้อมูลลูกค้า
     $sql = "SELECT c.*, b.branch_name, s.shop_name, p.prefix_th
             FROM customers c
             LEFT JOIN branches b ON c.branches_branch_id = b.branch_id
@@ -316,11 +312,9 @@ $shops_res = $is_super_admin ? $conn->query("SELECT shop_id, shop_name FROM shop
             }
         });
 
-        // -------------------------------------------------------------
         // ฟังก์ชันตรวจสอบประวัติก่อนลบ
-        // -------------------------------------------------------------
         function checkAndDelete(id, name) {
-            // ยิง AJAX ไปหา block [3] ที่เราเขียนไว้ด้านบน
+            // ยิง AJAX ไปหา block ที่เราเขียนไว้ด้านบน
             fetch(`customer_list.php?action=check_transactions&id=${id}`)
                 .then(res => res.json())
                 .then(data => {

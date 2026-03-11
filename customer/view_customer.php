@@ -33,7 +33,7 @@ if (!$customer) {
     exit;
 }
 
-// Helper: จัดรูปแบบที่อยู่
+// จัดรูปแบบที่อยู่
 $addr_parts = [];
 if ($customer['home_no']) $addr_parts[] = "บ้านเลขที่ " . $customer['home_no'];
 if ($customer['village']) $addr_parts[] = "หมู่บ้าน/อาคาร " . $customer['village'];

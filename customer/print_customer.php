@@ -9,12 +9,12 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $cs_id = (int)$_GET['id'];
 
-// 1. ดึงข้อมูลร้านค้า (เพื่อแสดงหัวกระดาษ)
+// ดึงข้อมูลร้านค้า 
 $shop_sql = "SELECT * FROM shop_info LIMIT 1";
 $shop_result = mysqli_query($conn, $shop_sql);
 $shop = mysqli_fetch_assoc($shop_result);
 
-// 2. ดึงข้อมูลลูกค้า + ที่อยู่
+// ดึงข้อมูลลูกค้า + ที่อยู่
 $sql = "SELECT c.*, p.prefix_th, 
                a.home_no, a.moo, a.soi, a.road, a.village,
                sd.subdistrict_name_th, d.district_name_th, pv.province_name_th, sd.zip_code
@@ -44,14 +44,14 @@ $addr_parts[] = "ต." . ($customer['subdistrict_name_th'] ?? '-') . " อ." . (
 $addr_parts[] = "จ." . ($customer['province_name_th'] ?? '-') . " " . ($customer['zip_code'] ?? '');
 $address_text = implode(" ", $addr_parts);
 
-// 3. ดึงประวัติการซ่อม
+// ดึงประวัติการซ่อม
 $sql_repairs = "SELECT repair_id, create_at, repair_status, device_description 
                 FROM repairs 
                 WHERE customers_cs_id = $cs_id 
                 ORDER BY create_at DESC LIMIT 20";
 $res_repairs = mysqli_query($conn, $sql_repairs);
 
-// 4. ดึงประวัติการซื้อ
+// ดึงประวัติการซื้อ
 $sql_bills = "SELECT bill_id, bill_date, bill_status, (SELECT SUM(price*amount) FROM bill_details WHERE bill_headers_bill_id = bill_id) as total
               FROM bill_headers 
               WHERE customers_cs_id = $cs_id AND bill_type = 'Sale'

@@ -128,7 +128,7 @@ if (isDarkColor($theme_color)) {
     color: <?= $header_text_color ?> !important;
   }
 
-  /* ปุ่มเพิ่ม (ใช้กับ .btn-success หรือ .btn-add) */
+  /* ใช้กับ .btn-success หรือ .btn-add */
   .btn-success {
     background-color: <?= $btn_add_color ?> !important;
     border-color: <?= $btn_add_color ?> !important;
@@ -175,7 +175,6 @@ if (isDarkColor($theme_color)) {
 
   .inactive {
     opacity: 0.25 !important;
-    /* pointer-events: none; <-- บรรทัดนี้ถูกลบออก */
     filter: grayscale(100%) brightness(0.8);
   }
 

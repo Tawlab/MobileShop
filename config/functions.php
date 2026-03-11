@@ -5,15 +5,15 @@ use PHPMailer\PHPMailer\SMTP;
 use PHPMailer\PHPMailer\Exception;
 
 // =============================================================================
-// ฟังก์ชันตรวจสอบสิทธิ์ (Check Permission) - Logic ใหม่ (Dept > Role)
+// ฟังก์ชันตรวจสอบสิทธิ์ 
 // =============================================================================
 function hasPermission($conn, $user_id, $permission_name)
 {
-    // 1. ถ้าไม่มี User ID ส่งมา (ยังไม่ล็อกอิน)
+    // ถ้าไม่มี User ID ส่งมา (ยังไม่ล็อกอิน)
     if (empty($user_id))
         return false;
 
-    // 2. ดึงข้อมูล Dept ID และ Role ID ของ User
+    // ดึงข้อมูล Dept ID และ Role ID ของ User
     $sql_user = "SELECT e.departments_dept_id, ur.roles_role_id 
                  FROM employees e 
                  JOIN user_roles ur ON e.users_user_id = ur.users_user_id 
@@ -34,8 +34,7 @@ function hasPermission($conn, $user_id, $permission_name)
     $role_id = $user_data['roles_role_id'];
     $stmt->close();
 
-    // 3. ตรวจสอบว่า "แผนก" นี้มีการกำหนดสิทธิ์ไว้หรือไม่?
-    // (เช็คว่ามี record ใน dept_permissions ของแผนกนี้บ้างไหม)
+    // ตรวจสอบว่า "แผนก" นี้มีการกำหนดสิทธิ์ไว้หรือไม่?
     $sql_check_dept = "SELECT 1 FROM dept_permissions WHERE departments_dept_id = ? LIMIT 1";
     $stmt = $conn->prepare($sql_check_dept);
     $stmt->bind_param("i", $dept_id);
@@ -43,10 +42,9 @@ function hasPermission($conn, $user_id, $permission_name)
     $dept_has_rules = ($stmt->get_result()->num_rows > 0);
     $stmt->close();
 
-    // 4. เริ่มตรวจสอบสิทธิ์ตามลำดับความสำคัญ
+    // เริ่มตรวจสอบสิทธิ์ตามลำดับความสำคัญ
     if ($dept_has_rules) {
-        // [กรณี A] แผนกมีการกำหนดสิทธิ์ไว้ -> "บังคับใช้สิทธิ์ของแผนกเท่านั้น"
-        // เช็คว่า User มีสิทธิ์ $permission_name หรือไม่ จากตาราง dept_permissions
+        // แผนกมีการกำหนดสิทธิ์ไว้ -> "บังคับใช้สิทธิ์ของแผนกเท่านั้น"
         $sql = "SELECT 1
                 FROM dept_permissions dp
                 JOIN permissions p ON dp.permissions_permission_id = p.permission_id
@@ -58,8 +56,7 @@ function hasPermission($conn, $user_id, $permission_name)
 
     }
     else {
-        // [กรณี B] แผนก "ไม่มี" การกำหนดสิทธิ์ -> "ให้ไปใช้สิทธิ์ตาม Role (ตำแหน่ง)"
-        // เช็คว่า User มีสิทธิ์ $permission_name หรือไม่ จากตาราง role_permissions
+        // แผนก "ไม่มี" การกำหนดสิทธิ์ -> "ให้ไปใช้สิทธิ์ตาม Role"
         $sql = "SELECT 1
                 FROM role_permissions rp
                 JOIN permissions p ON rp.permissions_permission_id = p.permission_id
@@ -70,7 +67,7 @@ function hasPermission($conn, $user_id, $permission_name)
         $stmt->bind_param("is", $role_id, $permission_name);
     }
 
-    // 5. ประมวลผลลัพธ์
+    // ประมวลผลลัพธ์
     $stmt->execute();
     $result = $stmt->get_result();
     $has_perm = ($result->num_rows > 0);
@@ -79,9 +76,7 @@ function hasPermission($conn, $user_id, $permission_name)
     return $has_perm;
 }
 
-// =============================================================================
-// ฟังก์ชันตรวจสอบสิทธิ์เข้าใช้งานหน้าเว็บ (Page Access Guard)
-// =============================================================================
+// ฟังก์ชันตรวจสอบสิทธิ์เข้าใช้งานหน้าเว็บ 
 function checkPageAccess($conn, $permission_name)
 {
     // เช็คว่าล็อกอินหรือยัง
@@ -92,7 +87,7 @@ function checkPageAccess($conn, $permission_name)
 
     // เช็คสิทธิ์ด้วยฟังก์ชัน hasPermission ที่อัปเดต Logic แล้ว
     if (!hasPermission($conn, $_SESSION['user_id'], $permission_name)) {
-        // แจ้งเตือนและเด้งกลับ (History Back) หรือไปหน้า Access Denied
+        // แจ้งเตือนและเด้งกลับ หรือไปหน้า Access Denied
         echo "<script>
             alert('คุณไม่มีสิทธิ์เข้าถึงหน้านี้ ($permission_name)');
             window.location.href = '../access_denied.php'; 
@@ -101,9 +96,7 @@ function checkPageAccess($conn, $permission_name)
     }
 }
 
-// =============================================================================
-// ฟังก์ชันส่งใบเสร็จรับเงินทางอีเมล (สำหรับขายสินค้าทั่วไป) - คงเดิม
-// =============================================================================
+// ฟังก์ชันส่งใบเสร็จรับเงินทางอีเมล (สำหรับขายสินค้าทั่วไป)
 function sendReceiptEmail($conn, $bill_id)
 {
     $sql = "SELECT bh.*, c.firstname_th, c.lastname_th, c.cs_email, 
@@ -150,17 +143,9 @@ function sendReceiptEmail($conn, $bill_id)
             </tr>";
     }
 
-    // คำนวณยอดสุทธิ (Grand Total)
+    // คำนวณยอดสุทธิ์
     $vat_amount = $total * ($bill['vat'] / 100);
     $grand_total = $total + $vat_amount - $bill['discount'];
-
-    // สร้าง Body HTML (ตัดทอนเพื่อความกระชับ - ใช้ Logic เดียวกับฟังก์ชันข้างล่าง)
-    // ... (คงเดิมตามที่คุณมี) ...
-
-    // หมายเหตุ: เพื่อไม่ให้โค้ดยาวเกินไป ผมขออนุญาตใช้ Template เดียวกับด้านล่างในการ implement จริง
-    // แต่ในโค้ดนี้ผมจะคง Logic เดิมของคุณไว้ตามที่ขอ แล้วไปเพิ่มฟังก์ชันใหม่ด้านล่างครับ
-
-    // (ขออนุญาต Copy HTML Template จากโค้ดเดิมของคุณมาใส่ตรงนี้เพื่อให้สมบูรณ์)
     $bodyContent = "
     <html>
     <body style='font-family: Sarabun, Arial, sans-serif; color: #333;'>
@@ -235,13 +220,10 @@ function sendReceiptEmail($conn, $bill_id)
     }
 }
 
-// =============================================================================
-// [NEW] ฟังก์ชันส่งใบเสร็จรับเงินสำหรับ **งานซ่อม** (Repair Receipt)
-// =============================================================================
+// ฟังก์ชันส่งใบเสร็จรับเงินสำหรับงานซ่อม
 function sendRepairReceiptEmail($conn, $bill_id)
 {
-    // 1. ดึงข้อมูลบิล + ลูกค้า + ข้อมูลร้าน + **ข้อมูลงานซ่อม (repairs)**
-    // แก้ไข: ใช้ r.* เพื่อดึงทุกคอลัมน์จากตาราง repairs (ป้องกัน Error ชื่อคอลัมน์ไม่ตรง)
+    // 1. ดึงข้อมูลบิล + ลูกค้า + ข้อมูลร้าน + ข้อมูลงานซ่อม
     $sql = "SELECT bh.*, c.firstname_th, c.lastname_th, c.cs_email, 
                    s.shop_name, s.shop_email, s.shop_app_password,
                    r.* FROM bill_headers bh
@@ -260,7 +242,7 @@ function sendRepairReceiptEmail($conn, $bill_id)
         return false;
     }
 
-    // 2. ดึงรายการค่าใช้จ่าย (คงเดิม)
+    // ดึงรายการค่าใช้จ่าย 
     $sql_items = "SELECT bd.price, bd.amount, bd.prod_stocks_stock_id, 
                          p.prod_name, p.model_name
                   FROM bill_details bd 
@@ -292,14 +274,9 @@ function sendRepairReceiptEmail($conn, $bill_id)
 
     $vat_amount = $total * ($bill['vat'] / 100);
     $grand_total = $total + $vat_amount - $bill['discount'];
-
-    // ** ส่วนที่ต้องตรวจสอบชื่อคอลัมน์ (ลองเดาชื่อที่พบบ่อย) **
-    // หากข้อมูลอาการเสียไม่แสดง ให้มาแก้คำว่า 'symptom' ตรงนี้ให้ตรงกับ DB ของคุณ
     $symptom_text = $bill['symptom'] ?? $bill['repair_symptom'] ?? $bill['problem'] ?? '-';
     $device_text = $bill['device_name'] ?? $bill['device_model'] ?? '-';
     $serial_text = $bill['serial_number'] ?? $bill['imei'] ?? '-';
-
-    // 3. สร้าง HTML Template
     $bodyContent = "
     <html>
     <head>

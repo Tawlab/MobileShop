@@ -1,4 +1,5 @@
 <?php
+ob_start(); // ป้องกัน Error แทรกใน JSON
 session_start();
 require '../config/config.php';
 
@@ -12,6 +13,64 @@ if ($branch_id === 0) {
     header('Location: branch.php');
     exit;
 }
+
+// Form Submit (AJAX)
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    ob_clean(); // ล้าง Output ก่อนหน้าเพื่อส่งกลับเป็น JSON เท่านั้น
+    header('Content-Type: application/json; charset=utf-8');
+
+    $b_id = (int)$_POST['branch_id'];
+    $a_id = (int)$_POST['address_id'];
+
+    $branch_code = mysqli_real_escape_string($conn, trim($_POST['branch_code']));
+    $branch_name = mysqli_real_escape_string($conn, trim($_POST['branch_name']));
+    $branch_phone = mysqli_real_escape_string($conn, trim($_POST['branch_phone']));
+    $shop_id = (int)$_POST['shop_info_shop_id'];
+
+    $home_no = mysqli_real_escape_string($conn, trim($_POST['home_no']));
+    $moo = mysqli_real_escape_string($conn, trim($_POST['moo']));
+    $soi = mysqli_real_escape_string($conn, trim($_POST['soi']));
+    $road = mysqli_real_escape_string($conn, trim($_POST['road']));
+    $village = mysqli_real_escape_string($conn, trim($_POST['village']));
+    $subdist_id = (int)$_POST['subdistricts_subdistrict_id'];
+
+    // Validation ฝั่ง Backend
+    if (empty($branch_name) || empty($subdist_id)) {
+        echo json_encode(['status' => 'error', 'message' => 'กรุณากรอกข้อมูลให้ครบถ้วน']);
+        exit;
+    } elseif (!empty($branch_phone) && !preg_match('/^(02|05|06|08|09)[0-9]{8}$/', $branch_phone)) {
+        echo json_encode(['status' => 'error', 'message' => 'เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)']);
+        exit;
+    } else {
+        mysqli_autocommit($conn, false);
+        try {
+            $sql_addr = "UPDATE addresses SET home_no=?, moo=?, soi=?, road=?, village=?, subdistricts_subdistrict_id=? WHERE address_id=?";
+            $stmt_a = $conn->prepare($sql_addr);
+            $stmt_a->bind_param("sssssii", $home_no, $moo, $soi, $road, $village, $subdist_id, $a_id);
+            if (!$stmt_a->execute()) throw new Exception("อัปเดตที่อยู่ไม่สำเร็จ");
+            $stmt_a->close();
+
+            $sql_br = "UPDATE branches SET branch_code=?, branch_name=?, branch_phone=?, shop_info_shop_id=?, update_at=NOW() WHERE branch_id=?";
+            $stmt_b = $conn->prepare($sql_br);
+            $stmt_b->bind_param("sssii", $branch_code, $branch_name, $branch_phone, $shop_id, $b_id);
+            if (!$stmt_b->execute()) throw new Exception("อัปเดตสาขาไม่สำเร็จ");
+            $stmt_b->close();
+
+            mysqli_commit($conn);
+            $_SESSION['success'] = "แก้ไขข้อมูลสาขาเรียบร้อยแล้ว"; // สำหรับแสดงในหน้า branch.php
+            echo json_encode(['status' => 'success', 'message' => 'แก้ไขข้อมูลสาขาเรียบร้อยแล้ว']);
+            exit;
+        } catch (Exception $e) {
+            mysqli_rollback($conn);
+            echo json_encode(['status' => 'error', 'message' => "เกิดข้อผิดพลาด: " . $e->getMessage()]);
+            exit;
+        }
+    }
+}
+
+// ====================================================================
+// ดึงข้อมูลสำหรับหน้าฟอร์มปกติ
+// ====================================================================
 
 // ดึงข้อมูลสาขา + ที่อยู่
 $sql_data = "SELECT b.*, a.*, 
@@ -39,52 +98,7 @@ $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FR
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th, provinces_province_id FROM districts ORDER BY district_name_th");
 $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts ORDER BY subdistrict_name_th");
 
-//Form Submit
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $b_id = (int)$_POST['branch_id'];
-    $a_id = (int)$_POST['address_id'];
-
-    $branch_code = mysqli_real_escape_string($conn, trim($_POST['branch_code']));
-    $branch_name = mysqli_real_escape_string($conn, trim($_POST['branch_name']));
-    $branch_phone = mysqli_real_escape_string($conn, trim($_POST['branch_phone']));
-    $shop_id = (int)$_POST['shop_info_shop_id'];
-
-    $home_no = mysqli_real_escape_string($conn, trim($_POST['home_no']));
-    $moo = mysqli_real_escape_string($conn, trim($_POST['moo']));
-    $soi = mysqli_real_escape_string($conn, trim($_POST['soi']));
-    $road = mysqli_real_escape_string($conn, trim($_POST['road']));
-    $village = mysqli_real_escape_string($conn, trim($_POST['village']));
-    $subdist_id = (int)$_POST['subdistricts_subdistrict_id'];
-
-    // Validation
-    if (empty($branch_name) || empty($subdist_id)) {
-        $error_message = "กรุณากรอกข้อมูลให้ครบถ้วน";
-    } elseif (!empty($branch_phone) && !preg_match('/^(02|05|06|08|09)[0-9]{8}$/', $branch_phone)) {
-        $error_message = "เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)";
-    } else {
-        mysqli_autocommit($conn, false);
-        try {
-            $sql_addr = "UPDATE addresses SET home_no=?, moo=?, soi=?, road=?, village=?, subdistricts_subdistrict_id=? WHERE address_id=?";
-            $stmt_a = $conn->prepare($sql_addr);
-            $stmt_a->bind_param("sssssii", $home_no, $moo, $soi, $road, $village, $subdist_id, $a_id);
-            if (!$stmt_a->execute()) throw new Exception("อัปเดตที่อยู่ไม่สำเร็จ");
-            $stmt_a->close();
-            $sql_br = "UPDATE branches SET branch_code=?, branch_name=?, branch_phone=?, shop_info_shop_id=?, update_at=NOW() WHERE branch_id=?";
-            $stmt_b = $conn->prepare($sql_br);
-            $stmt_b->bind_param("sssii", $branch_code, $branch_name, $branch_phone, $shop_id, $b_id);
-            if (!$stmt_b->execute()) throw new Exception("อัปเดตสาขาไม่สำเร็จ");
-            $stmt_b->close();
-
-            mysqli_commit($conn);
-            $_SESSION['success'] = "แก้ไขข้อมูลสาขาเรียบร้อยแล้ว";
-            header('Location: branch.php');
-            exit;
-        } catch (Exception $e) {
-            mysqli_rollback($conn);
-            $error_message = "เกิดข้อผิดพลาด: " . $e->getMessage();
-        }
-    }
-}
+ob_end_flush();
 ?>
 
 <!DOCTYPE html>
@@ -92,25 +106,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
 <head>
     <meta charset="UTF-8">
-    <title>เพิ่มข้อมูลสาขา</title>
+    <title>แก้ไขข้อมูลสาขา</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons/font/bootstrap-icons.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
     <?php include '../config/load_theme.php'; ?>
     <style>
-        /* **[เพิ่ม]** CSS ทั่วไปเพื่อป้องกันการล้นจอ */
-        *, *::before, *::after {
-            box-sizing: border-box; 
-        }
-
-        body { 
-            /* **[เพิ่ม]** ป้องกัน Overflow และเพิ่ม Padding */
-            margin: 0; 
-            overflow-x: hidden; 
-            padding: 15px; 
-        }
-
+        *, *::before, *::after { box-sizing: border-box; }
+        body { margin: 0; overflow-x: hidden; padding: 15px; }
         h5 {
             margin-top: 20px;
             padding-bottom: 10px;
@@ -118,101 +123,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             font-weight: 600;
             color: <?= $theme_color ?>;
         }
-
-        .form-section {
-            background: #fff;
-            border-radius: 10px;
-            padding: 20px 25px;
-            box-shadow: 0 0 12px rgba(0, 0, 0, 0.05);
-            margin-bottom: 25px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: separate;
-            border-spacing: 0 10px; /* สำหรับ Desktop */
-        }
-
-        .label-col {
-            width: 150px; /* สำหรับ Desktop */
-            font-weight: 500;
-            vertical-align: top;
-            padding-top: 10px;
-        }
-
-        .form-label {
-            margin-bottom: 4px;
-            font-weight: 500;
-        }
-
-        .error-feedback {
-            font-size: 13px;
-            color: #dc3545;
-            margin-top: 4px;
-            display: none;
-        }
-
-        .form-control.is-invalid,
-        .form-select.is-invalid {
-            border-color: #dc3545;
-        }
-
-        .form-control.is-invalid~.error-feedback,
-        .form-select.is-invalid~.error-feedback {
-            display: block;
-        }
-
-        .required-label::after {
-            content: " *";
-            color: red;
-        }
+        .form-section { background: #fff; border-radius: 10px; padding: 20px 25px; box-shadow: 0 0 12px rgba(0, 0, 0, 0.05); margin-bottom: 25px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0 10px; }
+        .label-col { width: 150px; font-weight: 500; vertical-align: top; padding-top: 10px; }
+        .form-label { margin-bottom: 4px; font-weight: 500; }
+        .error-feedback { font-size: 13px; color: #dc3545; margin-top: 4px; display: none; }
+        .form-control.is-invalid, .form-select.is-invalid { border-color: #dc3545; }
+        .form-control.is-invalid~.error-feedback, .form-select.is-invalid~.error-feedback { display: block; }
+        .required-label::after { content: " *"; color: red; }
         
-        /* -------------------------------------------------------------------- */
-        /* --- **[เพิ่ม]** Responsive Override สำหรับ Mobile (จอเล็กกว่า 768px) --- */
-        /* -------------------------------------------------------------------- */
         @media (max-width: 767.98px) {
-            .form-section {
-                padding: 15px; /* ลด Padding การ์ด */
-                margin-bottom: 15px;
-            }
-            
-            /* ยกเลิก Layout ตาราง */
-            table {
-                display: block;
-                border-spacing: 0;
-            }
-            
-            tbody, tr {
-                display: block;
-                width: 100%;
-            }
-
-            /* ทำให้แต่ละเซลล์แสดงผลเป็นบล็อก (เรียงซ้อนกัน) */
-            td {
-                display: block;
-                width: 100%;
-                vertical-align: unset; 
-                padding: 5px 0 !important;
-            }
-
-            /* จัดการ Label */
-            .label-col {
-                width: 100%; /* ให้ label เต็มความกว้าง */
-                padding-top: 0 !important;
-                margin-bottom: 5px;
-                font-weight: 600;
-            }
-            
-            /* จัดการ Input Content */
-            tr td:last-child {
-                margin-bottom: 15px; /* เพิ่มระยะห่างหลัง Input */
-            }
-            
-            /* ทำให้ปุ่มหลัก (Save) ใช้เต็มความกว้าง (ถ้าใช้ d-grid) */
-            .d-grid .btn {
-                width: 100% !important;
-                margin-bottom: 10px;
-            }
+            .form-section { padding: 15px; margin-bottom: 15px; }
+            table { display: block; border-spacing: 0; }
+            tbody, tr { display: block; width: 100%; }
+            td { display: block; width: 100%; vertical-align: unset; padding: 5px 0 !important; }
+            .label-col { width: 100%; padding-top: 0 !important; margin-bottom: 5px; font-weight: 600; }
+            tr td:last-child { margin-bottom: 15px; }
+            .d-grid .btn { width: 100% !important; margin-bottom: 10px; }
         }
     </style>
 </head>
@@ -231,11 +158,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         <a href="branch.php" class="btn btn-outline-secondary"><i class="fas fa-arrow-left me-1"></i> กลับหน้าหลัก</a>
                     </div>
 
-                    <?php if (!empty($error_message)): ?>
-                        <div class="alert alert-danger shadow-sm border-0 mb-4"><i class="fas fa-exclamation-triangle me-2"></i> <?= $error_message ?></div>
-                    <?php endif; ?>
-
-                    <form method="POST" id="editBranchForm">
+                    <form id="editBranchForm" class="needs-validation" novalidate>
                         <input type="hidden" name="branch_id" value="<?= $data['branch_id'] ?>">
                         <input type="hidden" name="address_id" value="<?= $data['Addresses_address_id'] ?>">
 
@@ -254,11 +177,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                                         <input type="text" name="branch_code" class="form-control" value="<?= htmlspecialchars($data['branch_code']) ?>">
                                     </div>
                                     <div class="col-md-6">
-                                        <label class="form-label">เบอร์โทรศัพท์ <span class="text-danger">*</span></label>
+                                        <label class="form-label">เบอร์โทรศัพท์</label>
                                         <input type="text" name="branch_phone" id="branch_phone" class="form-control"
-                                            required maxlength="10" placeholder="0xxxxxxxxx (10 หลัก)"
+                                            maxlength="10" placeholder="0xxxxxxxxx (10 หลัก)"
                                             value="<?= htmlspecialchars($data['branch_phone']) ?>">
-                                        <div id="phone_error" class="error-feedback">เบอร์โทรไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)</div>
+                                        <div class="invalid-feedback">เบอร์โทรศัพท์ไม่ถูกต้อง หรือมีในระบบแล้ว</div>
                                     </div>
                                     <div class="col-md-6">
                                         <label class="form-label">สังกัดร้านค้า <span class="text-danger">*</span></label>
@@ -328,7 +251,9 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                         </div>
 
                         <div class="d-grid">
-                            <button type="submit" class="btn btn-save btn-lg shadow-sm"><i class="fas fa-save me-2"></i> บันทึกการเปลี่ยนแปลง</button>
+                            <button type="submit" class="btn btn-primary btn-lg shadow-sm" style="background: <?= $theme_color ?>; border-color: <?= $theme_color ?>;">
+                                <i class="fas fa-save me-2"></i> บันทึกการเปลี่ยนแปลง
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -337,7 +262,10 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         </div>
     </div>
 
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
     <script>
         // โหลดข้อมูล Master Data เป็น JSON
         const provinces = <?php
@@ -419,45 +347,101 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             zipInput.value = select.options[select.selectedIndex].dataset.zip || '';
         }
 
-        const phoneInput = document.getElementById("branch_phone");
-        const phoneError = document.getElementById("phone_error");
+        $(document).ready(function() {
+            initProvinces();
 
-        if (phoneInput) {
-            phoneInput.addEventListener("input", function() {
-                // ลบทุกอย่างที่ไม่ใช่ตัวเลข
+            // ---------------------------------------------------------
+            // ระบบตรวจสอบเบอร์โทรศัพท์ (Phone Validation) AJAX + Regex
+            // ---------------------------------------------------------
+            $('#branch_phone').on('input', function() {
+                // บังคับพิมพ์เฉพาะตัวเลข
                 this.value = this.value.replace(/[^0-9]/g, '');
+            });
 
-                const value = this.value;
+            $('#branch_phone').on('blur', function() {
+                let el = $(this);
+                let phone = el.val().trim();
                 const phonePattern = /^(02|05|06|08|09)[0-9]{8}$/;
+                const currentBranchId = $('input[name="branch_id"]').val(); // ส่ง ID ตัวเองไปยกเว้นตอนเช็คซ้ำ
 
-                if (value.length > 0) {
-                    if (!phonePattern.test(value)) {
-                        phoneError.style.display = "block";
-                        phoneInput.classList.add("is-invalid");
+                if (phone.length > 0) {
+                    if (!phonePattern.test(phone)) {
+                        el.addClass('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ต้องขึ้นต้นด้วย 02, 05, 06, 08 หรือ 09 และมี 10 หลัก', 'warning');
                     } else {
-                        phoneError.style.display = "none";
-                        phoneInput.classList.remove("is-invalid");
+                        // เช็คเบอร์ซ้ำในระบบด้วย AJAX (อาจต้องปรับ check_availability ให้รับ exclude_branch_id ด้วย)
+                        $.post('check_availability.php', { action: 'check_phone', phone: phone, exclude_branch_id: currentBranchId }, function(res) {
+                            if (res.status === 'taken') {
+                                el.addClass('is-invalid');
+                                Swal.fire('ข้อมูลซ้ำ', 'เบอร์โทรศัพท์นี้มีในระบบแล้ว', 'warning');
+                            } else {
+                                el.removeClass('is-invalid');
+                            }
+                        }, 'json');
                     }
                 } else {
-                    // ถ้าว่าง ไม่ต้องแสดง Error 
-                    phoneError.style.display = "none";
-                    phoneInput.classList.remove("is-invalid");
+                    el.removeClass('is-invalid'); // ถ้าไม่ได้กรอก (ปล่อยว่าง) ให้เอาขอบแดงออก
                 }
             });
-        }
 
-        // ตรวจสอบตอนกด Submit
-        const form = document.getElementById('editBranchForm');
-        form.addEventListener('submit', function(e) {
-            if (phoneInput && phoneInput.classList.contains('is-invalid')) {
+            // ---------------------------------------------------------
+            // ส่งฟอร์มด้วย AJAX & SweetAlert
+            // ---------------------------------------------------------
+            $('#editBranchForm').on('submit', function(e) {
                 e.preventDefault();
-                phoneInput.focus();
-            }
-        });
 
-        initProvinces();
+                // เช็คว่ามี Input ไหนค้าง Error (ขอบแดง) อยู่หรือไม่
+                if ($('#branch_phone').hasClass('is-invalid')) {
+                    Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาแก้ไขเบอร์โทรศัพท์ให้ถูกต้องและไม่ซ้ำกับระบบ', 'warning');
+                    return;
+                }
+                
+                // เช็ค Required พื้นฐานของ HTML5
+                if (!this.checkValidity()) {
+                    e.stopPropagation();
+                    $(this).addClass('was-validated');
+                    return;
+                }
+
+                // เช็คว่าเลือกตำบลหรือยัง
+                if (!$('#subdistrict').val()) {
+                    Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกที่อยู่ให้ครบถ้วน', 'warning');
+                    return;
+                }
+
+                Swal.fire({
+                    title: 'กำลังบันทึก...',
+                    text: 'โปรดรอสักครู่',
+                    allowOutsideClick: false,
+                    didOpen: () => Swal.showLoading()
+                });
+
+                // ส่งข้อมูล
+                fetch('edit_branch.php?id=' + $('input[name="branch_id"]').val(), {
+                    method: 'POST',
+                    body: new FormData(this)
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'สำเร็จ!',
+                            text: data.message,
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => window.location.href = 'branch.php');
+                    } else {
+                        Swal.fire('บันทึกไม่สำเร็จ', data.message, 'error');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error:', err);
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error');
+                });
+            });
+        });
     </script>
 </body>
 
 </html>
-<?php mysqli_close($conn); ?>

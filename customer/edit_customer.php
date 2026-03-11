@@ -3,9 +3,7 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'edit_customer');
 
-// -----------------------------------------------------------------------------
 // AJAX HANDLER (สำหรับดึงข้อมูลที่อยู่)
-// -----------------------------------------------------------------------------
 if (isset($_POST['action'])) {
     header('Content-Type: application/json; charset=utf-8');
     $action = $_POST['action'];
@@ -29,9 +27,7 @@ if (isset($_POST['action'])) {
     exit;
 }
 
-// -----------------------------------------------------------------------------
-// GET CURRENT DATA (ดึงข้อมูลเดิมมาแสดง)
-// -----------------------------------------------------------------------------
+// ดึงข้อมูลเดิมมาแสดง
 if (!isset($_GET['id'])) {
     $_SESSION['error'] = "ไม่พบรหัสลูกค้า";
     header('Location: customer_list.php');
@@ -40,7 +36,7 @@ if (!isset($_GET['id'])) {
 
 $cs_id = (int)$_GET['id'];
 
-// ดึงข้อมูลลูกค้า + ที่อยู่ (เพิ่มคอลัมน์ village)
+// ดึงข้อมูลลูกค้า + ที่อยู่
 $sql = "SELECT c.*, 
                a.address_id, a.home_no, a.moo, a.soi, a.road, a.village,
                sd.subdistrict_id, d.district_id, p.province_id, sd.zip_code
@@ -66,9 +62,7 @@ $has_prefix_en = mysqli_num_rows($check_col) > 0;
 $sql_prefix = $has_prefix_en ? "SELECT prefix_id, prefix_th, prefix_en FROM prefixs WHERE is_active = 1" : "SELECT prefix_id, prefix_th FROM prefixs WHERE is_active = 1";
 $prefixes = mysqli_query($conn, $sql_prefix);
 
-// -----------------------------------------------------------------------------
 // HANDLE UPDATE (POST)
-// -----------------------------------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $prefix_id = $_POST['prefix_id'];
     $fname_th  = trim($_POST['firstname_th']);
@@ -363,9 +357,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     
     <script>
-        // ---------------------------------------------------------------------
-        // 1. Validation Logic & Restrictions
-        // ---------------------------------------------------------------------
+        // Validation Logic & Restrictions
         let isEmailVerified = true; // หน้าแก้ไขเริ่มต้นเป็น true เพราะอีเมลเดิมใช้งานได้อยู่แล้ว
 
         // จำกัดภาษาการพิมพ์
@@ -388,16 +380,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             return check === parseInt(id.charAt(12));
         }
 
-        // ---------------------------------------------------------------------
-        // 2. AJAX Duplicate Checks (ทำงานเฉพาะเมื่อค่าเปลี่ยนไปจากเดิม)
-        // ---------------------------------------------------------------------
+        // AJAX Duplicate Checks
         
         // ตรวจสอบเลขบัตร ปชช.
         $('#cs_national_id').on('blur', function() {
             const id = $(this).val();
             const origId = $(this).data('orig');
             
-            // ถ้าไม่ได้กรอก หรือเป็นค่าเดิมเป๊ะ ไม่ต้องตรวจสอบซ้ำ
+            // ถ้าไม่ได้กรอกหรือเป็นค่าเดิม ไม่ต้องตรวจสอบซ้ำ
             if(!id || id === origId) {
                 $(this).removeClass('is-invalid is-valid');
                 return;
@@ -425,7 +415,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const phone = $(this).val();
             const origPhone = $(this).data('orig');
             
-            // ถ้าไม่ได้กรอก หรือเป็นค่าเดิมเป๊ะ ไม่ต้องตรวจสอบซ้ำ
+            // ถ้าไม่ได้กรอก หรือเป็นค่าเดิม ไม่ต้องตรวจสอบซ้ำ
             if(!phone || phone === origPhone) {
                 $(this).removeClass('is-invalid is-valid');
                 return;
@@ -447,9 +437,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
-        // ---------------------------------------------------------------------
-        // 3. Email OTP Logic (ทำงานเฉพาะเมื่อเปลี่ยนอีเมล)
-        // ---------------------------------------------------------------------
+        // Email OTP
         $('#cs_email').on('input', function() {
             const email = $(this).val();
             const origEmail = $(this).data('orig');
@@ -511,9 +499,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             });
         });
 
-        // ---------------------------------------------------------------------
-        // 4. UI Toggle & Address Loaders
-        // ---------------------------------------------------------------------
+        // UI Toggle & Address Loaders
         
         function toggleAddress() {
             $('#extraAddress').slideToggle();
@@ -527,7 +513,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             enInput.value = selectedOpt.getAttribute('data-en') || '';
         }
 
-        // โหลดข้อมูล Dropdown ตำแหน่งที่ตั้ง (ใช้โค้ดเดิมที่โหลดค่าเก่ามาให้)
+        // โหลดข้อมูล Dropdown ตำแหน่งที่ตั้ง 
         window.onload = function() {
             updateEngPrefix(); // เซ็ตคำนำหน้า Eng ตอนโหลด
             const oldProv = document.getElementById('old_province').value;
@@ -587,9 +573,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             document.getElementById('zipcode').value = zip || '';
         }
 
-        // ---------------------------------------------------------------------
-        // 5. Form Submission Intercept (ดักการส่งฟอร์ม)
-        // ---------------------------------------------------------------------
+        // Form Submission Intercept 
         $('#editCustomerForm').on('submit', function(e) {
             if($('.is-invalid').length > 0) {
                 e.preventDefault();

@@ -36,8 +36,8 @@ $subdistrict_id = !empty($_POST['subdistrict_id']) ? (int)$_POST['subdistrict_id
 $home_no = trim($_POST['home_no']);
 
 // --- ตรวจสอบความครบถ้วนของข้อมูลที่อยู่ (Backend Validation) ---
-if (empty($home_no) || $subdistrict_id === 0) {
-    echo json_encode(['status' => 'error', 'message' => 'กรุณาระบุที่อยู่ให้ครบถ้วน']);
+if ($subdistrict_id === 0) {
+    echo json_encode(['status' => 'error', 'message' => 'กรุณาเลือก จังหวัด, อำเภอ และตำบล ให้ครบถ้วน']);
     exit;
 }
 
@@ -155,7 +155,7 @@ try {
                 VALUES (?, ?, '-', ?, ?, ?, ?, ?, ?, ?, ?, 10, ?, ?, ?, 'Male', 'Active')";
     $stmt_emp = $conn->prepare($sql_emp);
     
-    $stmt_emp->bind_param("issssssssiiiii", 
+    $stmt_emp->bind_param("isssssssiiiii", 
         $new_emp_id, $new_emp_code, $firstname_th, $lastname_th, $firstname_en, $lastname_en, 
         $emp_phone, $emp_email, $prefix_id, $new_address_id, $target_dept_id, $new_branch_id, $new_user_id
     );

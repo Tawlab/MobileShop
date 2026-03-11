@@ -274,48 +274,70 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                                     </div>
                                 </div>
 
-                                <div class="accordion" id="addressAccordion">
-                                    <div class="accordion-item border-0 bg-light rounded-3">
-                                        <h2 class="accordion-header">
-                                            <button class="accordion-button collapsed bg-light text-success fw-bold rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAddress">
-                                                <i class="bi bi-geo-alt-fill me-2"></i> ระบุที่อยู่ร้านค้า (คลิกเพื่อขยาย - ไม่บังคับกรอก)
-                                            </button>
-                                        </h2>
-                                        <div id="collapseAddress" class="accordion-collapse collapse">
-                                            <div class="accordion-body pt-0">
-                                                <div class="row g-3 mt-1">
-                                                    <h5 class="text-success mb-3 border-bottom pb-2 mt-4"><i class="bi bi-geo-alt-fill me-2"></i>ระบุที่อยู่ร้านค้า</h5>
+                                <div class="col-md-12 mb-2">
+                                    <div class="accordion" id="addressAccordion">
+                                        <div class="accordion-item border-0 bg-light rounded-3">
+                                            <h2 class="accordion-header">
+                                                <button class="accordion-button collapsed bg-light text-success fw-bold rounded-3" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAddress">
+                                                    <i class="bi bi-geo-alt-fill me-2"></i> ระบุรายละเอียดที่อยู่ (บ้านเลขที่/หมู่/ซอย/ถนน) - ไม่บังคับ
+                                                </button>
+                                            </h2>
+                                            <div id="collapseAddress" class="accordion-collapse collapse">
+                                                <div class="accordion-body pt-3">
                                                     <div class="row g-3">
-                                                        <div class="col-md-12">
-                                                            <label class="form-label small">บ้านเลขที่ / ถนน / ซอย <span class="text-danger">*</span></label>
-                                                            <input type="text" class="form-control" name="home_no" id="home_no" required>
+                                                        <div class="col-md-4">
+                                                            <label class="form-label small">บ้านเลขที่</label>
+                                                            <input type="text" class="form-control" name="home_no" id="home_no" placeholder="เช่น 123/45">
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label class="form-label small">หมู่ที่</label>
+                                                            <input type="text" class="form-control" name="moo" id="moo" placeholder="เช่น 9">
+                                                        </div>
+                                                        <div class="col-md-4">
+                                                            <label class="form-label small">หมู่บ้าน / อาคาร</label>
+                                                            <input type="text" class="form-control" name="village" id="village" placeholder="เช่น หมู่บ้านสุขสันต์">
                                                         </div>
                                                         <div class="col-md-6">
-                                                            <label class="form-label small">จังหวัด <span class="text-danger">*</span></label>
-                                                            <select class="form-select select2" id="province_select" required style="width: 100%">
-                                                                <option value="">-- เลือกจังหวัด --</option>
-                                                            </select>
+                                                            <label class="form-label small">ซอย</label>
+                                                            <input type="text" class="form-control" name="soi" id="soi" placeholder="เช่น ซอยสุขุมวิท 1">
                                                         </div>
                                                         <div class="col-md-6">
-                                                            <label class="form-label small">อำเภอ/เขต <span class="text-danger">*</span></label>
-                                                            <select class="form-select select2" id="district_select" required style="width: 100%" disabled>
-                                                                <option value="">-- เลือกอำเภอ --</option>
-                                                            </select>
-                                                        </div>
-                                                        <div class="col-md-6">
-                                                            <label class="form-label small">ตำบล/แขวง <span class="text-danger">*</span></label>
-                                                            <select class="form-select select2" name="subdistrict_id" id="subdistrict_select" required style="width: 100%" disabled>
-                                                                <option value="">-- เลือกตำบล --</option>
-                                                            </select>
-                                                        </div>
-                                                        <div class="col-md-6">
-                                                            <label class="form-label small">รหัสไปรษณีย์</label>
-                                                            <input type="text" class="form-control bg-light" id="zipcode" readonly>
+                                                            <label class="form-label small">ถนน</label>
+                                                            <input type="text" class="form-control" name="road" id="road" placeholder="เช่น ถนนสุขุมวิท">
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-12 mt-2">
+                                    <div class="row g-3">
+
+                                        <div class="col-md-6">
+                                            <label class="form-label small">จังหวัด <span class="text-danger">*</span></label>
+                                            <select class="form-select select2" id="province_select" required style="width: 100%">
+                                                <option value="">-- เลือกจังหวัด --</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small">อำเภอ/เขต <span class="text-danger">*</span></label>
+                                            <select class="form-select select2" id="district_select" required style="width: 100%" disabled>
+                                                <option value="">-- เลือกอำเภอ --</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="col-md-6">
+                                            <label class="form-label small">ตำบล/แขวง <span class="text-danger">*</span></label>
+                                            <select class="form-select select2" name="subdistrict_id" id="subdistrict_select" required style="width: 100%" disabled>
+                                                <option value="">-- เลือกตำบล --</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label class="form-label small">รหัสไปรษณีย์</label>
+                                            <input type="text" class="form-control bg-light" id="zipcode" readonly>
+                                        </div>
+
                                     </div>
                                 </div>
 
@@ -403,23 +425,33 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
             // 3. ตรวจสอบเบอร์โทรซ้ำ
             $('.check-phone').on('blur', function() {
                 let el = $(this);
-                let phone = el.val();
-                if (phone.length > 0 && phone.length !== 10) {
-                    el.addClass('is-invalid').removeClass('is-valid-custom');
-                    Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ต้องมี 10 หลัก', 'warning');
-                } else if (phone.length === 10) {
-                    $.post('check_availability.php', {
-                        action: 'check_phone',
-                        phone: phone
-                    }, function(res) {
-                        if (res.status === 'taken') {
-                            el.addClass('is-invalid').removeClass('is-valid-custom');
-                            Swal.fire('ข้อมูลซ้ำ', res.message, 'warning');
-                        } else {
-                            el.removeClass('is-invalid').addClass('is-valid-custom');
-                        }
-                    }, 'json');
-                } else el.removeClass('is-invalid is-valid-custom');
+                let phone = el.val().trim();
+                // แพทเทิร์น: ต้องขึ้นต้นด้วย 06, 08 หรือ 09 และตามด้วยตัวเลขอีก 8 ตัว (รวมเป็น 10 หลัก)
+                const phoneRegex = /^(06|08|09)\d{8}$/;
+
+                if (phone.length > 0) {
+                    if (!phoneRegex.test(phone)) {
+                        // ถ้าไม่ตรงตามแพทเทิร์น
+                        el.addClass('is-invalid').removeClass('is-valid-custom');
+                        Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ต้องขึ้นต้นด้วย 06, 08 หรือ 09 และมี 10 หลัก', 'warning');
+                    } else {
+                        // ถ้าผ่านแพทเทิร์น ค่อยยิง AJAX ตรวจสอบเบอร์ซ้ำ
+                        $.post('check_availability.php', {
+                            action: 'check_phone',
+                            phone: phone
+                        }, function(res) {
+                            if (res.status === 'taken') {
+                                el.addClass('is-invalid').removeClass('is-valid-custom');
+                                Swal.fire('ข้อมูลซ้ำ', res.message || 'เบอร์โทรศัพท์นี้มีในระบบแล้ว', 'warning');
+                            } else {
+                                el.removeClass('is-invalid').addClass('is-valid-custom');
+                            }
+                        }, 'json');
+                    }
+                } else {
+                    // กรณีไม่ได้กรอก (ปล่อยว่าง)
+                    el.removeClass('is-invalid is-valid-custom');
+                }
             });
 
             // 4. ระบบ OTP และตรวจสอบอีเมลซ้ำ
@@ -583,15 +615,18 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
             $('#shop_phone').on('blur', function() {
                 let el = $(this);
                 let phone = el.val().trim();
-                
-                const phoneRegex = /^(06|08|09)\d{8}$/; 
-                
+
+                const phoneRegex = /^(06|08|09)\d{8}$/;
+
                 if (phone.length > 0) {
                     if (!phoneRegex.test(phone)) {
                         el.addClass('is-invalid').removeClass('is-valid-custom');
                         Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรร้านค้าต้องขึ้นต้นด้วย 06, 08 หรือ 09 และมี 10 หลัก', 'warning');
                     } else {
-                        $.post('check_availability.php', { action: 'check_phone', phone: phone }, function(res) {
+                        $.post('check_availability.php', {
+                            action: 'check_phone',
+                            phone: phone
+                        }, function(res) {
                             if (res.status === 'taken') {
                                 el.addClass('is-invalid').removeClass('is-valid-custom');
                                 Swal.fire('ข้อมูลซ้ำ', 'เบอร์โทรศัพท์ร้านค้านี้มีในระบบแล้ว', 'warning');
@@ -626,14 +661,17 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
             $('#shop_tax_id').on('blur', function() {
                 let el = $(this);
                 let tax = el.val().trim();
-                
+
                 if (tax.length > 0) {
                     if (!validateThaiTaxID(tax)) {
                         el.addClass('is-invalid').removeClass('is-valid-custom');
                         Swal.fire('รูปแบบผิดพลาด', 'เลขประจำตัวผู้เสียภาษีไม่ถูกต้องตามสูตรคำนวณ', 'error');
                     } else {
-                        $.post('check_availability.php', { action: 'check_tax_id', tax_id: tax }, function(res) {
-                            if(res.status === 'taken') {
+                        $.post('check_availability.php', {
+                            action: 'check_tax_id',
+                            tax_id: tax
+                        }, function(res) {
+                            if (res.status === 'taken') {
                                 el.addClass('is-invalid').removeClass('is-valid-custom');
                                 Swal.fire('ข้อมูลซ้ำ', res.message, 'warning');
                             } else {
@@ -780,6 +818,7 @@ $prefixes = mysqli_query($conn, "SELECT * FROM prefixs WHERE is_active = 1 ORDER
                     } else Swal.fire('รหัสไม่ถูกต้อง', data.message, 'error');
                 });
         });
+
 
         // -----------------------
         // NAVIGATION & VALIDATION (แทนที่ของเดิมด้วยโค้ดนี้)

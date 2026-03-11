@@ -448,7 +448,7 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
 
                             <div class="form-section-title"><i class="fas fa-map-marker-alt"></i>ที่อยู่พนักงาน (บังคับ)</div>
                             <div class="row g-3 mb-4">
-                                <div class="col-md-3"><label class="form-label">บ้านเลขที่ <span class="required-star">*</span></label><input type="text" class="form-control" name="home_no" required></div>
+                                <div class="col-md-3"><label class="form-label">บ้านเลขที่ </label><input type="text" class="form-control" name="home_no"></div>
                                 <div class="col-md-2"><label class="form-label">หมู่ที่</label><input type="text" class="form-control" name="moo"></div>
                                 <div class="col-md-3"><label class="form-label">หมู่บ้าน/อาคาร</label><input type="text" class="form-control" name="village"></div>
                                 <div class="col-md-2"><label class="form-label">ซอย</label><input type="text" class="form-control" name="soi"></div>

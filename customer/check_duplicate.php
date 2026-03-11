@@ -1,7 +1,6 @@
 <?php
-// check_duplicate.php
 session_start();
-require '../config/config.php'; // ดึงไฟล์เชื่อมต่อฐานข้อมูล
+require '../config/config.php';
 
 // กำหนด Header ให้ตอบกลับเป็น JSON เพื่อให้ JavaScript ใช้งานได้
 header('Content-Type: application/json');
@@ -20,10 +19,7 @@ $response = ['exists' => false];
 if (!empty($type) && !empty($value)) {
     switch ($type) {
         
-        // ==========================================================
-        // ส่วนที่ 1: การตรวจสอบข้อมูล "พนักงาน" (Employees)
-        // ==========================================================
-        
+        // การตรวจสอบข้อมูล "พนักงาน" (Employees)
         case 'national_id':
             // ตรวจสอบเลขบัตร ปชช. พนักงาน
             $stmt = $conn->prepare("SELECT emp_id FROM employees WHERE emp_national_id = ? AND emp_id != ?");
@@ -62,10 +58,7 @@ if (!empty($type) && !empty($value)) {
             $stmt->bind_param("si", $value, $user_id);
             break;
 
-        // ==========================================================
-        // ส่วนที่ 2: การตรวจสอบข้อมูล "ลูกค้า" (Customers)
-        // ==========================================================
-        
+        // การตรวจสอบข้อมูล "ลูกค้า" (Customers)
         case 'customer_national_id':
             // ตรวจสอบเลขบัตร ปชช. ลูกค้า
             $stmt = $conn->prepare("SELECT cs_id FROM customers WHERE cs_national_id = ? AND cs_id != ?");
@@ -79,14 +72,12 @@ if (!empty($type) && !empty($value)) {
             break;
 
         case 'customer_email':
-            // ตรวจสอบอีเมลลูกค้า (เผื่อต้องการใช้งานในอนาคต)
+            // ตรวจสอบอีเมลลูกค้า 
             $stmt = $conn->prepare("SELECT cs_id FROM customers WHERE cs_email = ? AND cs_id != ?");
             $stmt->bind_param("si", $value, $cs_id);
             break;
 
-        // ==========================================================
         // กรณีระบุ Type ผิดพลาด
-        // ==========================================================
         default:
             echo json_encode(['status' => 'error', 'message' => 'Invalid type']);
             exit;
@@ -103,6 +94,6 @@ if (!empty($type) && !empty($value)) {
     }
 }
 
-// ส่งผลลัพธ์กลับไปยัง JavaScript (Frontend)
+// ส่งผลลัพธ์กลับไปยัง JavaScript
 echo json_encode($response);
 ?>

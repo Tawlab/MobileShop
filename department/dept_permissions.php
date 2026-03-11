@@ -188,11 +188,19 @@ if (isset($_POST['action']) && $_POST['action'] == 'save_permissions') {
     exit();
 }
 
-// [4] โหลด Permission ทั้งหมด
-// เรียงลำดับเพื่อให้หาเจอง่าย
-$all_perms = $conn->query("SELECT permission_id, permission_name, permission_desc FROM permissions ORDER BY permission_desc DESC, permission_name ASC");
+// *** ตัดสิทธิ์ตาม ID ที่ไม่ต้องการออกด้วยคำสั่ง NOT IN ***
+$excluded_ids = '1,2,3,4,14,15,16,17,26,27,28,29,30,31,32,33,34,45,46,47,48,54,55,56,57,
+64,65,66,67,68,74,75,76,77,78,89,90,94,95,96,97,110,113,124,125,126,127';
+
+$sql_perms = "SELECT permission_id, permission_name, permission_desc 
+              FROM permissions 
+              WHERE permission_id NOT IN ($excluded_ids)
+              ORDER BY permission_desc DESC, permission_name ASC";
+$all_perms = $conn->query($sql_perms);
+
 $perms_array = [];
 while ($p = $all_perms->fetch_assoc()) $perms_array[] = $p;
+
 $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name") : null;
 ?>
 
@@ -264,10 +272,10 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
                                     <input type="hidden" id="branchFilter" value="<?= $current_branch_id ?>">
                                 <?php endif; ?>
                                 <div class="col-md-6">
-                                    <label class="form-label small fw-bold text-muted">ค้นหา</label>
+                                    <label class="form-label small fw-bold text-muted">ค้นหาแผนก</label>
                                     <div class="input-group">
                                         <span class="input-group-text bg-white border-end-0"><i class="bi bi-search text-muted"></i></span>
-                                        <input type="text" id="searchInput" class="form-control border-start-0" placeholder="ค้นหาแผนก..." onkeyup="loadTable(1)">
+                                        <input type="text" id="searchInput" class="form-control border-start-0" placeholder="ค้นหาชื่อแผนก..." onkeyup="loadTable(1)">
                                     </div>
                                 </div>
                             </div>
@@ -299,39 +307,61 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
                         <input type="hidden" name="dept_id" id="modalDeptId">
                         <input type="hidden" name="action" value="save_permissions">
 
-                        <div class="alert alert-info border-0 shadow-sm d-flex align-items-center">
-                            <i class="bi bi-info-circle-fill fs-4 me-3 text-info"></i>
-                            <div>
-                                <strong>เงื่อนไขสิทธิ์:</strong> ระบบจะใช้สิทธิ์ที่กำหนดในหน้านี้เป็นหลัก <br>
-                                <small>หากไม่เลือกสิทธิ์ใดๆ เลยในหน้านี้ ระบบจะกลับไปใช้สิทธิ์ตาม Role (ตำแหน่ง) ของพนักงานแทน</small>
+                        <div class="row g-3 mb-3 bg-white p-3 rounded shadow-sm border">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted small"><i class="bi bi-search me-1"></i> ค้นหาสิทธิ์</label>
+                                <input type="text" id="permSearchInput" class="form-control" placeholder="พิมพ์ชื่อสิทธิ์ที่ต้องการ..." onkeyup="filterPermissions()">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold text-muted small"><i class="bi bi-filter me-1"></i> กรองหมวดหมู่</label>
+                                <select id="permGroupFilter" class="form-select" onchange="filterPermissions()">
+                                    <option value="all">-- ดูทั้งหมด --</option>
+                                    <option value="menu">เมนู (Menu)</option>
+                                    <option value="sale">การขาย / POS (Sale & POS)</option>
+                                    <option value="product">สินค้า / สต็อก (Product & Stock)</option>
+                                    <option value="customer">ลูกค้า (Customer)</option>
+                                    <option value="employee">พนักงาน / แผนก (Employee)</option>
+                                    <option value="repair">ซ่อม / อาการเสีย (Repair)</option>
+                                    <option value="other">อื่นๆ (Others)</option>
+                                </select>
                             </div>
                         </div>
 
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h6 class="fw-bold text-success mb-0">รายการสิทธิ์ (แสดงชื่อไทย)</h6>
+                            <h6 class="fw-bold text-success mb-0">รายการสิทธิ์ที่มี <span id="permCountText" class="badge bg-success ms-2"><?= count($perms_array) ?></span></h6>
                             <div class="btn-group shadow-sm">
-                                <button type="button" class="btn btn-outline-success btn-sm" onclick="toggleAll(true)">เลือกทั้งหมด</button>
-                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="toggleAll(false)">ยกเลิกทั้งหมด</button>
+                                <button type="button" class="btn btn-outline-success btn-sm fw-bold" onclick="toggleAll(true)"><i class="bi bi-check-all"></i> เลือกที่แสดงอยู่</button>
+                                <button type="button" class="btn btn-outline-secondary btn-sm fw-bold" onclick="toggleAll(false)"><i class="bi bi-x"></i> เอาออกที่แสดงอยู่</button>
                             </div>
                         </div>
 
-                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-2">
+                        <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 row-cols-lg-4 row-cols-xl-5 g-2" id="permsContainer">
                             <?php foreach($perms_array as $p): 
-                                // Logic แสดงชื่อไทย: ถ้ามี Desc ให้ใช้ Desc, ถ้าไม่มีให้ใช้ Name
+                                // ตั้งค่าการแสดงผล
                                 $displayName = !empty($p['permission_desc']) ? $p['permission_desc'] : $p['permission_name'];
                                 $subName = !empty($p['permission_desc']) ? $p['permission_name'] : ''; 
+                                
+                                // จัดหมวดหมู่เบื้องต้นจากชื่อ (สำหรับการกรอง)
+                                $p_name = strtolower($p['permission_name']);
+                                $group = 'other';
+                                if (strpos($p_name, 'menu_') !== false) $group = 'menu';
+                                elseif (strpos($p_name, 'sale') !== false || strpos($p_name, 'pay') !== false) $group = 'sale';
+                                elseif (strpos($p_name, 'prod') !== false || strpos($p_name, 'stock') !== false || strpos($p_name, 'purchase') !== false || strpos($p_name, 'supplier') !== false) $group = 'product';
+                                elseif (strpos($p_name, 'customer') !== false) $group = 'customer';
+                                elseif (strpos($p_name, 'employee') !== false || strpos($p_name, 'department') !== false) $group = 'employee';
+                                elseif (strpos($p_name, 'repair') !== false || strpos($p_name, 'symptom') !== false || strpos($p_name, 'bill') !== false) $group = 'repair';
                             ?>
-                            <div class="col">
+                            <div class="col perm-item" data-name="<?= htmlspecialchars(strtolower($displayName . ' ' . $subName)) ?>" data-group="<?= $group ?>">
                                 <label class="perm-card" for="p_<?= $p['permission_id'] ?>">
                                     <input class="form-check-input me-2 flex-shrink-0" type="checkbox" name="perms[]" 
                                            value="<?= $p['permission_id'] ?>" id="p_<?= $p['permission_id'] ?>"
                                            onchange="updateCardStyle(this)">
                                     <div class="lh-sm overflow-hidden">
-                                        <div class="fw-bold text-dark text-truncate" style="font-size: 0.95rem;">
+                                        <div class="fw-bold text-dark text-truncate" style="font-size: 0.95rem;" title="<?= htmlspecialchars($displayName) ?>">
                                             <?= htmlspecialchars($displayName) ?>
                                         </div>
                                         <?php if($subName): ?>
-                                        <div class="text-muted text-truncate" style="font-size: 0.75rem;">
+                                        <div class="text-muted text-truncate" style="font-size: 0.75rem;" title="<?= htmlspecialchars($subName) ?>">
                                             (<?= htmlspecialchars($subName) ?>)
                                         </div>
                                         <?php endif; ?>
@@ -340,11 +370,15 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
                             </div>
                             <?php endforeach; ?>
                         </div>
+                        <div id="noPermsFoundMsg" class="text-center py-4 text-muted d-none">
+                            <i class="bi bi-search fs-1"></i>
+                            <p class="mt-2">ไม่พบสิทธิ์การใช้งานที่ตรงกับการค้นหา</p>
+                        </div>
                     </form>
                 </div>
                 
                 <div class="modal-footer bg-white">
-                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">ยกเลิก</button>
+                    <button type="button" class="btn btn-light rounded-pill px-4 border" data-bs-dismiss="modal">ยกเลิก</button>
                     <button type="button" class="btn btn-success rounded-pill px-5 shadow fw-bold" onclick="savePerms()">
                         <i class="bi bi-save me-2"></i>บันทึกข้อมูล
                     </button>
@@ -388,19 +422,64 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
         function openPermModal(id, name, currentIds) {
             $('#modalDeptId').val(id);
             $('#modalDeptName').text(name);
+            
+            // เคลียร์การกรองเดิม
+            $('#permSearchInput').val('');
+            $('#permGroupFilter').val('all');
+            filterPermissions(); // รีเซ็ตให้แสดงทั้งหมด
+
+            // เอาติ๊กออกทั้งหมดก่อน
             $('input[name="perms[]"]').prop('checked', false).closest('.perm-card').removeClass('active');
+            
+            // ติ๊กสิทธิ์ที่เคยมีอยู่แล้ว
             if(currentIds) {
                 currentIds.toString().split(',').forEach(pid => {
                     const cb = $(`#p_${pid}`);
-                    cb.prop('checked', true);
-                    updateCardStyle(cb[0]);
+                    if(cb.length) { // เช็คก่อนว่าสิทธิ์โดนตัดออกไปหรือยัง
+                        cb.prop('checked', true);
+                        updateCardStyle(cb[0]);
+                    }
                 });
             }
             new bootstrap.Modal(document.getElementById('permModal')).show();
         }
 
+        // ระบบค้นหาและกรองสิทธิ์ภายใน Modal
+        function filterPermissions() {
+            let searchText = $('#permSearchInput').val().toLowerCase();
+            let filterGroup = $('#permGroupFilter').val();
+            let visibleCount = 0;
+
+            $('.perm-item').each(function() {
+                let name = $(this).data('name');
+                let group = $(this).data('group');
+                
+                let matchSearch = name.includes(searchText);
+                let matchGroup = (filterGroup === 'all' || group === filterGroup);
+
+                if (matchSearch && matchGroup) {
+                    $(this).show();
+                    visibleCount++;
+                } else {
+                    $(this).hide();
+                }
+            });
+
+            $('#permCountText').text(visibleCount);
+            
+            if(visibleCount === 0) {
+                $('#noPermsFoundMsg').removeClass('d-none');
+            } else {
+                $('#noPermsFoundMsg').addClass('d-none');
+            }
+        }
+
+        // เลือกทั้งหมด/ยกเลิกทั้งหมด (เฉพาะสิทธิ์ที่แสดงอยู่จากการค้นหา/กรอง)
         function toggleAll(check) {
-            $('input[name="perms[]"]').each(function() { $(this).prop('checked', check); updateCardStyle(this); });
+            $('.perm-item:visible input[name="perms[]"]').each(function() { 
+                $(this).prop('checked', check); 
+                updateCardStyle(this); 
+            });
         }
 
         function updateCardStyle(checkbox) {
@@ -410,13 +489,21 @@ $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_i
 
         function savePerms() {
             const formData = $('#permForm').serialize();
+            
+            // ปิด Modal ก่อนและแสดง Loading
+            bootstrap.Modal.getInstance(document.getElementById('permModal')).hide();
+            Swal.fire({
+                title: 'กำลังบันทึกสิทธิ์...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
             $.post('dept_permissions.php', formData, function(res) {
                 if(res.trim() === 'success') {
-                    Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'อัปเดตสิทธิ์เรียบร้อย', timer: 1500, showConfirmButton: false });
-                    bootstrap.Modal.getInstance(document.getElementById('permModal')).hide();
+                    Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'อัปเดตสิทธิ์ของแผนกเรียบร้อย', timer: 1500, showConfirmButton: false });
                     loadTable();
                 } else {
-                    Swal.fire('ผิดพลาด', 'บันทึกไม่สำเร็จ', 'error');
+                    Swal.fire('ผิดพลาด', 'บันทึกข้อมูลไม่สำเร็จ', 'error');
                 }
             });
         }

@@ -1,7 +1,7 @@
 <?php
 // send_otp.php
 session_start();
-require '../config/config.php'; // ดึงไฟล์เชื่อมต่อฐานข้อมูล
+require '../config/config.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -14,8 +14,8 @@ if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     exit;
 }
 
-// --- 1. ดึงข้อมูลอีเมลร้านค้าจากฐานข้อมูล ---
-$shop_id = $_SESSION['shop_id'] ?? 1; // สมมติว่ามี session shop_id เก็บไว้อยู่
+// ดึงข้อมูลอีเมลร้านค้าจากฐานข้อมูล 
+$shop_id = $_SESSION['shop_id'] ?? 1;
 $stmt_shop = $conn->prepare("SELECT shop_name, shop_email, shop_app_password FROM shop_info WHERE shop_id = ?");
 $stmt_shop->bind_param("i", $shop_id);
 $stmt_shop->execute();
@@ -28,13 +28,12 @@ if (!$shop_info || empty($shop_info['shop_email']) || empty($shop_info['shop_app
     exit;
 }
 
-// --- 2. สร้างรหัส OTP และเก็บลง Session ---
+// สร้างรหัส OTP และเก็บลง Session 
 $otp = sprintf("%06d", mt_rand(1, 999999));
 $_SESSION['otp_code'] = $otp;
 $_SESSION['otp_expires'] = time() + (5 * 60); // หมดอายุใน 5 นาที
 
-// --- 3. ตั้งค่าการส่งอีเมลด้วย PHPMailer ---
-// (อย่าลืมปรับ Path ของ autoload.php ให้ตรงกับโฟลเดอร์ vendor ของคุณ)
+// ตั้งค่าการส่งอีเมลด้วย PHPMailer
 require '../vendor/autoload.php'; 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;

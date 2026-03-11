@@ -1,5 +1,4 @@
 <?php
-// verify_otp.php
 session_start();
 header('Content-Type: application/json; charset=utf-8');
 
@@ -26,7 +25,7 @@ if (time() > $_SESSION['otp_expires']) {
 
 // ตรวจสอบความถูกต้อง
 if ($user_otp === $_SESSION['otp_code']) {
-    // ถูกต้อง! เซ็ตสถานะยืนยันตัวตนสำเร็จ
+    // ถูกต้อง เซ็ตสถานะยืนยันตัวตนสำเร็จ
     $_SESSION['email_verified'] = true; 
     unset($_SESSION['otp_code']); // ล้างรหัสทิ้งเพื่อความปลอดภัย
     

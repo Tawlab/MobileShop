@@ -3,12 +3,12 @@ session_start();
 require '../config/config.php';
 checkPageAccess($conn, 'add_shop');
 
-//  ดึงข้อมูล Address Dropdowns
+// ดึงข้อมูล Address Dropdowns
 $provinces_result = mysqli_query($conn, "SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
 $districts_result = mysqli_query($conn, "SELECT district_id, district_name_th, provinces_province_id FROM districts");
 $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_name_th, districts_district_id, zip_code FROM subdistricts");
 
-//  เก็บข้อมูล dropdown 
+// เก็บข้อมูล dropdown 
 $all_districts = $districts_result->fetch_all(MYSQLI_ASSOC);
 $all_subdistricts = $subdistricts_result->fetch_all(MYSQLI_ASSOC);
 
@@ -67,23 +67,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-
     if (empty($errors)) {
         $conn->begin_transaction();
         try {
-
             // สร้าง Shop ID อัตโนมัติ (MAX + 1) 
             $sql_max_shop_id = "SELECT MAX(shop_id) AS max_id FROM shop_info";
             $max_shop_result = $conn->query($sql_max_shop_id);
             $max_shop_row = $max_shop_result->fetch_assoc();
             $new_shop_id = ($max_shop_row['max_id'] ?? 0) + 1;
 
-            //  สร้าง Address ID อัตโนมัติ (MAX + 1) 
+            // สร้าง Address ID อัตโนมัติ (MAX + 1) 
             $sql_max_addr_id = "SELECT MAX(address_id) AS max_id FROM addresses";
             $max_addr_result = $conn->query($sql_max_addr_id);
             $max_addr_row = $max_addr_result->fetch_assoc();
             $new_address_id = ($max_addr_row['max_id'] ?? 0) + 1;
-
 
             //สร้าง Address
             $stmt_addr = $conn->prepare("INSERT INTO addresses (
@@ -102,7 +99,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_addr->execute();
             $stmt_addr->close();
 
-
             // สร้าง Shop Info 
             $stmt_shop = $conn->prepare("INSERT INTO shop_info (
                 shop_id, shop_name, tax_id, shop_phone, shop_email, logo, 
@@ -118,14 +114,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $shop_phone,
                 $shop_email,
                 $logo_db_string,
-                $shop_app_password, 
-                $promptpay_number, 
+                $shop_app_password,
+                $promptpay_number,
                 $new_address_id
             );
             $stmt_shop->execute();
             $stmt_shop->close();
 
-            // (9) ถ้าสำเร็จทั้งหมด
+            // ถ้าสำเร็จทั้งหมด
             $conn->commit();
             $_SESSION['success_message'] = "บันทึกข้อมูลร้านค้า (ID: $new_shop_id) สำเร็จ!";
             echo "<script>window.location.href = 'shop.php';</script>";
@@ -133,9 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (Exception $e) {
             // ถ้ายกเลิก
             $conn->rollback();
-            // ตรวจสอบว่า Error เกิดจาก Primary Key (ID ซ้ำ
             if ($conn->errno == 1062) {
-                //  Duplicate entry
                 if (strpos($e->getMessage(), 'addresses.PRIMARY') !== false) {
                     $_SESSION['error_message'] = "เกิดข้อผิดพลาด: Address ID ($new_address_id) นี้มีอยู่แล้ว";
                 } elseif (strpos($e->getMessage(), 'shop_info.PRIMARY') !== false) {
@@ -165,6 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css" rel="stylesheet">
 
     <?php require '../config/load_theme.php'; ?>
     <style>
@@ -251,8 +246,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .btn-success:hover {
-            color: white;
             filter: brightness(90%);
+            color: white;
         }
 
         .btn-secondary {
@@ -269,7 +264,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             color: #e53e3e;
         }
 
-        /* (CSS การอัปโหลดรูปภาพ) */
         .image-upload-container {
             border: 2px dashed #cbd5e0;
             border-radius: 10px;
@@ -325,7 +319,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #dc2626;
         }
 
-        /* (CSS Alerts) */
         .custom-alert {
             position: fixed;
             top: 20px;
@@ -408,10 +401,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <i class="fas fa-check-circle fa-lg"></i>
                         <div>
                             <strong>สำเร็จ!</strong><br>
-                            <?php
-                            echo $_SESSION['success_message'];
-                            unset($_SESSION['success_message']);
-                            ?>
+                            <?php echo $_SESSION['success_message'];
+                            unset($_SESSION['success_message']); ?>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -421,10 +412,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <i class="fas fa-exclamation-circle fa-lg"></i>
                         <div>
                             <strong>ผิดพลาด!</strong><br>
-                            <?php
-                            echo $_SESSION['error_message'];
-                            unset($_SESSION['error_message']);
-                            ?>
+                            <?php echo $_SESSION['error_message'];
+                            unset($_SESSION['error_message']); ?>
                         </div>
                     </div>
                 <?php endif; ?>
@@ -450,7 +439,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <input type="text" name="tax_id" id="tax_id" class="form-control" required
                                         placeholder="เลขประจำตัวผู้เสียภาษี 13 หลัก"
                                         value="<?= htmlspecialchars($_POST['tax_id'] ?? '') ?>" maxlength="20">
-                                    <div class="error-feedback">กรุณากรอกเลขประจำตัวผู้เสียภาษี</div>
                                 </div>
                             </div>
                         </div>
@@ -526,14 +514,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <input type="text" name="shop_phone" id="shop_phone" class="form-control"
                                         maxlength="10" placeholder="0xxxxxxxxx (10 หลัก)"
                                         value="<?= htmlspecialchars($_POST['shop_phone'] ?? '') ?>">
-                                    <div id="phone_no_error" class="error-feedback">เบอร์โทรไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้น 02, 05, 06, 08, 09)</div>
                                 </div>
                                 <div>
-                                    <label class="form-label">อีเมล</label>
-                                    <input type="email" name="shop_email" id="shop_email" class="form-control"
-                                        maxlength="50" placeholder="example@email.com"
-                                        value="<?= htmlspecialchars($_POST['shop_email'] ?? '') ?>">
-                                    <div id="email_error" class="error-feedback">รูปแบบอีเมลไม่ถูกต้อง</div>
+                                    <label class="form-label">อีเมล <span class="text-muted small">(ไม่บังคับ / หากกรอกต้องยืนยัน OTP)</span></label>
+                                    <div class="input-group">
+                                        <input type="email" name="shop_email" id="shop_email" class="form-control"
+                                            maxlength="50" placeholder="example@email.com"
+                                            value="<?= htmlspecialchars($_POST['shop_email'] ?? '') ?>">
+                                        <button type="button" id="btnSendShopOTP" class="btn btn-outline-success" style="display:none;">ส่ง OTP</button>
+                                    </div>
+
+                                    <div id="shopOtpBox" class="mt-2 p-3 border rounded bg-light shadow-sm" style="display:none;">
+                                        <label class="small fw-bold text-success mb-2">รหัส OTP 6 หลักถูกส่งไปยังอีเมลแล้ว</label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="text" id="shop_otp_code" class="form-control" maxlength="6" placeholder="******">
+                                            <button type="button" id="btnVerifyShopOTP" class="btn btn-success">ยืนยัน</button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -557,7 +554,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             value="<?= htmlspecialchars($_POST['shop_app_password'] ?? '') ?>">
                                     </div>
                                     <div class="text-muted small mt-1">
-                                        <i class="fas fa-info-circle text-info"></i> รหัสความปลอดภัย 16 หลักจาก Google Account สำหรับตั้งค่าระบบส่งอีเมลแจ้งเตือน (ไม่ใช่รหัสผ่าน Login ปกติ)
+                                        <i class="fas fa-info-circle text-info"></i> รหัสความปลอดภัย 16 หลักจาก Google Account สำหรับตั้งค่าระบบส่งอีเมลแจ้งเตือน
                                     </div>
                                 </div>
                             </div>
@@ -565,7 +562,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <div class="form-section">
                             <h5><i class="fas fa-images me-2"></i>โลโก้ร้านค้า และรูปภาพเพิ่มเติม (สูงสุด 4 รูป)</h5>
-                            
+
                             <div class="alert alert-info py-2 small mb-3">
                                 <i class="fas fa-info-circle me-1"></i> รูปภาพแรกที่อัปโหลดจะถูกใช้เป็น <strong>โลโก้ (Logo)</strong> ของร้านค้าบนหัวบิลและเอกสารต่างๆ
                             </div>
@@ -591,6 +588,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
     <script>
         // Address data
         const districts = <?php echo json_encode($all_districts); ?>;
@@ -599,7 +599,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         const provinceSelect = document.getElementById('provinceSelect');
         const districtSelect = document.getElementById('districtSelect');
         const subdistrictSelect = document.getElementById('subdistrictSelect');
-        const zipcodeInput = document.getElementById('zip_code_display'); // (ช่องแสดงผล)
+        const zipcodeInput = document.getElementById('zip_code_display');
 
         provinceSelect.addEventListener('change', function() {
             const provinceId = this.value;
@@ -730,7 +730,215 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             updateFileInput();
         });
 
-        // Form validation
+
+        // -------------------------------------------------------------------------
+        // --- เริ่มต้นส่วน AJAX & SweetAlert การตรวจสอบข้อมูล (Validation) ---------
+        // -------------------------------------------------------------------------
+
+        async function checkDuplicate(action, fieldName, value, inputElement) {
+            try {
+                let formData = new FormData();
+                formData.append('action', action);
+                formData.append(fieldName, value);
+
+                let response = await fetch('check_availability.php', {
+                    method: 'POST',
+                    body: formData
+                });
+                let res = await response.json();
+
+                if (res.status === 'taken') {
+                    inputElement.classList.add('is-invalid');
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'ข้อมูลซ้ำ!',
+                        text: res.message || 'ข้อมูลนี้ถูกใช้งานในระบบแล้ว'
+                    });
+                    return false;
+                } else {
+                    inputElement.classList.remove('is-invalid');
+                    return true;
+                }
+            } catch (error) {
+                console.error('Error fetching data:', error);
+                return true;
+            }
+        }
+
+        // 1. ตรวจสอบเลขผู้เสียภาษี (Tax ID)
+        const taxInput = document.getElementById('tax_id');
+        // ฟังก์ชันคำนวณความถูกต้องของเลข 13 หลัก (Mod 11)
+        function validateThaiTaxID(id) {
+            if (id.length !== 13) return false;
+            let sum = 0;
+            for (let i = 0; i < 12; i++) {
+                sum += parseInt(id.charAt(i)) * (13 - i);
+            }
+            let check = (11 - (sum % 11)) % 10;
+            return check === parseInt(id.charAt(12));
+        }
+
+        if (taxInput) {
+            taxInput.addEventListener('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+
+            taxInput.addEventListener('blur', function() {
+                let tax = this.value.trim();
+
+                if (tax.length > 0) {
+                    if (tax.length !== 13) {
+                        // เช็คความยาว
+                        this.classList.add('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'เลขประจำตัวผู้เสียภาษีต้องมี 13 หลัก', 'error');
+                    } else if (!validateThaiTaxID(tax)) {
+                        // เพิ่มการตรวจสอบตามสูตรคำนวณ
+                        this.classList.add('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'เลขประจำตัวผู้เสียภาษีไม่ถูกต้อง', 'error');
+                    } else {
+                        // ถ้าความยาวครบ 13 หลัก และถูกตามสูตร ค่อยส่งไปเช็คซ้ำในฐานข้อมูล
+                        checkDuplicate('check_tax_id', 'tax_id', tax, this);
+                    }
+                } else {
+                    // ถ้าเว้นว่างไว้ ให้ลบขอบแดงออก
+                    this.classList.remove('is-invalid');
+                }
+            });
+        }
+
+        // 2. ตรวจสอบเบอร์โทรศัพท์ (Phone)
+        const phoneInput = document.getElementById('shop_phone');
+        if (phoneInput) {
+            phoneInput.addEventListener('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+
+            phoneInput.addEventListener('blur', function() {
+                let phone = this.value.trim();
+                const phonePattern = /^(02|05|06|08|09)[0-9]{8}$/;
+
+                if (phone.length > 0) {
+                    if (!phonePattern.test(phone)) {
+                        this.classList.add('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ไม่ถูกต้อง (ขึ้นต้นด้วย 02,05,06,08,09 และมี 10 หลัก)', 'warning');
+                    } else {
+                        checkDuplicate('check_phone', 'phone', phone, this);
+                    }
+                } else {
+                    this.classList.remove('is-invalid');
+                }
+            });
+        }
+
+        // ตัวแปรเช็คสถานะ OTP
+        let isShopEmailVerified = true; // ค่าเริ่มต้น true เพราะไม่บังคับกรอก
+
+        // 3. ตรวจสอบอีเมล (Email) และระบบ OTP
+        const emailInput = document.getElementById('shop_email');
+        if (emailInput) {
+            emailInput.addEventListener('input', function() {
+                const email = this.value.trim();
+                if (email.length > 0) {
+                    document.getElementById('btnSendShopOTP').style.display = 'block';
+                    isShopEmailVerified = false; // ถ้าพิมพ์อีเมล บังคับว่าต้องยืนยัน
+                } else {
+                    document.getElementById('btnSendShopOTP').style.display = 'none';
+                    document.getElementById('shopOtpBox').style.display = 'none';
+                    isShopEmailVerified = true; // ปล่อยว่างได้ อนุญาตให้ผ่าน
+                    this.classList.remove('is-invalid');
+                    this.readOnly = false; // ปลดล็อคช่องกรอก
+                }
+            });
+
+            emailInput.addEventListener('blur', function() {
+                let email = this.value.trim();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                if (email.length > 0) {
+                    if (!emailRegex.test(email)) {
+                        this.classList.add('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'รูปแบบอีเมลไม่ถูกต้อง', 'warning');
+                        document.getElementById('btnSendShopOTP').style.display = 'none';
+                    } else {
+                        // เช็คข้อมูลซ้ำในฐานข้อมูล
+                        checkDuplicate('check_email', 'email', email, this).then(isPass => {
+                            if (!isPass) {
+                                document.getElementById('btnSendShopOTP').style.display = 'none';
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        // --- ฟังก์ชันปุ่มส่ง OTP ---
+        document.getElementById('btnSendShopOTP')?.addEventListener('click', function() {
+            const email = document.getElementById('shop_email').value.trim();
+            if (!email || document.getElementById('shop_email').classList.contains('is-invalid')) return;
+
+            const btn = this;
+            btn.disabled = true;
+            btn.innerHTML = 'กำลังส่ง...';
+
+            fetch('send_otp.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: email
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire('สำเร็จ', 'ส่งรหัส OTP ไปที่อีเมลร้านค้าของคุณแล้ว', 'success');
+                        document.getElementById('shopOtpBox').style.display = 'block';
+                    } else {
+                        Swal.fire('ผิดพลาด', data.message, 'error');
+                    }
+                })
+                .catch(err => Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ส่งอีเมลได้', 'error'))
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = 'ส่ง OTP';
+                });
+        });
+
+        // --- ฟังก์ชันปุ่มยืนยัน OTP ---
+        document.getElementById('btnVerifyShopOTP')?.addEventListener('click', function() {
+            const otp = document.getElementById('shop_otp_code').value.trim();
+            if (otp.length !== 6) return Swal.fire('แจ้งเตือน', 'กรุณากรอก OTP 6 หลักให้ครบ', 'warning');
+
+            fetch('verify_otp.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        otp: otp
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        Swal.fire('สำเร็จ', 'ยืนยันอีเมลร้านค้าสำเร็จ', 'success');
+                        isShopEmailVerified = true;
+                        document.getElementById('shopOtpBox').style.display = 'none';
+                        document.getElementById('btnSendShopOTP').style.display = 'none';
+                        document.getElementById('shop_email').classList.remove('is-invalid');
+                        document.getElementById('shop_email').readOnly = true; // ล็อคช่องอีเมลป้องกันการแก้
+                    } else {
+                        Swal.fire('รหัสไม่ถูกต้อง', data.message, 'error');
+                    }
+                });
+        });
+        // -------------------------------------------------------------------------
+        // --- สิ้นสุดส่วน AJAX & SweetAlert ---------------------------------------
+        // -------------------------------------------------------------------------
+
+
+        // Basic error highlighting function
         function showError(input, message) {
             input.classList.add('is-invalid');
             let errorDiv = input.nextElementSibling;
@@ -754,48 +962,63 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // Validation fields 
-        const emailInput = document.getElementById("shop_email");
-        const emailError = document.getElementById("email_error");
-        emailInput.addEventListener("input", function() {
-            const value = emailInput.value.trim();
-            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-            if (value && !emailRegex.test(value)) {
-                emailError.style.display = "block";
-                emailInput.classList.add("is-invalid");
-            } else {
-                emailError.style.display = "none";
-                emailInput.classList.remove("is-invalid");
-            }
-        });
+        // Form submission validation
+        const form = document.getElementById('shopForm');
+        form.addEventListener('submit', function(e) {
+            let isValid = true;
 
-        const phoneInput = document.getElementById("shop_phone");
-        const phoneError = document.getElementById("phone_no_error");
-
-        phoneInput.addEventListener("input", function() {
-            // ลบตัวอักษรที่ไม่ใช่ตัวเลขออกทันที (พิมพ์ ก-ฮ หรือ a-z ไม่ได้)
-            this.value = this.value.replace(/[^0-9]/g, '');
-
-            const value = this.value.trim();
-
-            //ตรวจสอบเงื่อนไข
-            const phonePattern = /^(02|05|06|08|09)[0-9]{8}$/;
-
-            if (value.length > 0) {
-                if (!phonePattern.test(value)) {
-                    phoneError.style.display = "block";
-                    phoneInput.classList.add("is-invalid");
+            // ตรวจสอบช่องที่บังคับกรอก (Required fields)
+            const requiredFields = form.querySelectorAll('input[required], select[required]');
+            requiredFields.forEach(field => {
+                if (!field.value.trim()) {
+                    showError(field, 'กรุณากรอกข้อมูลในช่องนี้');
+                    isValid = false;
                 } else {
-                    phoneError.style.display = "none";
-                    phoneInput.classList.remove("is-invalid");
+                    hideError(field);
                 }
-            } else {
-                phoneError.style.display = "none";
-                phoneInput.classList.remove("is-invalid");
+            });
+            if (!isShopEmailVerified) {
+                e.preventDefault();
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'รอสักครู่',
+                    text: 'คุณกรอกอีเมลไว้ กรุณากดส่งและยืนยันรหัส OTP ให้เสร็จสิ้นก่อนบันทึก'
+                });
+                return; // หยุดการทำงานของฟอร์มทันที
+            }
+            // ตรวจสอบว่ามีช่องไหนติดคลาส 'is-invalid' จาก AJAX หรือ Regex หรือไม่
+            if (emailInput && emailInput.classList.contains('is-invalid')) isValid = false;
+            if (phoneInput && phoneInput.classList.contains('is-invalid')) isValid = false;
+            if (taxInput && taxInput.classList.contains('is-invalid')) isValid = false;
+
+            if (!isValid) {
+                e.preventDefault();
+                const firstError = form.querySelector('.is-invalid');
+                if (firstError) firstError.focus();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ข้อมูลไม่ครบถ้วน',
+                    text: 'กรุณาตรวจสอบและแก้ไขข้อมูลให้ถูกต้องก่อนบันทึก'
+                });
             }
         });
 
-        // Alert function
+        // Clear required error on input
+        form.querySelectorAll('input[required], select[required]').forEach(element => {
+            element.addEventListener('input', function() {
+                if (this.classList.contains('is-invalid') && this.value.trim() !== '') {
+                    hideError(this);
+                }
+            });
+
+            element.addEventListener('change', function() {
+                if (this.classList.contains('is-invalid') && this.value.trim() !== '') {
+                    hideError(this);
+                }
+            });
+        });
+
+        // Alert function (สำหรับกล่องมุมขวาบน)
         function showAlert(type, message) {
             const alertDiv = document.createElement('div');
             alertDiv.className = `custom-alert alert-${type}`;
@@ -814,49 +1037,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }, 3000);
         }
 
-        // Form submission validation
-        const form = document.getElementById('shopForm');
-        form.addEventListener('submit', function(e) {
-            let isValid = true;
-            // ตรวจสอบ Required fields
-            const requiredFields = form.querySelectorAll('input[required], select[required]');
-            requiredFields.forEach(field => {
-                if (!field.value.trim()) {
-                    showError(field, 'กรุณากรอกข้อมูลในช่องนี้');
-                    isValid = false;
-                } else {
-                    hideError(field);
-                }
-            });
-
-            // ตรวจสอบ Format
-            if (emailInput.value && emailInput.classList.contains('is-invalid')) isValid = false;
-            if (phoneInput.value && phoneInput.classList.contains('is-invalid')) isValid = false;
-
-            if (!isValid) {
-                e.preventDefault();
-                const firstError = form.querySelector('.is-invalid');
-                if (firstError) firstError.focus();
-                showAlert('error', 'กรุณาตรวจสอบข้อมูลให้ถูกต้อง');
-            }
-        });
-
-        // Clear error on input
-        form.querySelectorAll('input, select').forEach(element => {
-            element.addEventListener('input', function() {
-                if (this.classList.contains('is-invalid')) {
-                    hideError(this);
-                }
-            });
-
-            element.addEventListener('change', function() {
-                if (this.classList.contains('is-invalid')) {
-                    hideError(this);
-                }
-            });
-        });
-
-        // Auto-hide alerts
+        // Auto-hide alert boxes
         setTimeout(() => {
             const alerts = document.querySelectorAll('.custom-alert');
             alerts.forEach(alert => {

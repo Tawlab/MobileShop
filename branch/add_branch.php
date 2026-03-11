@@ -10,9 +10,7 @@ checkPageAccess($conn, 'branch');
 $current_shop_id = $_SESSION['shop_id'];
 $current_user_id = $_SESSION['user_id'];
 
-// --------------------------------------------------------------------------
-// [PHP Logic] ฟังก์ชันหา ID ถัดไป (Manual Increment)
-// --------------------------------------------------------------------------
+// สร้าง ID ใหม่อัตโนมัติ
 function getNextId($conn, $table, $column) {
     $sql = "SELECT MAX($column) as max_id FROM $table";
     $result = mysqli_query($conn, $sql);
@@ -32,16 +30,13 @@ if ($stmt = $conn->prepare($chk_sql)) {
     $stmt->close();
 }
 
-// ==========================================================================================
-// [1] FORM SUBMISSION: บันทึกข้อมูล (AJAX)
-// ==========================================================================================
+// Submit Form (AJAX)
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     ob_clean(); 
     header('Content-Type: application/json');
     
     try {
-        // 1. รับค่าและ Validate
-        // ถ้าเป็น Admin ให้ใช้ค่าจาก Post, ถ้าไม่ใช่ให้ใช้ ID ร้านตัวเอง
+        // รับค่าและ Validate
         $shop_id = ($is_super_admin && !empty($_POST['shop_id'])) ? intval($_POST['shop_id']) : $current_shop_id;
         
         $branch_name = trim($_POST['branch_name']);
@@ -58,6 +53,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (empty($branch_name)) throw new Exception("กรุณากรอกชื่อสาขา");
         if ($subdistrict_id <= 0) throw new Exception("กรุณาเลือก ตำบล/แขวง ให้ถูกต้อง");
 
+        // ตรวจสอบเบอร์โทรศัพท์ด้วย PHP (Backend Validation)
+        if (!empty($branch_phone) && !preg_match('/^(02|05|06|08|09)[0-9]{8}$/', $branch_phone)) {
+            throw new Exception("เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องเป็นตัวเลข 10 หลัก และขึ้นต้นด้วย 02, 05, 06, 08, 09)");
+        }
+
         // ตรวจสอบชื่อสาขาซ้ำ (ในร้านเดียวกัน)
         $chk_sql = "SELECT branch_id FROM branches WHERE branch_name = ? AND shop_info_shop_id = ?";
         $stmt = $conn->prepare($chk_sql);
@@ -68,10 +68,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
 
-        // 2. เริ่ม Transaction
+        // เริ่ม Transaction
         $conn->begin_transaction();
 
-        // Step 1: บันทึกที่อยู่ (Addresses)
+        // บันทึกที่อยู่ (Addresses)
         $new_address_id = getNextId($conn, 'addresses', 'address_id'); 
         $sql_addr = "INSERT INTO addresses (address_id, home_no, moo, soi, road, subdistricts_subdistrict_id) 
                      VALUES (?, ?, ?, ?, ?, ?)";
@@ -81,7 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if (!$stmt->execute()) throw new Exception("บันทึกที่อยู่ไม่สำเร็จ: " . $stmt->error);
         $stmt->close();
 
-        // Step 2: บันทึกสาขา (Branches)
+        // บันทึกสาขา (Branches)
         $new_branch_id = getNextId($conn, 'branches', 'branch_id');
         $sql_branch = "INSERT INTO branches (branch_id, branch_code, branch_name, branch_phone, Addresses_address_id, shop_info_shop_id, create_at, update_at) 
                        VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())";
@@ -95,7 +95,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         $stmt->close();
 
-        // 3. Commit
+        // Commit
         $conn->commit();
         echo json_encode(['status' => 'success', 'message' => 'บันทึกสำเร็จ รหัสสาขา: ' . $new_branch_id]);
 
@@ -107,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // ==========================================================================================
-// [2] PRE-FETCH DATA
+// PRE-FETCH DATA
 // ==========================================================================================
 $shops = ($is_super_admin) ? $conn->query("SELECT shop_id, shop_name FROM shop_info ORDER BY shop_name") : null;
 $provinces_res = $conn->query("SELECT province_id, province_name_th FROM provinces ORDER BY province_name_th");
@@ -180,7 +180,9 @@ ob_end_flush();
                                                     <?php endwhile; ?>
                                                 </select>
                                             </div>
-                                            <div class="col-md-6"></div> <?php endif; ?>
+                                            <div class="col-md-6"></div> 
+                                        <?php endif; ?>
+
                                         <div class="col-md-6">
                                             <label class="form-label fw-bold">ชื่อสาขา <span class="required-star">*</span></label>
                                             <div class="input-group">
@@ -196,7 +198,8 @@ ob_end_flush();
 
                                         <div class="col-md-3">
                                             <label class="form-label fw-bold">เบอร์โทรศัพท์</label>
-                                            <input type="text" class="form-control" name="branch_phone" placeholder="02-xxx-xxxx">
+                                            <input type="text" class="form-control" name="branch_phone" id="branch_phone" maxlength="10" placeholder="0xxxxxxxxx (10 หลัก)">
+                                            <div class="invalid-feedback">เบอร์โทรศัพท์ไม่ถูกต้อง หรือมีในระบบแล้ว</div>
                                         </div>
                                     </div>
 
@@ -277,7 +280,40 @@ ob_end_flush();
             // Init Select2
             $('.select2').select2({ theme: 'bootstrap-5', width: '100%', placeholder: 'กรุณาเลือก' });
 
-            // 1. เปลี่ยนจังหวัด -> อัปเดตอำเภอ
+            // ---------------------------------------------------------
+            // ระบบตรวจสอบเบอร์โทรศัพท์ (Phone Validation) AJAX + Regex
+            // ---------------------------------------------------------
+            $('#branch_phone').on('input', function() {
+                // บังคับพิมพ์เฉพาะตัวเลข
+                this.value = this.value.replace(/[^0-9]/g, '');
+            });
+
+            $('#branch_phone').on('blur', function() {
+                let el = $(this);
+                let phone = el.val().trim();
+                const phonePattern = /^(02|05|06|08|09)[0-9]{8}$/;
+
+                if (phone.length > 0) {
+                    if (!phonePattern.test(phone)) {
+                        el.addClass('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ต้องขึ้นต้นด้วย 02, 05, 06, 08 หรือ 09 และมี 10 หลัก', 'warning');
+                    } else {
+                        // เช็คเบอร์ซ้ำในระบบด้วย AJAX
+                        $.post('check_availability.php', { action: 'check_phone', phone: phone }, function(res) {
+                            if (res.status === 'taken') {
+                                el.addClass('is-invalid');
+                                Swal.fire('ข้อมูลซ้ำ', 'เบอร์โทรศัพท์นี้มีในระบบแล้ว', 'warning');
+                            } else {
+                                el.removeClass('is-invalid');
+                            }
+                        }, 'json');
+                    }
+                } else {
+                    el.removeClass('is-invalid'); // ไม่บังคับกรอก (ถ้าปล่อยว่างให้ผ่าน)
+                }
+            });
+
+            // เปลี่ยนจังหวัด -> อัปเดตอำเภอ
             $('#provinceSelect').on('change', function() {
                 const pId = $(this).val();
                 const $dSelect = $('#districtSelect');
@@ -294,7 +330,7 @@ ob_end_flush();
                 }
             });
 
-            // 2. เปลี่ยนอำเภอ -> อัปเดตตำบล
+            // เปลี่ยนอำเภอ -> อัปเดตตำบล
             $('#districtSelect').on('change', function() {
                 const dId = $(this).val();
                 const $sSelect = $('#subdistrictSelect');
@@ -313,15 +349,21 @@ ob_end_flush();
                 }
             });
 
-            // 3. เปลี่ยนตำบล -> Zipcode
+            // เปลี่ยนตำบล -> Zipcode
             $('#subdistrictSelect').on('change', function() {
                 const zip = $(this).find(':selected').data('zip');
                 $('#zipcodeDisplay').text(zip ? zip : '-');
             });
 
-            // 4. Submit Form via AJAX
+            // Submit Form via AJAX
             $('#addBranchForm').on('submit', function(e) {
                 e.preventDefault();
+
+                // ตรวจสอบว่าเบอร์โทรติดสถานะ Invalid หรือไม่
+                if ($('#branch_phone').hasClass('is-invalid')) {
+                    Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาแก้ไขเบอร์โทรศัพท์ให้ถูกต้องและไม่ซ้ำกับระบบ', 'warning');
+                    return;
+                }
                 
                 if (!this.checkValidity()) {
                     e.stopPropagation();

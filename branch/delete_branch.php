@@ -2,7 +2,7 @@
 session_start();
 require '../config/config.php';
 
-// ตรวจสอบสิทธิ์ (ใช้ชื่อสิทธิ์ del_branch หรือตามที่คุณตั้ง)
+// ตรวจสอบสิทธิ์ 
 checkPageAccess($conn, 'delete_branch');
 
 // ตรวจสอบ ID
@@ -54,6 +54,6 @@ try {
     }
 }
 
-// กลับไปหน้าตาราง
+// กลับไปหน้า branch.php
 header('Location: branch.php');
 exit;
