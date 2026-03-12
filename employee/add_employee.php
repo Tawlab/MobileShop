@@ -40,19 +40,15 @@ if ($is_admin) {
 }
 
 // Departments & Branches
-// Admin: โหลดทั้งหมด
+// Admin: โหลดทั้งหมด เพื่อนำไปให้ JavaScript กรองตาม Shop ที่เลือก
 // User:  โหลดเฉพาะของ "สาขาตัวเอง"
 if ($is_admin) {
-    $dept_sql = "SELECT * FROM departments";
-    $branch_sql = "SELECT * FROM branches";
+    $dept_sql = "SELECT dept_id, dept_name, shop_info_shop_id FROM departments";
+    $branch_sql = "SELECT branch_id, branch_name, shop_info_shop_id FROM branches";
 } else {
-    // User ทั่วไป: กรองด้วย branch_id ที่หามาได้
-    $dept_sql = "SELECT * FROM departments WHERE branches_branch_id = '$current_branch_id'";
-
-    // สาขาก็ต้องล็อคไว้ที่สาขาตัวเองเช่นกัน
-    $branch_sql = "SELECT * FROM branches WHERE branch_id = '$current_branch_id'";
+    $dept_sql = "SELECT dept_id, dept_name, shop_info_shop_id FROM departments WHERE branches_branch_id = '$current_branch_id'";
+    $branch_sql = "SELECT branch_id, branch_name, shop_info_shop_id FROM branches WHERE branch_id = '$current_branch_id'";
 }
-
 
 $depts_res = $conn->query($dept_sql);
 $depts_data = [];
@@ -95,6 +91,10 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
     <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
     <link href="add_employee.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
+    <style>
+        /* จัดการขอบแดงเมื่อกรอกผิด */
+        .is-invalid { border-color: #dc3545 !important; }
+    </style>
 </head>
 
 <body>
@@ -152,7 +152,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                                 </div>
                                                 <div class="col-md-4">
                                                     <label class="form-label fw-bold">เลขบัตรประชาชน (13 หลัก) <span class="required-star">*</span></label>
-                                                    <input type="text" class="form-control" name="emp_national_id" maxlength="13" required pattern="\d{13}">
+                                                    <input type="text" class="form-control" id="emp_national_id" name="emp_national_id" maxlength="13" required>
                                                 </div>
                                                 <div class="col-md-5">
                                                     <label class="form-label">คำนำหน้า</label>
@@ -162,10 +162,22 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                                                         <?php endwhile; ?>
                                                     </select>
                                                 </div>
-                                                <div class="col-md-6"><label class="form-label fw-bold">ชื่อ (ไทย) <span class="required-star">*</span></label><input type="text" class="form-control" name="firstname_th" required></div>
-                                                <div class="col-md-6"><label class="form-label fw-bold">นามสกุล (ไทย) <span class="required-star">*</span></label><input type="text" class="form-control" name="lastname_th" required></div>
-                                                <div class="col-md-6"><label class="form-label">ชื่อ (อังกฤษ)</label><input type="text" class="form-control" name="firstname_en"></div>
-                                                <div class="col-md-6"><label class="form-label">นามสกุล (อังกฤษ)</label><input type="text" class="form-control" name="lastname_en"></div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-bold">ชื่อ (ไทย) <span class="required-star">*</span></label>
+                                                    <input type="text" class="form-control" name="firstname_th" id="firstname_th" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label fw-bold">นามสกุล (ไทย) <span class="required-star">*</span></label>
+                                                    <input type="text" class="form-control" name="lastname_th" id="lastname_th" required>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">ชื่อ (อังกฤษ) <span class="text-muted small">(กรอกเฉพาะ A-Z)</span></label>
+                                                    <input type="text" class="form-control" name="firstname_en" id="firstname_en">
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <label class="form-label">นามสกุล (อังกฤษ) <span class="text-muted small">(กรอกเฉพาะ A-Z)</span></label>
+                                                    <input type="text" class="form-control" name="lastname_en" id="lastname_en">
+                                                </div>
                                                 <div class="col-md-3"><label class="form-label">วันเกิด</label><input type="date" class="form-control" name="emp_birthday"></div>
                                                 <div class="col-md-3">
                                                     <label class="form-label">เพศ</label>
@@ -189,22 +201,24 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
                                     <div class="form-section-title">ข้อมูลการติดต่อ</div>
                                     <div class="row g-3">
-                                        <div class="col-md-4"><label class="form-label fw-bold">เบอร์โทรศัพท์ <span class="required-star">*</span></label><input type="text" class="form-control" name="emp_phone_no"></div>
+                                        <div class="col-md-4">
+                                            <label class="form-label fw-bold">เบอร์โทรศัพท์ <span class="required-star">*</span></label>
+                                            <input type="text" class="form-control" id="emp_phone_no" name="emp_phone_no" maxlength="10" required>
+                                        </div>
                                         <div class="col-md-6">
-                                            <label class="form-label fw-bold">อีเมลพนักงาน <span class="required-star">*</span></label>
+                                            <label class="form-label fw-bold">อีเมลพนักงาน <span class="text-muted small">(ไม่บังคับ / หากกรอกต้องยืนยัน OTP)</span></label>
                                             <div class="input-group">
-                                                <input type="email" class="form-control" name="emp_email" id="emp_email" required>
-                                                <button type="button" class="btn btn-outline-primary" id="btnSendOTP">ส่งรหัส OTP</button>
+                                                <input type="email" class="form-control" name="emp_email" id="emp_email">
+                                                <button type="button" class="btn btn-outline-primary" id="btnSendOTP" style="display:none;">ส่งรหัส OTP</button>
                                             </div>
                                         </div>
 
-                                        <div id="otpSection" style="display:none;" class="col-md-6 mt-2">
-                                            <label class="form-label">กรอกรหัส OTP 6 หลักที่ได้รับในอีเมล</label>
+                                        <div id="otpSection" style="display:none;" class="col-md-6 offset-md-4 mt-2">
+                                            <label class="form-label text-success small fw-bold">กรอกรหัส OTP 6 หลักที่ได้รับในอีเมล</label>
                                             <div class="input-group">
                                                 <input type="text" class="form-control" id="otp_code" maxlength="6">
                                                 <button type="button" class="btn btn-success" id="btnVerifyOTP">ยืนยันรหัส</button>
                                             </div>
-                                            <small class="text-success" id="verifyStatus"></small>
                                         </div>
                                         <div class="col-md-4"><label class="form-label">LINE ID</label><input type="text" class="form-control" name="emp_line_id"></div>
                                     </div>
@@ -332,69 +346,56 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
     <script>
         const allLocations = <?= json_encode($all_locations) ?>;
         const isAdmin = <?= json_encode($is_admin) ?>;
-        let isEmailVerified = false;
+        
+        // ข้อมูลสำหรับ Dropdown แผนกและสาขา
+        const deptsData = <?= json_encode($depts_data) ?>;
+        const branchesData = <?= json_encode($branches_data) ?>;
+        
+        let isEmailVerified = true; // ค่าเริ่มต้นเป็น true เพราะเมลไม่บังคับกรอก
 
-        // ส่วนส่ง OTP 
-        $('#btnSendOTP').on('click', function() {
-            const email = $('#emp_email').val();
-            if (!email) return Swal.fire('คำเตือน', 'กรุณากรอกอีเมลก่อน', 'warning');
-
-            const btn = $(this);
-            btn.prop('disabled', true).text('กำลังส่ง...');
-
-            fetch('send_otp.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ emp_email: email })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        Swal.fire('สำเร็จ', data.message, 'success');
-                        $('#otpSection').fadeIn(); // แสดงช่องกรอกรหัส
-                    } else {
-                        Swal.fire('ผิดพลาด', data.message, 'error');
-                    }
-                })
-                .catch(err => Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error'))
-                .finally(() => btn.prop('disabled', false).text('ส่งรหัส OTP'));
-        });
-
-        // ส่วนยืนยัน OTP
-        $('#btnVerifyOTP').on('click', function() {
-            const otp = $('#otp_code').val();
-            if (!otp) return Swal.fire('คำเตือน', 'กรุณากรอกรหัส OTP', 'warning');
-
-            fetch('verify_otp.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        otp: otp
-                    })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        Swal.fire('สำเร็จ', data.message, 'success');
-                        $('#otp_code').addClass('is-valid').prop('readonly', true);
-                        $('#btnVerifyOTP').prop('disabled', true).text('ยืนยันแล้ว');
-                    } else {
-                        Swal.fire('ผิดพลาด', data.message, 'error');
-                    }
-                });
-        });
         $(document).ready(function() {
             // ตั้งค่า Select2
-            $('.select2').select2({
-                theme: 'bootstrap-5',
-                width: '100%'
+            $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
+
+            // ------------------------------------------------------------------
+            // 5. ปรับปรุงการโหลดแผนกและสาขาเมื่อ Admin เลือกร้านค้า
+            // ------------------------------------------------------------------
+            if (isAdmin) {
+                $('#shopSelect').on('change', function() {
+                    const shopId = $(this).val();
+                    const $branchSelect = $('#branchSelect');
+                    const $deptSelect = $('#deptSelect');
+
+                    // เคลียร์ค่าเก่า
+                    $branchSelect.empty().append('<option value="">-- กรุณาเลือกสาขา --</option>');
+                    $deptSelect.empty().append('<option value="">-- กรุณาเลือกแผนก --</option>');
+
+                    if (shopId) {
+                        // กรองสาขาตาม Shop ID
+                        const filteredBranches = branchesData.filter(b => b.shop_info_shop_id == shopId);
+                        filteredBranches.forEach(b => $branchSelect.append(new Option(b.branch_name, b.branch_id)));
+
+                        // กรองแผนกตาม Shop ID
+                        const filteredDepts = deptsData.filter(d => d.shop_info_shop_id == shopId);
+                        filteredDepts.forEach(d => $deptSelect.append(new Option(d.dept_name, d.dept_id)));
+                    }
+                });
+            }
+
+            // ------------------------------------------------------------------
+            // 2. ตรวจสอบการกรอกภาษาชื่อ-นามสกุล
+            // ------------------------------------------------------------------
+            $('#firstname_th, #lastname_th').on('input', function() {
+                this.value = this.value.replace(/[^ก-๙\s]/g, ''); // บังคับภาษาไทย
             });
 
-            // ตรวจสอบเลขบัตรประชาชน 
+            $('#firstname_en, #lastname_en').on('input', function() {
+                this.value = this.value.replace(/[^a-zA-Z\s]/g, ''); // บังคับภาษาอังกฤษ
+            });
+
+            // ------------------------------------------------------------------
+            // 1. ตรวจสอบเลขบัตรประชาชน (Real-time + สูตรคำนวณ + AJAX)
+            // ------------------------------------------------------------------
             function validateThaiID(id) {
                 if (id.length !== 13 || !/^\d{13}$/.test(id)) return false;
                 let sum = 0;
@@ -403,14 +404,155 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 return check === parseInt(id.charAt(12));
             }
 
-            // จำกัดภาษา
-            window.filterInput = function(input, type) {
-                if (type === 'th') input.value = input.value.replace(/[^ก-๙\s]/g, '');
-                if (type === 'en') input.value = input.value.replace(/[^a-zA-Z\s]/g, '');
-                if (type === 'num') input.value = input.value.replace(/[^0-9]/g, '');
-            };
+            $('#emp_national_id').on('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, ''); // พิมพ์ได้แค่ตัวเลข
+            }).on('blur', function() {
+                let el = $(this);
+                let val = el.val().trim();
+                
+                if (val.length > 0) {
+                    if (val.length !== 13 || !validateThaiID(val)) {
+                        el.addClass('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'เลขบัตรประชาชนไม่ถูกต้องตามสูตรคำนวณ', 'error');
+                    } else {
+                        // เช็คข้อมูลซ้ำในฐานข้อมูล
+                        $.post('check_availability.php', { action: 'check_national_id', national_id: val }, function(res) {
+                            if (res.status === 'taken') {
+                                el.addClass('is-invalid');
+                                Swal.fire('ข้อมูลซ้ำ', 'เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว', 'warning');
+                            } else {
+                                el.removeClass('is-invalid');
+                            }
+                        }, 'json');
+                    }
+                } else {
+                    el.removeClass('is-invalid');
+                }
+            });
 
+            // ------------------------------------------------------------------
+            // 3. ตรวจสอบเบอร์โทรศัพท์ (Real-time + Regex + AJAX)
+            // ------------------------------------------------------------------
+            $('#emp_phone_no').on('input', function() {
+                this.value = this.value.replace(/[^0-9]/g, ''); // พิมพ์ได้แค่ตัวเลข
+            }).on('blur', function() {
+                let el = $(this);
+                let val = el.val().trim();
+                const phonePattern = /^(02|05|06|08|09)\d{8}$/;
+
+                if (val.length > 0) {
+                    if (!phonePattern.test(val)) {
+                        el.addClass('is-invalid');
+                        Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย 02,05,06,08,09 และมี 10 หลัก)', 'error');
+                    } else {
+                        // เช็คข้อมูลซ้ำ
+                        $.post('check_availability.php', { action: 'check_phone', phone: val }, function(res) {
+                            if (res.status === 'taken') {
+                                el.addClass('is-invalid');
+                                Swal.fire('ข้อมูลซ้ำ', 'เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว', 'warning');
+                            } else {
+                                el.removeClass('is-invalid');
+                            }
+                        }, 'json');
+                    }
+                } else {
+                    el.removeClass('is-invalid');
+                }
+            });
+
+            // ------------------------------------------------------------------
+            // 4. ระบบ OTP กรณีมีการกรอกอีเมล
+            // ------------------------------------------------------------------
+            $('#emp_email').on('input', function() {
+                const email = $(this).val().trim();
+                if (email.length > 0) {
+                    $('#btnSendOTP').fadeIn();
+                    isEmailVerified = false; // ถ้าพิมพ์อีเมล บังคับต้องยืนยัน
+                } else {
+                    $('#btnSendOTP').fadeOut();
+                    $('#otpSection').fadeOut();
+                    isEmailVerified = true; // ปล่อยว่างได้
+                    $(this).removeClass('is-invalid');
+                }
+            }).on('blur', function() {
+                let el = $(this);
+                let email = el.val().trim();
+                const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+                if (email.length > 0) {
+                    if (!emailRegex.test(email)) {
+                        el.addClass('is-invalid');
+                        Swal.fire('ผิดพลาด', 'รูปแบบอีเมลไม่ถูกต้อง', 'warning');
+                        $('#btnSendOTP').hide();
+                    } else {
+                        $.post('check_availability.php', { action: 'check_email', email: email }, function(res) {
+                            if (res.status === 'taken') {
+                                el.addClass('is-invalid');
+                                Swal.fire('อีเมลซ้ำ', 'อีเมลนี้ถูกใช้งานแล้ว', 'warning');
+                                $('#btnSendOTP').hide();
+                            } else {
+                                el.removeClass('is-invalid');
+                                $('#btnSendOTP').show();
+                            }
+                        }, 'json');
+                    }
+                }
+            });
+
+            // ปุ่มส่ง OTP 
+            $('#btnSendOTP').on('click', function() {
+                const email = $('#emp_email').val();
+                if ($('#emp_email').hasClass('is-invalid') || !email) return;
+
+                const btn = $(this);
+                btn.prop('disabled', true).text('กำลังส่ง...');
+
+                fetch('send_otp.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email: email }) // ใช้ email key ให้ตรงกับ send_otp
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            Swal.fire('สำเร็จ', 'รหัส OTP ถูกส่งไปยังอีเมลของคุณแล้ว', 'success');
+                            $('#otpSection').fadeIn();
+                        } else {
+                            Swal.fire('ผิดพลาด', data.message, 'error');
+                        }
+                    })
+                    .catch(err => Swal.fire('ผิดพลาด', 'ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้', 'error'))
+                    .finally(() => btn.prop('disabled', false).text('ส่งรหัส OTP'));
+            });
+
+            // ปุ่มยืนยัน OTP
+            $('#btnVerifyOTP').on('click', function() {
+                const otp = $('#otp_code').val();
+                if (otp.length !== 6) return Swal.fire('คำเตือน', 'กรุณากรอกรหัส OTP 6 หลัก', 'warning');
+
+                fetch('verify_otp.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ otp: otp })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            Swal.fire('สำเร็จ', 'ยืนยันอีเมลสำเร็จ', 'success');
+                            $('#otp_code').addClass('is-valid').prop('readonly', true);
+                            $('#btnVerifyOTP').prop('disabled', true).text('ยืนยันแล้ว');
+                            $('#btnSendOTP').hide();
+                            $('#emp_email').prop('readonly', true);
+                            isEmailVerified = true; // ยืนยันผ่านแล้ว
+                        } else {
+                            Swal.fire('ผิดพลาด', data.message, 'error');
+                        }
+                    });
+            });
+
+            // ------------------------------------------------------------------
             // ระบบที่อยู่
+            // ------------------------------------------------------------------
             $('#provinceSelect').on('change', function() {
                 const pId = $(this).val();
                 const $distSelect = $('#districtSelect'); 
@@ -440,18 +582,30 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                 $subSelect.trigger('change');
             });
 
-            $('#subdistrictSelect').on('change', function() {
-                $('#zipcodeField').val($(this).find(':selected').data('zip') || '');
-            });
-
+            // ------------------------------------------------------------------
             // บันทึกข้อมูล
+            // ------------------------------------------------------------------
             $('#addEmpForm').on('submit', function(e) {
                 e.preventDefault();
-                const nationalID = $('input[name="emp_national_id"]').val();
-                const phone = $('input[name="emp_phone_no"]').val();
 
-                if (!validateThaiID(nationalID)) return Swal.fire('ผิดพลาด', 'เลขบัตรประชาชนไม่ถูกต้อง', 'error');
-                if (!/^(06|08|09)\d{8}$/.test(phone)) return Swal.fire('ผิดพลาด', 'รูปแบบเบอร์โทรศัพท์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย 06, 08, 09)', 'error');
+                // เช็คว่ามีช่องไหนติด Error (ขอบแดง) อยู่หรือไม่
+                if ($('.is-invalid').length > 0) {
+                    Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาแก้ไขข้อมูลที่มีขอบสีแดงให้ถูกต้อง', 'warning');
+                    return;
+                }
+
+                // เช็คสถานะการยืนยัน OTP (กรณีมีการกรอกอีเมล)
+                if (!isEmailVerified) {
+                    Swal.fire('รอสักครู่', 'คุณกรอกอีเมลไว้ กรุณากดส่งและยืนยันรหัส OTP ให้เสร็จสิ้นก่อน', 'warning');
+                    return;
+                }
+
+                // ตรวจสอบข้อมูล HTML5 Required
+                if (!this.checkValidity()) {
+                    e.stopPropagation();
+                    $(this).addClass('was-validated');
+                    return;
+                }
 
                 const formData = new FormData(this);
                 Swal.fire({
@@ -465,8 +619,11 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                     })
                     .then(res => res.json())
                     .then(data => {
-                        if (data.status === 'success') Swal.fire('สำเร็จ', data.message, 'success').then(() => window.location.href = 'employee.php');
-                        else Swal.fire('ผิดพลาด', data.message, 'error');
+                        if (data.status === 'success') {
+                            Swal.fire('สำเร็จ', data.message, 'success').then(() => window.location.href = 'employee.php');
+                        } else {
+                            Swal.fire('ผิดพลาด', data.message, 'error');
+                        }
                     });
             });
         });
