@@ -70,7 +70,7 @@ if (isset($_GET['ajax'])) {
                     <?php if ($is_super_admin): ?>
                         <th width="15%" class="text-center">สังกัดร้าน</th>
                     <?php endif; ?>
-                    <th width="20%">ที่อยู่/เบอร์โทร</th>
+                    <th width="20%">ที่อยู่</th>
                     <th width="10%" class="text-center">สถานะ</th>
                     <th width="10%" class="text-center">จัดการ</th>
                 </tr>
@@ -98,7 +98,7 @@ if (isset($_GET['ajax'])) {
                     </td>
                     <?php endif; ?>
                     <td>
-                        <div class="small"><i class="bi bi-telephone-fill me-1 text-success"></i> <?= htmlspecialchars($row['branch_phone']) ?></div>
+                        <!-- <div class="small"><i class="bi bi-telephone-fill me-1 text-success"></i> <?= htmlspecialchars($row['branch_phone']) ?></div> -->
                         <div class="small text-muted text-truncate" style="max-width: 200px;" title="<?= htmlspecialchars($row['province_name_th']) ?>">
                             <i class="bi bi-geo-alt-fill me-1 text-danger"></i> <?= htmlspecialchars($row['province_name_th'] ?? '-') ?>
                         </div>

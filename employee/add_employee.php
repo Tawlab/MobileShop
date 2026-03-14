@@ -93,7 +93,9 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
     <?php require '../config/load_theme.php'; ?>
     <style>
         /* จัดการขอบแดงเมื่อกรอกผิด */
-        .is-invalid { border-color: #dc3545 !important; }
+        .is-invalid {
+            border-color: #dc3545 !important;
+        }
     </style>
 </head>
 
@@ -346,16 +348,19 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
     <script>
         const allLocations = <?= json_encode($all_locations) ?>;
         const isAdmin = <?= json_encode($is_admin) ?>;
-        
+
         // ข้อมูลสำหรับ Dropdown แผนกและสาขา
         const deptsData = <?= json_encode($depts_data) ?>;
         const branchesData = <?= json_encode($branches_data) ?>;
-        
+
         let isEmailVerified = true; // ค่าเริ่มต้นเป็น true เพราะเมลไม่บังคับกรอก
 
         $(document).ready(function() {
             // ตั้งค่า Select2
-            $('.select2').select2({ theme: 'bootstrap-5', width: '100%' });
+            $('.select2').select2({
+                theme: 'bootstrap-5',
+                width: '100%'
+            });
 
             // ------------------------------------------------------------------
             // 5. ปรับปรุงการโหลดแผนกและสาขาเมื่อ Admin เลือกร้านค้า
@@ -406,17 +411,21 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
             $('#emp_national_id').on('input', function() {
                 this.value = this.value.replace(/[^0-9]/g, ''); // พิมพ์ได้แค่ตัวเลข
+                $(this).removeClass('is-invalid'); // ลบขอบแดงทันทีที่เริ่มพิมพ์แก้ไข
             }).on('blur', function() {
                 let el = $(this);
                 let val = el.val().trim();
-                
+
                 if (val.length > 0) {
                     if (val.length !== 13 || !validateThaiID(val)) {
                         el.addClass('is-invalid');
                         Swal.fire('รูปแบบผิดพลาด', 'เลขบัตรประชาชนไม่ถูกต้องตามสูตรคำนวณ', 'error');
                     } else {
                         // เช็คข้อมูลซ้ำในฐานข้อมูล
-                        $.post('check_availability.php', { action: 'check_national_id', national_id: val }, function(res) {
+                        $.post('check_availability.php', {
+                            action: 'check_national_id',
+                            national_id: val
+                        }, function(res) {
                             if (res.status === 'taken') {
                                 el.addClass('is-invalid');
                                 Swal.fire('ข้อมูลซ้ำ', 'เลขบัตรประชาชนนี้มีอยู่ในระบบแล้ว', 'warning');
@@ -446,7 +455,10 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                         Swal.fire('รูปแบบผิดพลาด', 'เบอร์โทรศัพท์ไม่ถูกต้อง (ต้องขึ้นต้นด้วย 02,05,06,08,09 และมี 10 หลัก)', 'error');
                     } else {
                         // เช็คข้อมูลซ้ำ
-                        $.post('check_availability.php', { action: 'check_phone', phone: val }, function(res) {
+                        $.post('check_availability.php', {
+                            action: 'check_phone',
+                            phone: val
+                        }, function(res) {
                             if (res.status === 'taken') {
                                 el.addClass('is-invalid');
                                 Swal.fire('ข้อมูลซ้ำ', 'เบอร์โทรศัพท์นี้ถูกใช้งานแล้ว', 'warning');
@@ -485,7 +497,10 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
                         Swal.fire('ผิดพลาด', 'รูปแบบอีเมลไม่ถูกต้อง', 'warning');
                         $('#btnSendOTP').hide();
                     } else {
-                        $.post('check_availability.php', { action: 'check_email', email: email }, function(res) {
+                        $.post('check_availability.php', {
+                            action: 'check_email',
+                            email: email
+                        }, function(res) {
                             if (res.status === 'taken') {
                                 el.addClass('is-invalid');
                                 Swal.fire('อีเมลซ้ำ', 'อีเมลนี้ถูกใช้งานแล้ว', 'warning');
@@ -509,8 +524,12 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
                 fetch('send_otp.php', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email: email }) // ใช้ email key ให้ตรงกับ send_otp
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            email: email
+                        }) // ใช้ email key ให้ตรงกับ send_otp
                     })
                     .then(res => res.json())
                     .then(data => {
@@ -532,8 +551,12 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
 
                 fetch('verify_otp.php', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ otp: otp })
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            otp: otp
+                        })
                     })
                     .then(res => res.json())
                     .then(data => {
@@ -555,7 +578,7 @@ while ($row = $subdistricts_res->fetch_assoc()) $all_locations[] = $row;
             // ------------------------------------------------------------------
             $('#provinceSelect').on('change', function() {
                 const pId = $(this).val();
-                const $distSelect = $('#districtSelect'); 
+                const $distSelect = $('#districtSelect');
                 $distSelect.empty().append('<option value="">-- เลือกอำเภอ --</option>').prop('disabled', !pId);
                 $('#subdistrictSelect').empty().append('<option value="">-- เลือกตำบล --</option>').prop('disabled', true);
 

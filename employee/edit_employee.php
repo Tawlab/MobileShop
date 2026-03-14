@@ -75,7 +75,7 @@ $subdistricts_result = mysqli_query($conn, "SELECT subdistrict_id, subdistrict_n
 
 // ส่วนอัปเดตข้อมูล (POST)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
+    
     // ตรวจสอบว่า ID ที่ส่งมาตรงกัน
     $post_emp_id = (int)$_POST['emp_id'];
     if ($post_emp_id !== $emp_id) {

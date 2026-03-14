@@ -13,6 +13,10 @@ if (file_exists($vendorDir . 'Exception.php')) {
     require_once $vendorDir . 'SMTP.php';
 }
 
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
+
 // ตรวจสอบสิทธิ์การเข้าถึงหน้าเว็บ
 checkPageAccess($conn, 'add_repair');
 
@@ -50,8 +54,6 @@ if ($is_admin) {
 }
 
 // --- ดึงข้อมูลสำหรับ Dropdown ---
-// Admin จะยังไม่โหลดลูกค้า/พนักงาน (รอเลือกสาขาผ่าน AJAX)
-// User ทั่วไป ให้โหลดข้อมูลของสาขาตัวเองทันที
 $customers_list = [];
 $employees_list = [];
 
@@ -72,10 +74,6 @@ if (!$is_admin) {
     $res_emp = $conn->query($sql_emp);
     while ($row = $res_emp->fetch_assoc()) $employees_list[] = $row;
 }
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
 
 // -----------------------------------------------------------------------------
 //  ฟังก์ชันช่วยงานต่างๆ
@@ -109,24 +107,19 @@ function getNextBillId($conn)
     return mysqli_fetch_assoc($result)['next_id'];
 }
 
-// ฟังก์ชันเช็คสต็อก
-// เพื่อตรวจสอบว่า Serial นี้มีอยู่ในสาขานั้นๆ หรือยัง
 function getStockIdBySerial($conn, $serial, $branch_id = null)
 {
     $sql = "SELECT stock_id, stock_status, products_prod_id FROM prod_stocks WHERE serial_no = ?";
-
-    // ถ้ามีการระบุสาขา ให้เพิ่มเงื่อนไข WHERE เช็คสาขาด้วย
     if ($branch_id) {
         $sql .= " AND branches_branch_id = " . (int)$branch_id;
     }
-
     $stmt = $conn->prepare($sql);
     $stmt->bind_param("s", $serial);
     $stmt->execute();
     return $stmt->get_result()->fetch_assoc();
 }
 
-// --- ฟังก์ชันส่งอีเมล  ---
+// --- ฟังก์ชันส่งอีเมล ---
 function sendJobOrderEmail($to_email, $customer_name, $repair_id, $device_name, $serial_no, $symptoms_txt, $shop_name, $sender_email, $sender_password)
 {
     $mail = new PHPMailer(true);
@@ -205,8 +198,6 @@ function sendJobOrderEmail($to_email, $customer_name, $repair_id, $device_name, 
 // -----------------------------------------------------------------------------
 $symptoms_result = mysqli_query($conn, "SELECT symptom_id, symptom_name FROM symptoms ORDER BY symptom_name");
 
-// ดึงสินค้า (สำหรับ Dropdown เลือกเครื่องใหม่)
-// Admin เห็นสินค้าทั้งหมด, User เห็นเฉพาะสินค้าร้านตัวเอง
 if ($is_admin) {
     $prod_sql = "SELECT p.prod_id, p.prod_name, p.model_name, pb.brand_name_th 
                  FROM products p 
@@ -234,16 +225,13 @@ if (isset($_POST['action'])) {
     $response = ['success' => false];
 
     switch ($_POST['action']) {
-        // Case 1: Admin เปลี่ยนสาขา -> โหลดข้อมูลลูกค้า/พนักงานใหม่
         case 'get_branch_data':
             $target_branch_id = (int)$_POST['branch_id'];
 
-            // ดึงลูกค้าในสาขานั้น
             $cust_res = $conn->query("SELECT cs_id, firstname_th, lastname_th, cs_phone_no FROM customers WHERE branches_branch_id = '$target_branch_id' ORDER BY firstname_th ASC");
             $customers = [];
             while ($r = $cust_res->fetch_assoc()) $customers[] = $r;
 
-            // ดึงพนักงานในสาขานั้น
             $emp_res = $conn->query("SELECT emp_id, emp_code, firstname_th, lastname_th FROM employees WHERE emp_status = 'Active' AND branches_branch_id = '$target_branch_id' ORDER BY firstname_th ASC");
             $employees = [];
             while ($r = $emp_res->fetch_assoc()) $employees[] = $r;
@@ -251,10 +239,8 @@ if (isset($_POST['action'])) {
             $response = ['success' => true, 'customers' => $customers, 'employees' => $employees];
             break;
 
-        // Case 2: ค้นหาลูกค้า (กรองตามสาขา)
         case 'search_customer':
             $search = mysqli_real_escape_string($conn, $_POST['query']);
-            // รับค่า branch_id จากหน้าบ้าน (Admin เลือก หรือ User ส่งของตัวเอง)
             $target_branch_id = isset($_POST['branch_id']) ? (int)$_POST['branch_id'] : $current_branch_id;
 
             $sql = "SELECT cs_id, firstname_th, lastname_th, cs_phone_no, cs_email 
@@ -270,7 +256,6 @@ if (isset($_POST['action'])) {
             $response = ['success' => true, 'customers' => $customers];
             break;
 
-        // Case 3: ค้นหาพนักงาน (กรองตามสาขา)
         case 'search_employee':
             $search = mysqli_real_escape_string($conn, $_POST['query']);
             $target_branch_id = isset($_POST['branch_id']) ? (int)$_POST['branch_id'] : $current_branch_id;
@@ -289,28 +274,23 @@ if (isset($_POST['action'])) {
             $response = ['success' => true, 'employees' => $employees];
             break;
 
-        // Case 4: ตรวจสอบ Serial Number (Logic ตามโจทย์ข้อ 2 และ 3)
         case 'check_serial':
             $serial = mysqli_real_escape_string($conn, $_POST['serial_no']);
             $branch_id = isset($_POST['branch_id']) ? (int)$_POST['branch_id'] : 0;
 
-            // ใช้ฟังก์ชัน getStockIdBySerial ที่เพิ่ม $branch_id เข้าไปแล้ว
             $stock_info = getStockIdBySerial($conn, $serial, $branch_id);
 
             if ($stock_info) {
-                // เจอ Serial ในสาขานี้
                 $response['exists'] = true;
                 $response['stock_id'] = $stock_info['stock_id'];
                 $response['status'] = $stock_info['stock_status'];
 
-                // ดึงชื่อสินค้า
                 $prod_id = $stock_info['products_prod_id'];
                 $res_p = $conn->query("SELECT prod_name FROM products WHERE prod_id = '$prod_id'");
                 if ($r_p = $res_p->fetch_assoc()) {
                     $response['prod_name'] = $r_p['prod_name'];
                 }
             } else {
-                // ไม่เจอ Serial ในสาขานี้
                 $response['exists'] = false;
             }
             $response['success'] = true;
@@ -327,7 +307,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // ตรวจสอบและรับค่า Shop/Branch 
     if ($is_admin) {
-        // Admin: รับค่าจาก Dropdown
         $target_shop_id = isset($_POST['selected_shop_id']) ? (int)$_POST['selected_shop_id'] : 0;
         $target_branch_id = isset($_POST['selected_branch_id']) ? (int)$_POST['selected_branch_id'] : 0;
 
@@ -337,12 +316,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     } else {
-        // User: บังคับใช้ค่าจาก Session (ป้องกันการเปลี่ยนเอง)
         $target_shop_id = $current_shop_id;
         $target_branch_id = $current_branch_id;
     }
 
-    // รับค่าอื่นๆ จากฟอร์ม
     $customer_id = (int)$_POST['customer_id'];
     $employee_id = (int)$_POST['employee_id'];
     $assigned_employee_id = (int)$_POST['assigned_employee_id'];
@@ -373,31 +350,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $device_name_for_mail = "";
 
         if ($stock_info) {
-            // กรณี A: เจอเครื่องเดิมในสาขา
             $stock_id = $stock_info['stock_id'];
-
-            // อัปเดตสถานะเป็น 'Repair'
             $conn->query("UPDATE prod_stocks SET stock_status = 'Repair' WHERE stock_id = $stock_id");
 
-            // ดึงชื่อสินค้าไว้ส่งเมล
             $prod_id_ex = $stock_info['products_prod_id'];
             $res_prod = $conn->query("SELECT prod_name FROM products WHERE prod_id = $prod_id_ex");
             if ($r = $res_prod->fetch_assoc()) $device_name_for_mail = $r['prod_name'];
         } else {
-            // กรณี B: ไม่เจอในสาขา (ต้องเป็นการเพิ่มเครื่องใหม่)
             if ($is_new_device != 1 || $new_product_id <= 0) {
                 throw new Exception('Serial Number นี้ไม่มีในระบบสาขา กรุณาเลือกรุ่นสินค้าเพื่อเพิ่มเข้าสู่ระบบ');
             }
 
             $stock_id = getNextStockId($conn);
-            // สร้าง Stock ใหม่ ผูกกับสาขา $target_branch_id
             $stmt = $conn->prepare("INSERT INTO prod_stocks (stock_id, serial_no, price, stock_status, create_at, update_at, products_prod_id, branches_branch_id) VALUES (?, ?, 0.00, 'Repair', NOW(), NOW(), ?, ?)");
             $stmt->bind_param("isii", $stock_id, $serial_no, $new_product_id, $target_branch_id);
 
             if (!$stmt->execute()) throw new Exception("เพิ่มสต็อกสินค้าไม่สำเร็จ: " . $stmt->error);
             $stmt->close();
 
-            // ดึงชื่อสินค้าไว้ส่งเมล
             $res_prod = $conn->query("SELECT prod_name FROM products WHERE prod_id = $new_product_id");
             if ($r = $res_prod->fetch_assoc()) $device_name_for_mail = $r['prod_name'];
         }
@@ -416,7 +386,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ?, ?, ?, ?, NOW(), NOW()
         )";
         $stmt_bill = $conn->prepare($sql_bill);
-        // บันทึก target_branch_id ลงในบิล
         $stmt_bill->bind_param("isssisii", $bill_id, $bill_date, $bill_date, $bill_status, $customer_id, $bill_type, $target_branch_id, $employee_id);
 
         if (!$stmt_bill->execute()) throw new Exception('สร้างบิลซ่อมไม่สำเร็จ: ' . $stmt_bill->error);
@@ -431,7 +400,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'รับเครื่อง', ?, ?, NOW(), NOW())";
 
         $stmt_repair = $conn->prepare($sql_repair);
-        // บันทึก target_branch_id ลงในใบแจ้งซ่อม
         $stmt_repair->bind_param("iiiiissdsii", $repair_id, $customer_id, $employee_id, $assigned_employee_id, $stock_id, $repair_desc, $device_description, $estimated_cost, $accessories_list, $bill_id, $target_branch_id);
 
         if (!$stmt_repair->execute()) throw new Exception('บันทึกงานซ่อมไม่สำเร็จ: ' . $stmt_repair->error);
@@ -445,7 +413,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_move->execute();
         $stmt_move->close();
 
-        // บันทึกอาการเสีย (Repair Symptoms)
+        // บันทึกอาการเสีย (Repair Symptoms) แบบ Composite Key
         $sql_symptoms = "INSERT INTO repair_symptoms (repairs_repair_id, symptoms_symptom_id) VALUES ";
         $values = [];
         $params = [];
@@ -457,6 +425,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $params[] = $repair_id;
             $params[] = (int)$sid;
             $types .= 'ii';
+            
             // เก็บชื่ออาการไว้ส่งเมล
             $res_sym = $conn->query("SELECT symptom_name FROM symptoms WHERE symptom_id = " . (int)$sid);
             if ($row_sym = $res_sym->fetch_assoc()) $symptoms_text_arr[] = $row_sym['symptom_name'];
@@ -483,7 +452,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $cust_email = $cust_data['cs_email'];
             $cust_name = $cust_data['firstname_th'] . " " . $cust_data['lastname_th'];
 
-            // ดึงข้อมูลอีเมลร้านค้า (ผู้ส่ง) ตาม target_shop_id
             $res_shop = $conn->query("SELECT shop_name, shop_email, shop_app_password FROM shop_info WHERE shop_id = '$target_shop_id' LIMIT 1");
             $shop_data = $res_shop->fetch_assoc();
 
@@ -508,7 +476,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $_SESSION['success'] = "✅ รับเครื่องซ่อมสำเร็จ: Job #$repair_id";
-        header("Location: view_repair.php?id=$repair_id"); // แก้ไขให้ Redirect ไปหน้าที่ต้องการ
+        header("Location: view_repair.php?id=$repair_id");
         exit;
     } catch (Exception $e) {
         mysqli_rollback($conn);

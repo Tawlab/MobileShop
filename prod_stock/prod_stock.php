@@ -50,18 +50,18 @@ if (isset($_GET['ajax'])) {
     $status_f = isset($_GET['status']) ? $_GET['status'] : '';
     $p_min = isset($_GET['p_min']) && $_GET['p_min'] !== '' ? (float)$_GET['p_min'] : '';
     $p_max = isset($_GET['p_max']) && $_GET['p_max'] !== '' ? (float)$_GET['p_max'] : '';
-    
+
     // รับค่าตัวกรองร้าน/สาขา (สำหรับ Admin)
     $shop_f = isset($_GET['shop_filter']) ? $_GET['shop_filter'] : '';
     $branch_f = isset($_GET['branch_filter']) ? $_GET['branch_filter'] : '';
 
     $page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
-    $limit = 20; 
+    $limit = 20;
     $offset = ($page - 1) * $limit;
 
     // --- สร้างเงื่อนไข WHERE ---
     $conditions = [];
-    
+
     if ($is_super_admin) {
         if (!empty($branch_f)) {
             $conditions[] = "ps.branches_branch_id = '$branch_f'";
@@ -130,16 +130,16 @@ if (isset($_GET['ajax'])) {
                             'Repair' => 'bg-info',
                             default => 'bg-secondary'
                         };
-                        
+
                         // ตรวจสอบว่าเป็นของส่วนกลางหรือไม่
                         $is_central_stock = ($row['branches_branch_id'] == 0);
-                        
+
                         // สิทธิ์การแก้ไข
                         $can_edit = false;
                         if ($is_super_admin) {
                             $can_edit = true; // แอดมินทำได้หมด
                         } elseif ($is_central_stock) {
-                            $can_edit = $has_central_perm; 
+                            $can_edit = $has_central_perm;
                         } elseif ($row['branches_branch_id'] == $branch_id) {
                             $can_edit = true; // แก้ไขของตัวเองได้
                         }
@@ -158,7 +158,7 @@ if (isset($_GET['ajax'])) {
                             </td>
                             <td class="text-end fw-bold text-success">฿<?= number_format($row['price'], 2) ?></td>
                             <td class="text-center"><span class="badge <?= $status_class ?> bg-opacity-10 text-dark border px-3 rounded-pill"><?= $row['stock_status'] ?></span></td>
-                            
+
                             <td class="text-center small">
                                 <?php if ($is_central_stock): ?>
                                     <span class="badge bg-dark"><i class="bi bi-globe2 me-1"></i> ส่วนกลาง</span>
@@ -167,13 +167,15 @@ if (isset($_GET['ajax'])) {
                                     <div class="text-muted"><?= htmlspecialchars($row['branch_name'] ?? '-') ?></div>
                                 <?php endif; ?>
                             </td>
-                            
+
                             <td class="text-center">
                                 <div class="d-flex justify-content-center gap-1">
+                                    <a href="view_stock.php?id=<?= $row['stock_id'] ?>" class="btn btn-outline-info btn-sm border-0" title="ดูรายละเอียด"><i class="bi bi-eye"></i></a>
+
                                     <?php if ($can_edit): ?>
-                                        <a href="edit_stock.php?id=<?= $row['stock_id'] ?>" class="btn btn-outline-warning btn-sm border-0"><i class="bi bi-pencil-square"></i></a>
+                                        <a href="edit_stock.php?id=<?= $row['stock_id'] ?>" class="btn btn-outline-warning btn-sm border-0" title="แก้ไข"><i class="bi bi-pencil-square"></i></a>
                                         <?php if ($row['stock_status'] != 'Sold'): ?>
-                                            <button onclick="confirmDelete(<?= $row['stock_id'] ?>, '<?= addslashes($row['prod_name']) ?>')" class="btn btn-outline-danger btn-sm border-0"><i class="bi bi-trash3-fill"></i></button>
+                                            <button onclick="confirmDelete(<?= $row['stock_id'] ?>, '<?= addslashes($row['prod_name']) ?>')" class="btn btn-outline-danger btn-sm border-0" title="ลบ"><i class="bi bi-trash3-fill"></i></button>
                                         <?php endif; ?>
                                     <?php else: ?>
                                         <button class="btn btn-outline-secondary btn-sm border-0" disabled title="ไม่มีสิทธิ์แก้ไข">
@@ -192,7 +194,7 @@ if (isset($_GET['ajax'])) {
             </tbody>
         </table>
     </div>
-    
+
     <?php if ($total_pages > 1): ?>
         <nav class="mt-4">
             <ul class="pagination justify-content-center pagination-sm">
@@ -224,6 +226,7 @@ if ($is_super_admin) {
 
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <title>สต็อกสินค้า - Mobile Shop</title>
@@ -233,15 +236,49 @@ if ($is_super_admin) {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     <?php require '../config/load_theme.php'; ?>
     <style>
-        body { background-color: #f8fafc; font-family: 'Prompt', sans-serif; }
-        .main-card { border-radius: 15px; border: none; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05); overflow: hidden; }
-        .card-header-custom { background: linear-gradient(135deg, #198754 0%, #14532d 100%); padding: 1.5rem; }
-        .card-header-custom h4 { color: #ffffff !important; font-weight: 600; margin-bottom: 0; }
-        .pagination .page-link { border-radius: 8px; margin: 0 3px; color: #198754; font-weight: 600; border: none; }
-        .pagination .page-item.active .page-link { background-color: #198754; color: white; }
-        .form-select-sm-custom { font-size: 0.9rem; padding: 0.4rem 2rem 0.4rem 0.75rem; }
+        body {
+            background-color: #f8fafc;
+            font-family: 'Prompt', sans-serif;
+        }
+
+        .main-card {
+            border-radius: 15px;
+            border: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+
+        .card-header-custom {
+            background: linear-gradient(135deg, #198754 0%, #14532d 100%);
+            padding: 1.5rem;
+        }
+
+        .card-header-custom h4 {
+            color: #ffffff !important;
+            font-weight: 600;
+            margin-bottom: 0;
+        }
+
+        .pagination .page-link {
+            border-radius: 8px;
+            margin: 0 3px;
+            color: #198754;
+            font-weight: 600;
+            border: none;
+        }
+
+        .pagination .page-item.active .page-link {
+            background-color: #198754;
+            color: white;
+        }
+
+        .form-select-sm-custom {
+            font-size: 0.9rem;
+            padding: 0.4rem 2rem 0.4rem 0.75rem;
+        }
     </style>
 </head>
+
 <body>
     <div class="d-flex" id="wrapper">
         <?php include '../global/sidebar.php'; ?>
@@ -309,7 +346,9 @@ if ($is_super_admin) {
                                         </div>
 
                                         <?php if ($is_super_admin): ?>
-                                            <div class="col-12"><hr class="my-2 opacity-10"></div>
+                                            <div class="col-12">
+                                                <hr class="my-2 opacity-10">
+                                            </div>
                                             <div class="col-md-6">
                                                 <label class="small fw-bold text-primary mb-1"><i class="bi bi-shop me-1"></i> ร้านค้า (Shop)</label>
                                                 <select id="shopFilter" class="form-select border-primary border-opacity-25 shadow-sm bg-primary bg-opacity-10">
@@ -390,7 +429,7 @@ if ($is_super_admin) {
             const status = document.getElementById('statusFilter').value;
             const pMin = document.getElementById('pMinInput').value;
             const pMax = document.getElementById('pMaxInput').value;
-            
+
             // รับค่าจาก Shop/Branch Filter (ถ้ามี)
             const shop = document.getElementById('shopFilter')?.value || '';
             const branch = document.getElementById('branchFilter')?.value || '';
@@ -438,7 +477,7 @@ if ($is_super_admin) {
             });
             // รีเซ็ตตัวเลือกสาขาให้แสดงทั้งหมดก่อน
             const branchSelect = document.getElementById('branchFilter');
-            if(branchSelect) {
+            if (branchSelect) {
                 Array.from(branchSelect.options).forEach(opt => opt.style.display = 'block');
             }
             fetchStockData(1);
@@ -447,12 +486,12 @@ if ($is_super_admin) {
         // Event Listeners สำหรับการเปลี่ยนแปลงค่าต่างๆ
         ['searchInput', 'pMinInput', 'pMaxInput'].forEach(id => {
             const el = document.getElementById(id);
-            if(el) el.addEventListener('input', () => fetchStockData(1));
+            if (el) el.addEventListener('input', () => fetchStockData(1));
         });
-        
+
         ['brandFilter', 'typeFilter', 'statusFilter', 'shopFilter', 'branchFilter'].forEach(id => {
             const el = document.getElementById(id);
-            if(el) el.addEventListener('change', () => fetchStockData(1));
+            if (el) el.addEventListener('change', () => fetchStockData(1));
         });
 
         // กรองสาขา เมื่อเลือกร้านค้า
@@ -460,7 +499,7 @@ if ($is_super_admin) {
             const shopId = this.value;
             const branchSelect = document.getElementById('branchFilter');
             branchSelect.value = ''; // รีเซ็ตค่าสาขาที่เลือก
-            
+
             Array.from(branchSelect.options).forEach(opt => {
                 if (opt.value === '') {
                     opt.style.display = 'block'; // แสดงตัวเลือก "ทั้งหมด" เสมอ
@@ -491,4 +530,5 @@ if ($is_super_admin) {
         window.onload = () => fetchStockData();
     </script>
 </body>
+
 </html>
